@@ -1,0 +1,31 @@
+# 평일 오전 7시(KST)에 자동 실행 → GitHub Pages 주소로 스마트폰에서 확인
+name: daily-market-report
+on:
+  schedule:
+    - cron: "0 22 * * 0-4"   # UTC 22:00 = KST 07:00 (월~금)
+  workflow_dispatch: {}       # Actions 탭에서 수동 실행 버튼
+
+permissions:
+  contents: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 리포트 생성
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python main.py --out docs
+      - name: 리포트 저장(커밋) → Pages 자동 갱신
+        run: |
+          git config user.name  "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/ cache/
+          git commit -m "report $(TZ=Asia/Seoul date +%F)" || echo "변경 없음"
+          git push
