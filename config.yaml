@@ -1,0 +1,42 @@
+# ─────────────────────────────────────────────
+# 매일 주식 분석 리포트 설정
+# 종목을 추가/삭제하려면 아래 목록만 고치면 됩니다.
+# ─────────────────────────────────────────────
+
+lookback_days: 420        # 지표 계산용으로 가져올 과거 데이터 일수 (120일선 계산에 충분하도록)
+chart_days: 180           # 차트에 표시할 최근 일수
+output_dir: reports       # 리포트 저장 폴더
+
+claude:
+  enabled: false          # API 키가 생기면 true로 바꾸세요
+  model: claude-sonnet-5-5   # 필요 시 claude-opus-5-5 등으로 변경
+  web_search: true           # 당일 뉴스 검색 후 해설에 반영
+  max_searches: 6
+
+screening:
+  enabled: true
+  universe_file: universe.yaml   # 스크리닝 대상 종목 목록
+  refresh_days: 7                # 실적 데이터 갱신 주기(일)
+  top_n: 5                       # 항목별 표시 종목 수
+
+# code 규칙 (FinanceDataReader 기준)
+#   국내 종목: 6자리 종목코드 (예: 005930)
+#   국내 지수: KS11(코스피), KQ11(코스닥)
+#   미국 종목/ETF: 티커 (예: AAPL, SPY)
+#   미국 지수: US500(S&P500), IXIC(나스닥), DJI(다우)
+watchlist:
+  kr:
+    - { code: KS11,   name: 코스피 }
+    - { code: KQ11,   name: 코스닥 }
+    - { code: "005930", name: 삼성전자 }
+    - { code: "000660", name: SK하이닉스 }
+    - { code: "035420", name: NAVER }
+    - { code: "005380", name: 현대차 }
+  us:
+    - { code: US500, name: S&P 500 }
+    - { code: IXIC,  name: 나스닥 종합 }
+    - { code: SPY,   name: SPDR S&P500 ETF }
+    - { code: QQQ,   name: Invesco QQQ }
+    - { code: NVDA,  name: 엔비디아 }
+    - { code: AAPL,  name: 애플 }
+    - { code: GLD,   name: SPDR 금 ETF }

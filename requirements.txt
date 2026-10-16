@@ -1,0 +1,6 @@
+finance-datareader>=0.9.90
+pandas>=2.2
+numpy>=1.24
+pyyaml>=6.0
+anthropic>=0.40
+yfinance>=0.2.50
