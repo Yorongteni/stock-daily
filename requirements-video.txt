@@ -1,0 +1,7 @@
+# 리포트 PDF·유튜브 영상 생성용 (GitHub Actions에서 설치)
+markdown==3.10.2
+playwright==1.62.0
+edge-tts==7.3.0
+google-api-python-client==2.190.0
+google-auth==2.60.0
+google-auth-oauthlib==1.4.0
