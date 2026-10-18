@@ -1,0 +1,111 @@
+name: 리포트 PDF·영상 만들기
+
+# inbox 폴더에 YYYY-MM-DD.md 를 올리면 자동 실행.
+# Actions 탭에서 파일 이름을 넣어 수동 실행도 가능.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "inbox/*.md"
+  workflow_dispatch:
+    inputs:
+      file:
+        description: "inbox 폴더 안 파일 이름 (예: 2026-10-19.md)"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-report
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TTS_VOICE: ko-KR-SunHiNeural   # 남성 음성: ko-KR-InJoonNeural
+      TTS_RATE: "+8%"
+      YT_PRIVACY: private
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: 처리할 리포트 파일 찾기
+        env:
+          INPUT_FILE: ${{ github.event.inputs.file }}
+        run: |
+          if [ -n "$INPUT_FILE" ]; then
+            f="inbox/$(basename "$INPUT_FILE")"
+          else
+            f="$(git diff --name-only --diff-filter=AM HEAD~1 HEAD -- 'inbox/*.md' | tail -n 1)"
+          fi
+          name="$(basename "$f" .md)"
+          if [ ! -f "$f" ] || ! [[ "$name" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "::error::처리할 파일이 없거나 이름이 YYYY-MM-DD.md 형식이 아닙니다: '$f'"
+            exit 1
+          fi
+          echo "REPORT_FILE=$f" >> "$GITHUB_ENV"
+          echo "DATE=$name" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-video.txt
+
+      - name: 한글 글꼴·ffmpeg 설치
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q fonts-noto-cjk ffmpeg
+
+      - name: 파이썬 패키지 설치
+        run: |
+          pip install -r requirements-video.txt
+          python -m playwright install --with-deps chromium
+
+      - name: PDF·영상 만들기
+        run: python tools/build_daily.py "$REPORT_FILE" --out "out/$DATE"
+
+      - name: PDF를 저장소 reports 폴더에 보관
+        run: |
+          mkdir -p reports
+          cp "out/$DATE/$DATE.pdf" "reports/$DATE.pdf"
+          python tools/update_report_index.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reports
+          if git diff --cached --quiet; then
+            echo "변경 없음"
+          else
+            git commit -m "리포트 PDF 추가: $DATE"
+            git pull --rebase -q
+            git push
+          fi
+
+      - name: 영상·PDF를 릴리스로 올리기 (휴대폰 다운로드용)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=("out/$DATE/$DATE.pdf")
+          [ -f "out/$DATE/$DATE.mp4" ] && files+=("out/$DATE/$DATE.mp4")
+          tag="report-$DATE"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --clobber
+          else
+            notes="out/$DATE/description.txt"
+            [ -f "$notes" ] || { echo "$DATE 시장 리포트" > "$notes"; }
+            gh release create "$tag" "${files[@]}" --title "$DATE 시장 브리핑" --notes-file "$notes"
+          fi
+          echo "### $DATE 결과물" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 릴리스: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag" >> "$GITHUB_STEP_SUMMARY"
+          echo "- PDF: https://github.com/$GITHUB_REPOSITORY/blob/main/reports/$DATE.pdf" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 유튜브 업로드 (비공개)
+        if: ${{ env.YT_REFRESH_TOKEN != '' && hashFiles(format('out/{0}/youtube.json', env.DATE)) != '' }}
+        run: python tools/upload_youtube.py "out/$DATE"
