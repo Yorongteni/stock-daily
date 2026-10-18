@@ -100,13 +100,13 @@ def _cagr(vals):
 
 def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
     rows = []
-    for t, (name, market) in universe.items():
+    for t, (name, market, cat) in universe.items():
         f = fund.get(t)
         if not f:
             continue
         rev, ni = f.get("revenue") or [], f.get("net_income") or []
         row = {
-            "ticker": t, "name": name, "market": market,
+            "ticker": t, "name": name, "market": market, "category": cat,
             "sector": SECTOR_KO.get(f.get("sector"), f.get("sector") or "기타"), "industry": f.get("industry") or "",
             "pe": f.get("trailingPE"), "fpe": f.get("forwardPE"),
             "pb": f.get("priceToBook"), "ps": f.get("priceToSalesTrailing12Months"),
@@ -118,6 +118,11 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
             "years": len(rev),
         }
         p = prices.get(t)
+        if p is not None and len(p) > 25:
+            row["ret_1d"] = p.iloc[-1] / p.iloc[-2] - 1
+            row["ret_5d"] = p.iloc[-1] / p.iloc[-6] - 1
+            row["ret_20d"] = p.iloc[-1] / p.iloc[-21] - 1
+            row["above_ma20"] = bool(p.iloc[-1] > p.tail(20).mean())
         if p is not None and len(p) > 130:
             row["ret_6m"] = p.iloc[-1] / p.iloc[-127] - 1
             row["rsi"] = float(rsi(p).iloc[-1])
@@ -126,20 +131,21 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
         rows.append(row)
     df = pd.DataFrame(rows)
     num = ["pe", "fpe", "pb", "ps", "roe", "rev_g", "eps_g", "margin",
-           "rev_cagr", "ni_cagr", "ret_6m", "rsi", "vs_ma200"]
+           "rev_cagr", "ni_cagr", "ret_6m", "rsi", "vs_ma200", "ret_1d", "ret_5d", "ret_20d"]
     for c in num:
         if c not in df:
             df[c] = np.nan
         df[c] = pd.to_numeric(df[c], errors="coerce")
     df.loc[df.pe <= 0, "pe"] = np.nan
 
-    # 업종 내 PER 중앙값 (같은 시장·업종 3개 이상일 때, 아니면 시장 전체 중앙값)
-    def sector_median(g):
-        return g["pe"].median() if g["pe"].notna().sum() >= 3 else np.nan
-    sec = df.groupby(["market", "sector"]).apply(sector_median, include_groups=False)
-    mkt = df.groupby("market")["pe"].median()
-    df["pe_med"] = [sec.get((m, s), np.nan) if pd.notna(sec.get((m, s), np.nan)) else mkt.get(m)
-                    for m, s in zip(df.market, df.sector)]
+    # 비교 기준 PER: 같은 시장·같은 분야(3개 이상) → 같은 시장·야후 업종 → 시장 전체
+    def med(keys):
+        g = df.groupby(keys)["pe"]
+        m = g.median()
+        return m[g.count() >= 3]
+    by_cat, by_sec, by_mkt = med(["market", "category"]), med(["market", "sector"]), df.groupby("market")["pe"].median()
+    df["pe_med"] = [by_cat.get((m, c), by_sec.get((m, s), by_mkt.get(m)))
+                    for m, c, s in zip(df.market, df.category, df.sector)]
     df["pe_rel"] = df.pe / df.pe_med
     df["fwd_up"] = df.pe / df.fpe - 1  # +면 내년 이익 증가 예상
     return df
@@ -162,7 +168,7 @@ def _fmt(v, kind):
 
 
 # ───────────────────────── 스크리닝 ─────────────────────────
-def screen(df: pd.DataFrame, top_n=5) -> dict:
+def screen(df: pd.DataFrame, top_n=5, cap=1) -> dict:
     out = {}
 
     # 1) 저평가: 3년 흑자 + PER 있음 + ROE 양수
@@ -178,14 +184,14 @@ def screen(df: pd.DataFrame, top_n=5) -> dict:
                         "3년 순이익 성장": _fmt(r.ni_cagr, "p") + "/년"},
             "reason": f"PER이 업종 중앙값의 {r.pe_rel * 100:.0f}% 수준이고 3년 연속 흑자"
                       + (f", 순이익 연 {r.ni_cagr * 100:+.0f}% 성장" if pd.notna(r.ni_cagr) else ""),
-        } for r in v.nlargest(top_n, "score").itertuples()]
+        } for r in _diverse(v, top_n, cap).itertuples()]
 
     # 2) 성장 기대: 매출 성장 + 이익 전망 개선 + 모멘텀
     g = df[(df.rev_cagr > 0.05) | (df.rev_g > 0.1)].copy()
     if len(g):
-        g["score"] = (_by_market(g, "rev_cagr") * 0.25 + _by_market(g, "rev_g") * 0.25
-                      + _by_market(g, "eps_g") * 0.2 + _by_market(g, "fwd_up") * 0.15
-                      + _by_market(g, "ret_6m") * 0.15)
+        g["score"] = (_by_market(g, "rev_cagr") * 0.3 + _by_market(g, "rev_g") * 0.25
+                      + _by_market(g, "eps_g") * 0.2 + _by_market(g, "fwd_up") * 0.2
+                      + _by_market(g, "ret_6m") * 0.05)
         out["growth"] = [{
             **_base(r),
             "metrics": {"3년 매출 성장": _fmt(r.rev_cagr, "p") + "/년", "최근 매출 성장": _fmt(r.rev_g, "p"),
@@ -193,7 +199,7 @@ def screen(df: pd.DataFrame, top_n=5) -> dict:
                         "PER→선행PER": f"{_fmt(r.pe, 'x')}→{_fmt(r.fpe, 'x')}"},
             "reason": f"{r.industry or r.sector} 업종, 매출이 3년간 연 {_fmt(r.rev_cagr, 'p')} 늘었고 "
                       f"최근 분기 매출 {_fmt(r.rev_g, 'p')}",
-        } for r in g.nlargest(top_n, "score").itertuples()]
+        } for r in _diverse(g, top_n, cap).itertuples()]
 
     # 3) 고평가 위험: 업종 대비 PER 과다 또는 적자인데 PSR 높음 + 가격 과열
     o = df[(df.pe_rel > 1.8) | (df.pe.isna() & (df.ps > 8))].copy()
@@ -210,32 +216,85 @@ def screen(df: pd.DataFrame, top_n=5) -> dict:
             "reason": (f"PER이 업종 중앙값의 {r.pe_rel * 100:.0f}%" if pd.notna(r.pe_rel)
                        else f"최근 이익 적자인데 PSR {_fmt(r.ps, 'x')}")
                       + (f", 주가가 200일선보다 {_fmt(r.vs_ma200, 'p')} 위" if pd.notna(r.vs_ma200) and r.vs_ma200 > 0.15 else ""),
-        } for r in o.nlargest(top_n, "score").itertuples()]
+        } for r in _diverse(o, top_n, cap).itertuples()]
 
+    out["categories"] = categories(df, out)
     out["universe_size"] = int(len(df))
     return out
 
 
+def _f(v):
+    return None if v is None or pd.isna(v) else round(float(v) * 100, 2)
+
+
+def categories(df: pd.DataFrame, lists: dict) -> list:
+    """분야별 등락·추세 폭·실적·대표 종목 요약 (20일 수익률 높은 순)."""
+    flagged = {k: {r["ticker"] for r in lists.get(k, [])} for k in ("value", "growth", "overvalued")}
+    out = []
+    for cat, g in df.groupby("category", sort=False):
+        mv = g.dropna(subset=["ret_5d"]).sort_values("ret_5d")
+        pe = {m: g[g.market == m].pe.median() for m in ("kr", "us")}
+        item = {
+            "name": cat, "n": int(len(g)),
+            "ret_1d": _f(g.ret_1d.mean()), "ret_5d": _f(g.ret_5d.mean()), "ret_20d": _f(g.ret_20d.mean()),
+            "breadth": round(float(g.above_ma20.fillna(False).astype(bool).mean()) * 100) if "above_ma20" in g else None,
+            "rev_g": _f(g.rev_g.median()),
+            "pe_kr": None if pd.isna(pe["kr"]) else round(float(pe["kr"]), 1),
+            "pe_us": None if pd.isna(pe["us"]) else round(float(pe["us"]), 1),
+            "best": [mv.iloc[-1]["name"], _f(mv.iloc[-1].ret_5d)] if len(mv) else None,
+            "worst": [mv.iloc[0]["name"], _f(mv.iloc[0].ret_5d)] if len(mv) > 1 else None,
+        }
+        # 분야 안에서 실적 기준 대표 종목 (전체 목록과 별개로 분야마다 하나씩)
+        v = g[g.ni_all_pos & g.pe_rel.notna()]
+        if len(v):
+            r = v.assign(s=v.pe_rel.rank() - v.roe.rank() - v.ni_cagr.rank()).sort_values("s").iloc[0]
+            item["value_pick"] = [r["name"], f"PER {r.pe:.1f}배"]
+        gr = g[g.rev_g.notna()]
+        if len(gr):
+            r = gr.assign(s=gr.rev_g.rank() + gr.rev_cagr.rank()).sort_values("s").iloc[-1]
+            item["growth_pick"] = [r["name"], f"최근 매출 {r.rev_g * 100:+.0f}%"]
+        item["risk_names"] = [n for t, n in zip(g.ticker, g.name) if t in flagged["overvalued"]]
+        out.append(item)
+    out.sort(key=lambda x: (x["ret_20d"] is None, -(x["ret_20d"] or 0)))
+    return out
+
+
+def _diverse(d: pd.DataFrame, n: int, cap: int) -> pd.DataFrame:
+    """점수 순으로 고르되 같은 분야는 cap개까지만."""
+    picked, count = [], {}
+    for idx, r in d.sort_values("score", ascending=False).iterrows():
+        if count.get(r.category, 0) < cap:
+            picked.append(idx)
+            count[r.category] = count.get(r.category, 0) + 1
+        if len(picked) == n:
+            break
+    return d.loc[picked]
+
+
 def _base(r):
-    return {"ticker": r.ticker, "name": r.name, "market": r.market,
+    return {"ticker": r.ticker, "name": r.name, "market": r.market, "category": r.category,
             "sector": r.sector, "score": round(float(r.score) * 100)}
 
 
 def run(cfg: dict, demo=False) -> dict:
     import yaml
     uni_raw = yaml.safe_load(open(cfg.get("universe_file", "universe.yaml"), encoding="utf-8"))
-    universe = {str(t): (n, m) for m, items in uni_raw.items() for t, n in items.items()}
+    universe = {}
+    for cat, items in uni_raw.items():
+        for t, n in (items or {}).items():
+            t = str(t)
+            universe[t] = (n, "kr" if t.endswith((".KS", ".KQ")) else "us", cat)
     fund = load_fundamentals(universe, cfg.get("refresh_days", 7), demo)
     prices = load_prices(list(universe), demo)
     df = build_table(universe, fund, prices)
-    return screen(df, cfg.get("top_n", 5))
+    return screen(df, cfg.get("top_n", 5), cfg.get("max_per_category", 1))
 
 
 # ───────────────────────── 데모용 가짜 데이터 ─────────────────────────
 def _fake_fundamentals(universe):
     import zlib
     out = {}
-    for t, (n, m) in universe.items():
+    for t, (n, m, c) in universe.items():
         rng = np.random.default_rng(zlib.crc32(t.encode()))
         base = rng.uniform(1e9, 5e10)
         g = rng.normal(0.08, 0.15)

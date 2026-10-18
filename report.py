@@ -87,6 +87,26 @@ h2{font-size:18px;margin:36px 0 12px;font-weight:700}
 .box .rs{font-size:13.5px}
 .box .rk{font-size:13px;color:var(--sub);margin-top:2px}
 .box .empty{font-size:14px;color:var(--sub);padding:8px 0}
+.bars{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:12px 16px;margin-bottom:14px}
+.bar{display:grid;grid-template-columns:minmax(92px,150px) 1fr 62px;align-items:center;gap:10px;font-size:13.5px;padding:3px 0;text-decoration:none;color:inherit}
+.bar .t{position:relative;height:14px}
+.bar .t::before{content:"";position:absolute;left:50%;top:-3px;bottom:-3px;border-left:1px solid var(--line)}
+.bar .f{position:absolute;top:0;bottom:0;border-radius:2px}
+.bar .v{text-align:right;font-weight:500}
+.bars .cap{font-size:12px;color:var(--sub);margin-bottom:6px}
+.cats{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,350px),1fr));gap:12px}
+.cat{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px 16px;scroll-margin-top:12px}
+.cat .hd{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.cat h3{margin:0;font-size:16px}
+.cat h3 small{font-size:12px;color:var(--sub);font-weight:400;margin-left:4px}
+.cat .big{font-size:19px;font-weight:700}
+.cat .sm{font-size:13px;color:var(--sub)}
+.cat .sm b{color:var(--ink);font-weight:500}
+.cat .br{height:5px;background:var(--bg);border-radius:3px;margin:6px 0 8px;overflow:hidden}
+.cat .br i{display:block;height:100%;background:var(--accent)}
+.cat .ln{font-size:13.5px;margin-top:3px;display:grid;grid-template-columns:52px 1fr;gap:6px}
+.cat .ln em{font-style:normal;color:var(--sub)}
+.cat .news{font-size:13.5px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
 .err{color:var(--warn);background:var(--warn-soft);padding:12px 14px;border-radius:4px;font-size:14px}
 
 .tbl{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:4px}
@@ -192,10 +212,38 @@ if (ai.prompt && !ai.market_overview) {
 
 const SC = DATA.screens || {};
 const BOXES = [
-  ["value", "저평가 후보", "--accent", "3년 연속 흑자 기업 중 업종 대비 PER·PBR이 낮고 ROE와 이익 성장이 양호한 순"],
-  ["growth", "성장 기대 후보", "--up", "3년 매출 성장, 최근 매출·이익 증가, 이익 전망 개선, 6개월 주가 흐름을 종합한 순"],
-  ["overvalued", "고평가 위험", "--warn", "업종 대비 PER·PSR이 과도하고 주가가 과열된 순. 추격 매수 주의 대상"],
+  ["value", "저평가 후보", "--accent", "3년 연속 흑자 기업 중 같은 분야 대비 PER·PBR이 낮고 ROE와 이익 성장이 양호한 순 (분야당 1종목)"],
+  ["growth", "성장 기대 후보", "--up", "3년 매출 성장, 최근 매출·이익 증가, 이익 전망 개선을 종합한 순 (분야당 1종목)"],
+  ["overvalued", "고평가 위험", "--warn", "같은 분야 대비 PER·PSR이 과도하고 주가가 과열된 순 (분야당 1종목)"],
 ];
+
+const CATS = SC.categories || [];
+if (CATS.length) {
+  const fmt = v => v == null ? "–" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+  const mx = Math.max(5, ...CATS.map(c => Math.abs(c.ret_20d || 0)));
+  h += `<h2>분야별 동향</h2><div class="bars"><div class="cap">분야 평균 20일 등락률 (누르면 분야 상세로 이동)</div>` +
+    CATS.map((c, i) => {
+      const v = c.ret_20d || 0, w = Math.abs(v) / mx * 50;
+      const col = v >= 0 ? "var(--up)" : "var(--down)";
+      return `<a class="bar" href="#c-${i}"><span>${esc(c.name)}</span><span class="t"><span class="f" style="${v >= 0 ? `left:50%` : `right:50%`};width:${w}%;background:${col}"></span></span><span class="v ${cls(v)}">${fmt(v)}</span></a>`;
+    }).join("") + `</div><div class="cats">`;
+  const aiCat = ai.categories || {};
+  CATS.forEach((c, i) => {
+    const pe = [c.pe_kr != null ? `국내 ${c.pe_kr}배` : "", c.pe_us != null ? `미국 ${c.pe_us}배` : ""].filter(Boolean).join(" / ");
+    h += `<section class="cat" id="c-${i}"><div class="hd"><h3>${esc(c.name)}<small>${c.n}종목</small></h3>
+      <span class="big ${cls(c.ret_20d)}">${fmt(c.ret_20d)}<span class="sm"> 20일</span></span></div>
+      <div class="sm">1일 <b class="${cls(c.ret_1d)}">${fmt(c.ret_1d)}</b> · 5일 <b class="${cls(c.ret_5d)}">${fmt(c.ret_5d)}</b> · 20일선 위 <b>${c.breadth ?? "–"}%</b></div>
+      <div class="br" title="20일선 위 종목 비율"><i style="width:${c.breadth || 0}%"></i></div>
+      ${c.best ? `<div class="ln"><em>5일</em><span>강세 ${esc(c.best[0])} <span class="${cls(c.best[1])}">${fmt(c.best[1])}</span>${c.worst ? ` · 약세 ${esc(c.worst[0])} <span class="${cls(c.worst[1])}">${fmt(c.worst[1])}</span>` : ""}</span></div>` : ""}
+      <div class="ln"><em>실적</em><span>매출성장 중앙값 ${fmt(c.rev_g)}${pe ? ` · PER 중앙값 ${pe}` : ""}</span></div>
+      ${c.value_pick ? `<div class="ln"><em>저평가</em><span>${esc(c.value_pick[0])} (${esc(c.value_pick[1])})</span></div>` : ""}
+      ${c.growth_pick ? `<div class="ln"><em>성장</em><span>${esc(c.growth_pick[0])} (${esc(c.growth_pick[1])})</span></div>` : ""}
+      ${c.risk_names && c.risk_names.length ? `<div class="ln"><em>고평가</em><span>${c.risk_names.map(esc).join(", ")}</span></div>` : ""}
+      ${aiCat[c.name] ? `<div class="news">${esc(aiCat[c.name])}</div>` : ""}
+    </section>`;
+  });
+  h += `</div>`;
+}
 h += `<h2>종목 스크리닝</h2>`;
 if (SC.error) h += `<div class="err">${esc(SC.error)}</div>`;
 else if (SC.universe_size) {
@@ -204,15 +252,15 @@ else if (SC.universe_size) {
     const list = SC[key] || [];
     h += `<section class="box" style="--c:var(${color})"><h3>${title}</h3><div class="how">${how}</div><ol>` +
       (list.length ? list.map(r => `<li><div>
-        <div><span class="nm">${esc(r.name)}</span>${DATA.prev_lists && !(DATA.prev_lists[key] || []).includes(r.ticker) ? `<span class="new">신규</span>` : ""}<span class="tk">${esc(r.ticker)} · ${r.market === "kr" ? "국내" : "미국"} · ${esc(r.sector)}</span></div>
+        <div><span class="nm">${esc(r.name)}</span>${DATA.prev_lists && !(DATA.prev_lists[key] || []).includes(r.ticker) ? `<span class="new">신규</span>` : ""}<span class="tk">${esc(r.ticker)} · ${r.market === "kr" ? "국내" : "미국"} · ${esc(r.category || r.sector)}</span></div>
         <div class="mt">${Object.entries(r.metrics).map(([k, v]) => `<span>${esc(k)} <b>${esc(v)}</b></span>`).join("")}</div>
         <div class="rs">${esc(r.reason)}</div></div></li>`).join("")
         : `<div class="empty">조건에 맞는 종목이 없습니다.</div>`) + `</ol></section>`;
   }
   const picks = ai.picks || [];
   h += `<section class="box" style="--c:var(--ink)"><h3>AI 관심 종목</h3>
-    <div class="how">스크리닝 결과와 당일 뉴스를 AI가 종합한 검토 후보. 매수 권유가 아닙니다</div><ol>` +
-    (picks.length ? picks.map(p => `<li><div><div><span class="nm">${esc(p.name)}</span><span class="tk">${esc(p.ticker)}</span></div>
+    <div class="how">서로 다른 분야에서 AI가 고른 검토 후보. 매수 권유가 아닙니다</div><ol>` +
+    (picks.length ? picks.map(p => `<li><div><div><span class="nm">${esc(p.name)}</span><span class="tk">${esc(p.ticker)}${p.category ? " · " + esc(p.category) : ""}</span></div>
       <div class="rs">${esc(p.thesis)}</div><div class="rk">리스크: ${esc(p.risk)}</div>
       ${p.check ? `<div class="rk">확인할 점: ${esc(p.check)}</div>` : ""}</div></li>`).join("")
       : `<div class="empty">"AI 시장 해설" 칸에서 해설용 질문을 복사해 Claude 채팅에 붙여넣으면, 이 스크리닝 결과를 반영한 관심 종목 5개를 함께 받을 수 있습니다.</div>`) +

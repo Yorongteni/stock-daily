@@ -10,7 +10,6 @@ PROMPT = """당신은 한국 개인투자자를 위한 시장 애널리스트입
 [지표 데이터]
 {data}
 
-[스크리닝 결과 — 3년 실적·밸류에이션 기준]
 {screens}
 
 다음 JSON 형식으로만 답하세요. JSON 앞뒤에 다른 글자나 ``` 표시를 넣지 마세요.
@@ -24,11 +23,12 @@ PROMPT = """당신은 한국 개인투자자를 위한 시장 애널리스트입
     "base": "기본 시나리오 (2문장)",
     "bear": "약세 시나리오와 그 조건 (2문장)"
   }},
+  "categories": {{ "<분야명>": "해당 분야의 최근 뉴스·수요/기술 변화·단기 흐름 (2~3문장)" }},
   "tickers": {{ "<code>": "종목별 한 줄 코멘트 (지표 근거 포함, 60자 이내)" }},
   "risks": ["향후 1~2주 주의할 이벤트/리스크", "..."],
   "watch_events": ["다가오는 주요 일정(실적, FOMC, 지표 발표 등)", "..."],
   "picks": [
-    {{"ticker": "티커", "name": "종목명", "thesis": "주목하는 이유 (실적·밸류에이션·뉴스 근거, 2문장)",
+    {{"ticker": "티커", "name": "종목명", "category": "분야명", "thesis": "주목하는 이유 (실적·밸류에이션·뉴스 근거, 2문장)",
       "risk": "핵심 리스크 (1문장)", "check": "투자 전 확인할 점 (1문장)"}}
   ]
 }}
@@ -37,8 +37,11 @@ PROMPT = """당신은 한국 개인투자자를 위한 시장 애널리스트입
 - 지표 수치와 뉴스를 근거로 쓰고, 단정적 예측이나 매수/매도 권유는 하지 마세요.
 - 확인되지 않은 정보는 쓰지 마세요.
 - tickers에는 데이터에 있는 모든 code를 넣으세요.
-- picks는 스크리닝 결과와 뉴스를 종합해 지금 살펴볼 만한 종목 5개입니다. 고평가 위험 목록 종목은 제외하고,
-  업종이 한쪽에 몰리지 않게 고르세요. 매수 권유가 아니라 검토 후보로 쓰세요.
+- categories에는 [분야별 동향]의 모든 분야를 빠짐없이 넣으세요. 그날 주목받은 분야만이 아니라
+  부진하거나 소외된 분야도 각각 분야 고유의 뉴스로 채우세요. 분야마다 웹 검색을 따로 해도 좋습니다.
+- picks는 스크리닝 결과와 뉴스를 종합해 지금 살펴볼 만한 종목 5개입니다. 5개 모두 서로 다른 분야에서 고르고,
+  최소 1개는 최근 20일 부진했던 분야에서 실적·밸류에이션상 회복 근거가 있는 종목으로 고르세요.
+  고평가 위험 목록 종목은 제외하고, 매수 권유가 아니라 검토 후보로 쓰세요.
 """
 
 
@@ -84,13 +87,13 @@ def generate(results: dict, screens: dict, today: str, cfg: dict) -> dict:
     )
     kwargs = dict(
         model=cfg.get("model", "claude-sonnet-5-5"),
-        max_tokens=6000,
+        max_tokens=8000,
         messages=[{"role": "user", "content": prompt}],
     )
     if use_search:
         kwargs["tools"] = [{
             "type": "web_search_20250305", "name": "web_search",
-            "max_uses": cfg.get("max_searches", 6),
+            "max_uses": cfg.get("max_searches", 15),
         }]
 
     try:
@@ -103,26 +106,28 @@ def generate(results: dict, screens: dict, today: str, cfg: dict) -> dict:
         return {"error": f"AI 해설 생성 실패: {e}"}
 
 
-CHAT_PROMPT = """아래는 {today} 기준 내 관심 종목들의 기술적 지표 요약입니다.
-오늘·어제의 국내/미국 증시 주요 뉴스와 다가오는 일정을 웹에서 검색해 확인한 뒤,
-지표와 뉴스를 근거로 다음 순서로 한국어로 정리해 주세요.
+CHAT_PROMPT = """아래는 {today} 기준 내 관심 종목 지표와, 분야별로 나눈 160여 종목의 동향·스크리닝 결과입니다.
+웹 검색으로 최근 뉴스를 확인하되, 시장 전체 뉴스만 보지 말고 아래 분야마다 따로 검색해서
+분야별로 고르게 정리해 주세요. 그날 크게 움직인 분야에 치우치지 않는 것이 중요합니다.
 
-1. 오늘 시장 한 줄 요약
-2. 국내·미국 시장 흐름과 주요 원인
+1. 오늘 시장 한 줄 요약과 국내·미국 시장 흐름 (짧게)
+2. 분야별 뉴스와 흐름 — [분야별 동향]의 모든 분야를 하나도 빠짐없이, 분야마다
+   - 최근 주요 뉴스 1~2개 (수요 변화, 신기술, 정책, 실적 등)
+   - 지금 흐름과 앞으로 1~3개월 관전 포인트
+   - 분야 안에서 눈여겨볼 종목 1개와 이유
 3. 강세 / 기본 / 약세 시나리오와 각각의 조건
-4. 종목별 한 줄 코멘트 (지표 근거 포함)
-5. 향후 1~2주 주의할 리스크와 주요 일정
-6. 아래 스크리닝 결과와 뉴스를 종합한 "지금 살펴볼 만한 종목" 5개
+4. "지금 살펴볼 만한 종목" 5개
+   - 5개 모두 서로 다른 분야에서
+   - 최소 1개는 최근 부진했던 분야에서 실적·밸류에이션상 회복 근거가 있는 종목
+   - 고평가 위험 목록 종목은 제외
    - 종목마다 주목 이유(실적·밸류에이션·뉴스 근거), 핵심 리스크, 투자 전 확인할 점
-   - 고평가 위험 목록 종목은 제외하고, 업종이 한쪽에 몰리지 않게
-   - 신규 기술이나 수요 증가 테마가 있으면 함께 설명
+5. 향후 1~2주 주의할 리스크와 주요 일정
 
 단정적 예측이나 매수/매도 권유는 하지 말고, 확인되지 않은 정보는 쓰지 마세요.
 
 [관심 종목 지표] 점수는 -6~+6 (이동평균 배열, MACD, TSI 시그널, RSI 50선 합산)
 {data}
 
-[스크리닝 결과 — 3년 실적·밸류에이션 기준]
 {screens}
 """
 
@@ -150,10 +155,20 @@ SCREEN_TITLES = {"value": "저평가 후보", "growth": "성장 기대 후보", 
 def screens_text(screens: dict) -> str:
     if not screens or "error" in screens:
         return "(스크리닝 결과 없음)"
-    out = []
+
+    def p(v):
+        return "-" if v is None else f"{v:+.1f}%"
+    out = ["[분야별 동향] 분야 평균 등락률 / 20일선 위 종목 비율 / 최근 매출성장 중앙값 / 5일 최강·최약"]
+    for c in screens.get("categories", []):
+        best = f"{c['best'][0]} {p(c['best'][1])}" if c.get("best") else "-"
+        worst = f"{c['worst'][0]} {p(c['worst'][1])}" if c.get("worst") else "-"
+        out.append(f"- {c['name']}({c['n']}종목): 1일 {p(c['ret_1d'])}, 5일 {p(c['ret_5d'])}, 20일 {p(c['ret_20d'])}"
+                   f" | 20일선 위 {c['breadth']}% | 매출성장 {p(c['rev_g'])} | 강 {best} / 약 {worst}")
+    out.append("")
+    out.append("[스크리닝 결과 — 3년 실적·밸류에이션 기준, 목록마다 분야당 1종목]")
     for key, title in SCREEN_TITLES.items():
         out.append(f"■ {title}")
         for r in screens.get(key, []):
             m = ", ".join(f"{k} {v}" for k, v in r["metrics"].items())
-            out.append(f"- {r['name']}({r['ticker']}, {r['sector']}): {m}")
+            out.append(f"- {r['name']}({r['ticker']}, {r.get('category', r['sector'])}): {m}")
     return "\n".join(out)
