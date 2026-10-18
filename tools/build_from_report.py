@@ -3,7 +3,7 @@
 stock-daily 프로그램이 매일 만드는 리포트(docs/report_YYYY-MM-DD.html)를 그대로 사용해
 PDF와 유튜브 영상을 만든다. Claude 채팅 답변은 필요 없다.
 
-  out/<날짜>/report_<날짜>.pdf   리포트 화면 그대로 PDF
+  out/<날짜>/report_<날짜>[_am|_pm].pdf   리포트 화면 그대로 PDF
   out/<날짜>/<날짜>.mp4          리포트 각 부분을 화면으로, 수치를 읽어주는 영상
   out/<날짜>/youtube.json        업로드용 제목·설명·태그
   out/<날짜>/description.txt     설명란 (챕터 시간 포함)
@@ -46,6 +46,7 @@ class Scene:
 class Job:
     date: str
     data: dict
+    slot: str = ""
     scenes: list[Scene] = field(default_factory=list)
 
 
@@ -110,9 +111,12 @@ def plan_scenes(job: Job, shots: dict[str, list[str]]) -> None:
     S: list[Scene] = []
 
     S.append(Scene(
-        title=ai.get("headline") or f"{md} 시장 일일 리포트", section="인트로", center=True,
-        narration=f"매일 시장 브리핑입니다. {md} 리포트를 순서대로 보겠습니다. "
-                  f"관심 종목 {len(res)}개의 지표와"
+        title=ai.get("headline") or f"{md} 시장 일일 리포트" + {"am": " (장 초반)", "pm": " (장 마감)"}.get(job.slot, ""),
+        section="인트로", center=True,
+        narration=f"매일 시장 브리핑입니다. {md} "
+                  + {"am": "장 초반 리포트입니다. 미국은 간밤 종가, 국내는 오전 장중 시세 기준이라 마감 후 수치와 다를 수 있습니다. ",
+                     "pm": "장 마감 리포트입니다. 국내는 당일 종가, 미국은 간밤 종가 기준입니다. "}.get(job.slot, "리포트를 순서대로 보겠습니다. ")
+                  + f"관심 종목 {len(res)}개의 지표와"
                   + (f" {sc.get('universe_size')}개 종목의 분야별 동향, 스크리닝 결과를 정리했습니다."
                      if sc.get("universe_size") else " 주요 흐름을 정리했습니다.")))
 
@@ -336,7 +340,7 @@ def render_slides(job: Job, browser, work: Path) -> list[Path]:
 
 
 # ───────────────────────────── 유튜브 정보 ─────────────────────────────
-def write_meta(job: Job, starts: list[float], out: Path) -> None:
+def write_meta(job: Job, starts: list[float], out: Path, suffix: str = "") -> None:
     d = job.data
     res = d["results"]
     m, day = int(job.date[5:7]), int(job.date[8:10])
@@ -347,7 +351,8 @@ def write_meta(job: Job, starts: list[float], out: Path) -> None:
         return f"{name} {v:+.2f}%" if v is not None else ""
     head = " · ".join(x for x in [short("KS11", "코스피"), short("US500", "S&P500")] if x)
     ai_head = (d.get("ai") or {}).get("headline")
-    title = f"[{m}/{day}] {ai_head or head} | 매일 시장 브리핑"[:100]
+    when = {"_am": " 장초반", "_pm": " 마감"}.get(suffix, "")
+    title = f"[{m}/{day}{when}] {ai_head or head} | 매일 시장 브리핑"[:100]
 
     chap, last = [], None
     for s, sc in zip(starts, job.scenes):
@@ -358,14 +363,15 @@ def write_meta(job: Job, starts: list[float], out: Path) -> None:
     tags = ["주식", "코스피", "나스닥", "S&P500", "시장브리핑", "종목스크리닝"] + [c["name"].split("·")[0] for c in cats[:6]]
     desc = "\n\n".join([
         f"{m}월 {day}일 관심 종목 지표, 분야별 동향, 종목 스크리닝을 리포트 순서대로 정리합니다.",
-        f"📊 전체 리포트: {PAGES}/report_{job.date}.html\n📄 PDF: {PAGES}/pdf/report_{job.date}.pdf",
+        f"📊 전체 리포트: {PAGES}/report_{job.date}.html\n📄 PDF: {PAGES}/pdf/report_{job.date}{suffix}.pdf",
         "⏱ 목차\n" + "\n".join(chap),
         f"※ {DISCLAIMER}",
         "#주식 #코스피 #나스닥 #시장브리핑",
     ])
     (out / "description.txt").write_text(desc, encoding="utf-8")
     (out / "youtube.json").write_text(json.dumps(
-        {"date": job.date, "title": title, "description": desc[:4900], "tags": tags},
+        {"date": job.date, "video": f"{job.date}{suffix}.mp4", "title": title,
+         "description": desc[:4900], "tags": tags},
         ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -376,11 +382,14 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=None)
     ap.add_argument("--silent", action="store_true", help="음성 대신 무음 (시험용)")
     ap.add_argument("--pdf-only", action="store_true")
+    ap.add_argument("--slot", choices=["am", "pm", ""], default="",
+                    help="am=오전 실행, pm=오후 실행 (PDF 파일 이름 뒤에 _am/_pm)")
     a = ap.parse_args()
+    suffix = f"_{a.slot}" if a.slot else ""
 
     path = find_report(a.date)
     date = path.stem.replace("report_", "")
-    job = Job(date=date, data=load_payload(path))
+    job = Job(date=date, data=load_payload(path), slot=a.slot)
     out = a.out or Path("out") / date
     work = out / "work"
     work.mkdir(parents=True, exist_ok=True)
@@ -389,7 +398,7 @@ def main() -> None:
     from playwright.sync_api import sync_playwright
     with sync_playwright() as p:
         browser = p.chromium.launch()
-        pdf = out / f"report_{date}.pdf"
+        pdf = out / f"report_{date}{suffix}.pdf"
         make_pdf(browser, path, pdf, date)
         print(f"PDF 완료: {pdf}")
         if a.pdf_only:
@@ -405,9 +414,9 @@ def main() -> None:
     audio = make_audio(job, work, a.silent)
     srt = work / "subs.srt"
     starts = write_srt(job, audio, srt)
-    mp4 = out / f"{date}.mp4"
+    mp4 = out / f"{date}{suffix}.mp4"
     build_video(slides, audio, srt, mp4, work)
-    write_meta(job, starts, out)
+    write_meta(job, starts, out, suffix)
     print(f"영상 완료: {mp4} ({mmss(duration(mp4))})")
 
 
