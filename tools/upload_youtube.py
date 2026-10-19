@@ -24,7 +24,7 @@ from googleapiclient.http import MediaFileUpload
 def main() -> None:
     out = Path(sys.argv[1])
     meta = json.loads((out / "youtube.json").read_text(encoding="utf-8"))
-    video = out / f"{meta['date']}.mp4"
+    video = out / meta.get("video", f"{meta['date']}.mp4")
 
     creds = Credentials(
         None,
