@@ -1,7 +1,9 @@
 name: 리포트 PDF·영상 만들기
 
-# 매일 아침 daily-market-report(리포트 생성)가 끝나면 자동 실행.
-# Actions 탭에서 날짜를 넣어 수동 실행도 가능 (비우면 가장 최근 리포트).
+# daily-market-report(리포트 생성)가 끝나면 자동 실행.
+#   오전 실행(10시대, 장 초반) → PDF·영상(_am) + 유튜브 업로드
+#   오후 실행(17시대, 장 마감) → PDF·영상(_pm) + 유튜브 업로드
+# Actions 탭에서 수동 실행도 가능.
 on:
   workflow_run:
     workflows: ["daily-market-report"]
@@ -9,9 +11,15 @@ on:
   workflow_dispatch:
     inputs:
       date:
-        description: "리포트 날짜 (예: 2026-10-18, 비우면 최신)"
+        description: "리포트 날짜 (예: 2026-10-20, 비우면 최신)"
         required: false
         default: ""
+      slot:
+        description: "am = 장 초반판 / pm = 장 마감판 / auto = 지금 시각 기준(12시 전이면 am)"
+        required: false
+        default: "auto"
+        type: choice
+        options: [auto, am, pm]
 
 permissions:
   contents: write
@@ -37,9 +45,10 @@ jobs:
         with:
           ref: main      # 방금 커밋된 리포트까지 받기
 
-      - name: 처리할 리포트 날짜 정하기
+      - name: 날짜와 오전/오후 정하기
         env:
           INPUT_DATE: ${{ github.event.inputs.date }}
+          INPUT_SLOT: ${{ github.event.inputs.slot }}
         run: |
           if [ -n "$INPUT_DATE" ]; then
             d="$INPUT_DATE"
@@ -50,7 +59,14 @@ jobs:
           if ! [[ "$d" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || [ ! -f "docs/report_$d.html" ]; then
             echo "::error::docs/report_$d.html 이 없습니다."; exit 1
           fi
+          slot="$INPUT_SLOT"
+          if [ -z "$slot" ] || [ "$slot" = "auto" ]; then
+            h=$((10#$(TZ=Asia/Seoul date +%H)))
+            if [ "$h" -lt 12 ]; then slot=am; else slot=pm; fi
+          fi
           echo "DATE=$d" >> "$GITHUB_ENV"
+          echo "SLOT=$slot" >> "$GITHUB_ENV"
+          echo "처리: $d ($slot)"
 
       - uses: actions/setup-python@v6
         with:
@@ -69,38 +85,41 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: PDF·영상 만들기
-        run: python tools/build_from_report.py --date "$DATE" --out "out/$DATE"
+        run: python tools/build_from_report.py --date "$DATE" --slot "$SLOT" --out "out/$DATE"
 
       - name: PDF를 docs/pdf 에 저장 (웹 주소로 열람 가능)
         run: |
           mkdir -p docs/pdf
-          cp "out/$DATE/report_$DATE.pdf" "docs/pdf/report_$DATE.pdf"
+          cp "out/$DATE/report_${DATE}_${SLOT}.pdf" docs/pdf/
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/pdf
           if git diff --cached --quiet; then
             echo "변경 없음"
           else
-            git commit -m "리포트 PDF: $DATE"
+            git commit -m "리포트 PDF: $DATE ($SLOT)"
             git pull --rebase -q
             git push
           fi
 
-      - name: 영상·PDF를 릴리스로 올리기 (휴대폰 다운로드용)
+      - name: 릴리스에 올리기 (휴대폰 다운로드용)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="report-$DATE"
-          files=("out/$DATE/report_$DATE.pdf" "out/$DATE/$DATE.mp4")
+          files=("out/$DATE/report_${DATE}_${SLOT}.pdf")
+          [ -f "out/$DATE/${DATE}_${SLOT}.mp4" ] && files+=("out/$DATE/${DATE}_${SLOT}.mp4")
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --clobber
           else
-            gh release create "$tag" "${files[@]}" --title "$DATE 시장 브리핑" --notes-file "out/$DATE/description.txt"
+            notes="out/$DATE/description.txt"
+            [ -f "$notes" ] || echo "$DATE 시장 일일 리포트" > "$notes"
+            gh release create "$tag" "${files[@]}" --title "$DATE 시장 브리핑" --notes-file "$notes"
           fi
           {
-            echo "### $DATE 결과물"
-            echo "- PDF: https://yorongteni.github.io/stock-daily/pdf/report_$DATE.pdf (반영까지 1~2분)"
-            echo "- 영상·PDF 다운로드: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
+            echo "### $DATE ($SLOT) 결과물"
+            echo "- PDF: https://yorongteni.github.io/stock-daily/pdf/report_${DATE}_${SLOT}.pdf (반영까지 1~2분)"
+            echo "- 다운로드: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 유튜브 업로드 (비공개)
