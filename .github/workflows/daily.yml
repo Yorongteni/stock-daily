@@ -1,11 +1,10 @@
 # 평일 오전 7시(KST)에 자동 실행 → GitHub Pages 주소로 스마트폰에서 확인
 name: daily-market-report
-   on:
-     schedule:
-       - cron: "5 1 * * 1-5"   # 평일 KST 10:05 (미국 마감 + 국내 장 초반)
-       - cron: "5 8 * * 1-5"   # 평일 KST 17:05 (국내 종가 반영)
-     workflow_dispatch: {}       # Actions 탭에서 수동 실행 버튼
-
+on:
+  schedule:
+    - cron: "5 1 * * 1-5"   # 평일 KST 10:05 (미국 마감 + 국내 장 초반)
+    - cron: "5 8 * * 1-5"   # 평일 KST 17:05 (국내 종가 반영)
+  workflow_dispatch: {}     # Actions 탭에서 수동 실행 버튼
 permissions:
   contents: write
 
