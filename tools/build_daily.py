@@ -30,7 +30,7 @@ FONT = "Noto Sans CJK KR"
 VOICE = os.environ.get("TTS_VOICE", "ko-KR-SunHiNeural")
 RATE = os.environ.get("TTS_RATE", "+8%")
 SCENE_GAP = 0.6          # 장면 사이 쉼(초)
-SUB_MAX = 38             # 자막 한 조각 최대 글자 수
+SUB_MAX = 34             # 자막 한 조각 최대 글자 수 (하단 자막 바 한 줄)
 DISCLAIMER = "본 콘텐츠는 투자 권유가 아닌 정보 제공 목적입니다. 투자 판단과 책임은 본인에게 있습니다."
 
 
@@ -235,7 +235,27 @@ TTS_WORDS = [  # 앵커가 읽는 발음으로 (긴 것부터)
 ]
 
 
+def _bp(m: re.Match) -> str:
+    """+40bp → 0.4퍼센트포인트 상승"""
+    v = int(m.group(2)) / 100
+    word = "하락" if m.group(1) == "-" else "상승" if m.group(1) == "+" else ""
+    return f"{v:g}퍼센트포인트 {word}".strip()
+
+
+def _signed(m: re.Match) -> str:
+    """+1.2% → 1.2퍼센트 상승, -0.46%p → 0.46퍼센트포인트 하락"""
+    unit = "퍼센트포인트" if m.group(3) == "%p" else "퍼센트"
+    return f"{m.group(2)}{unit} {'상승' if m.group(1) == '+' else '하락'}"
+
+
 def tts_text(text: str) -> str:
+    text = text.replace("−", "-").replace("–", "-")
+    text = re.sub(r"[🌀-🫿☀-➿]", " ", text)           # 이모지
+    text = re.sub(r"(?<![\w.])([+-]?)(\d+)\s?bp(?![a-z])", _bp, text)
+    text = re.sub(r"(?<![\w.])([+-])(\d+(?:\.\d+)?)\s?(%p|%)", _signed, text)
+    text = text.replace("구리/금", "구리와 금의 비율").replace("원/달러", "원 달러").replace("10Y-2Y", "장단기 금리차")
+    text = re.sub(r"S&P\s?500", "에스앤피 오백", text)
+    text = re.sub(r"(?<=[가-힣A-Za-z])/(?=[가-힣A-Za-z])", ", ", text)               # A/B → A, B
     text = text.replace("→", ", ").replace("·", ", ").replace("~", " 에서 ").replace("|", ", ")
     for pat, rep in TTS_WORDS:
         text = re.sub(pat, rep, text)
@@ -253,7 +273,7 @@ async def _tts(text: str, out: Path) -> None:
             if attempt == 2:
                 raise
             print(f"  음성 생성 재시도 ({e})")
-            await asyncio.sleep(3)
+            await asyncio.sleep(3 * (2 ** attempt))
 
 
 def run(cmd: list[str], cwd: Path | None = None) -> None:
@@ -274,17 +294,22 @@ def make_audio(d: Daily, work: Path, silent: bool) -> list[tuple[Path, float]]:
     result = []
     for i, sc in enumerate(d.scenes, 1):
         wav = work / f"voice_{i:02d}.wav"
-        if silent:
+        ok = False
+        if not silent:
+            mp3 = work / f"voice_{i:02d}.mp3"
+            print(f"  음성 {i}/{len(d.scenes)}: {sc.title}")
+            try:
+                asyncio.run(_tts(tts_text(sc.narration), mp3))
+                speech = duration(mp3)
+                run(["ffmpeg", "-y", "-i", str(mp3), "-af", f"apad=pad_dur={SCENE_GAP}",
+                     "-ar", "44100", "-ac", "1", str(wav)])
+                ok = True
+            except Exception as e:  # noqa: BLE001  음성 실패 시 이 장면만 무음(자막은 그대로)으로 계속
+                print(f"  ✗ 음성 실패, 이 장면은 자막만: {e}")
+        if not ok:
             speech = max(3.0, len(sc.narration.replace(" ", "")) * 0.16)
             run(["ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono",
                  "-t", f"{speech + SCENE_GAP:.2f}", str(wav)])
-        else:
-            mp3 = work / f"voice_{i:02d}.mp3"
-            print(f"  음성 {i}/{len(d.scenes)}: {sc.title}")
-            asyncio.run(_tts(tts_text(sc.narration), mp3))
-            speech = duration(mp3)
-            run(["ffmpeg", "-y", "-i", str(mp3), "-af", f"apad=pad_dur={SCENE_GAP}",
-                 "-ar", "44100", "-ac", "1", str(wav)])
         result.append((wav, speech))
     return result
 
@@ -348,8 +373,9 @@ def build_video(slides: list[Path], audio: list[tuple[Path, float]], srt: Path, 
     aud_list.write_text("".join(f"file '{w.name}'\n" for w, _ in audio), encoding="utf-8")
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "audio.txt", "-c", "copy", "voice_all.wav"], cwd=work)
 
-    style = (f"FontName={FONT},FontSize=17,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"
-             "BorderStyle=3,BackColour=&H90000000,Outline=1,Shadow=0,MarginV=34,Alignment=2")
+    # 영상 슬라이드 아래쪽 어두운 자막 바(170px) 안에 흰 글씨로 (뉴스 자막 스타일)
+    style = (f"FontName={FONT},FontSize=13,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,"
+             "BorderStyle=1,Outline=0,Shadow=0,MarginV=14,MarginL=20,MarginR=20,Alignment=2")
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", "images.txt", "-i", "voice_all.wav",
          "-vf", f"fps=30,format=yuv420p,subtitles={srt.name}:force_style='{style}'",
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-tune", "stillimage",

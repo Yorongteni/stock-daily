@@ -198,6 +198,7 @@ table.t tr:last-child td{border-bottom:none}
 .easysum ol{margin:0;padding-left:20px;font-size:16px} .easysum li{margin:4px 0}
 .easy{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:4px;padding:10px 14px;margin:12px 0;font-size:14.5px;max-width:90ch}
 .easy b{color:var(--warn);margin-right:6px}
+.easy.three div{margin:3px 0} .easy.three b{display:inline-block;min-width:92px}
 .chains{display:grid;gap:10px}
 .chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:14px}
 .chain span.node{background:var(--bg);border-radius:4px;padding:4px 10px}
@@ -277,22 +278,27 @@ const DATA = __DATA__;
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cls = v => v == null ? "flat" : v > 0 ? "up" : v < 0 ? "down" : "flat";
 const pct = (v, d = 2) => v == null ? "–" : (v > 0 ? "+" : "") + Number(v).toFixed(d) + "%";
-const bp = v => v == null ? "–" : (v > 0 ? "+" : "") + Math.round(v) + "bp";
+const bp = v => v == null ? "–" : (v > 0 ? "+" : "") + (v / 100).toFixed(2) + "%p";
 const num = (v, d = 2) => v == null ? "–" : Number(v).toLocaleString("ko-KR", {maximumFractionDigits: d});
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const chgOf = (a, k) => a.kind === "rate" ? bp(a[k]) : pct(a[k], 1);
 const lvOf = a => a.kind === "rate" ? Number(a.last).toFixed(2) + "%" : num(a.last, a.last < 10 ? 3 : 2);
-const stanceCls = s => /확대|매수|상승|강세|유입/.test(s || "") ? "pos" : /축소|방어|하락|약세|유출/.test(s || "") ? "neg" : "mid";
+const stanceCls = s => /확대|늘리기|매수|상승|강세|유입|기회/.test(s || "") ? "pos" : /축소|방어|줄이기|현금|하락|약세|유출|조심|위험/.test(s || "") ? "neg" : "mid";
+const rank5 = p => p == null ? "–" : p >= 50 ? `최근 5년 중 상위 ${Math.max(1, 100 - Math.round(p))}%` : `최근 5년 중 하위 ${Math.max(1, Math.round(p))}%`;
+const zone5 = (p, rate) => p == null ? "" : p >= 80 ? (rate ? "높은 구간" : "비싼 구간") : p <= 20 ? (rate ? "낮은 구간" : "싼 구간") : "중간 구간";
+const SECW = {"비중확대": "🟢 기회 (늘리기)", "중립": "🟡 관망", "비중축소": "🔴 조심 (줄이기)"};
+const secWord = s => SECW[s] || s || "–";
 const list = a => (a || []).filter(Boolean);
 const V = DATA.view || {}, RB = !!V.rule_based;
 const M = DATA.macro || {}, SC = DATA.screens || {}, NW = DATA.news || {};
 const A = Object.fromEntries((M.assets || []).map(a => [a.key, a]));
 const ALLOC = [["kr_equity","국내 주식","--c2"],["us_equity","미국 주식","--c4"],["gold_commodities","금·원자재(현물)","--c3"],
                ["usd_cash","달러 현금성","--c1"],["krw_cash_bonds","원화 현금·채권","--c5"],["alternatives","대체자산(비트코인 등)","--c6"]];
-const rbNote = what => RB ? `<p class="note">AI 분석이 없어 ${what}은(는) 정량 지표만으로 표시합니다.</p>` : "";
+const rbNote = what => RB ? `<p class="note">오늘은 AI 해설이 제때 도착하지 않아, ${what}은(는) 데이터로 계산한 쉬운 요약으로 대신합니다.</p>` : "";
 const sparks = [];
-const EZ = RB ? {} : (V.easy || {});
-const easyBox = t => t ? `<div class="easy"><b>쉽게 말하면</b>${esc(t)}</div>` : "";
+const EZ = V.easy || {};
+const easyBox = t => !t ? "" : typeof t === "string" ? `<div class="easy"><b>쉽게 말하면</b>${esc(t)}</div>`
+  : `<div class="easy three">${t.one ? `<div><b>한 줄 결론</b>${esc(t.one)}</div>` : ""}${t.why ? `<div><b>왜 그럴까</b>${esc(t.why)}</div>` : ""}${t.do ? `<div><b>그래서 오늘은</b>${esc(t.do)}</div>` : ""}</div>`;
 const BASIC_TERMS = [
   ["백분위 (5년)", "최근 5년 동안의 값을 낮은 순으로 줄 세웠을 때 지금이 어디쯤인지. 0이면 5년 중 최저, 100이면 최고, 50이면 중간."],
   ["작년 동기 대비 (YoY)", "1년 전 같은 날과 비교해 얼마나 올랐거나 내렸는지."],
@@ -312,7 +318,7 @@ const BASIC_TERMS = [
   ["상대강도 (시장 대비)", "그 분야 수익률에서 전체 시장 수익률을 뺀 값. 플러스면 시장보다 잘 오른(덜 내린) 분야."],
   ["거래대금 비율", "최근 5일 평균 거래대금 ÷ 60일 평균. 1보다 크면 평소보다 돈이 많이 오가는 중(관심 증가)."],
   ["유동성 장세 · 실적 장세", "유동성 장세는 금리 인하 등으로 풀린 돈이 주가를 올리는 시기, 실적 장세는 기업 이익이 늘어 주가가 오르는 시기."],
-  ["예상 밴드 (1σ)", "오늘 지수가 움직일 것으로 예상되는 범위. 대략 3번 중 2번은 이 안에서 끝난다는 뜻."],
+  ["예상 등락 범위", "오늘 지수가 움직일 것으로 예상되는 일반적인 범위. 대략 3번 중 2번은 이 안에서 끝난다는 뜻."],
   ["EWY", "미국 시장에 상장된 한국 주식 ETF. 한국 장이 닫힌 밤사이 외국인이 한국을 어떻게 보는지 알려 주는 선행 지표."],
 ];
 const items = Object.entries(DATA.results || {});
@@ -349,7 +355,7 @@ h += `<h2 id="sec-history"><span class="no">1</span>과거 대비 현재 시장 
 if (!RB && HC.summary) {
   const rg = HC.regime || {};
   h += `<div class="panel hist-ai"><p class="txt">${esc(HC.summary)}</p>
-   <div class="regime">${[["장세 판단", rg.market_type], ["주도 섹터 이동", rg.leadership_shift], ["금리·환율 레짐", rg.rate_fx]].filter(x => x[1]).map(([k, v]) => `<div><b>${k}</b>${esc(v)}</div>`).join("")}</div>
+   <div class="regime">${[["장세 판단", rg.market_type], ["주도 섹터 이동", rg.leadership_shift], ["금리·환율 흐름", rg.rate_fx]].filter(x => x[1]).map(([k, v]) => `<div><b>${k}</b>${esc(v)}</div>`).join("")}</div>
    <div class="grid2"><div><h3>과거와 같은 점</h3><ul class="clean">${list(HC.same).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
    <div><h3>결정적으로 달라진 점</h3><ul class="clean">${list(HC.different).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div></div>`;
 } else h += rbNote("과거 대비 해설");
@@ -405,7 +411,7 @@ const AN = M.analogs || {};
 const AC = ["--c2", "--c4", "--c3"];     // 사례별 색
 const analogCharts = [];
 if ((AN.matches || []).length) {
-  const FT = AN.features || {}, unitOf = {pct: "%", rate: "%", bp: "bp", num: ""};
+  const FT = AN.features || {}, unitOf = {pct: "%", rate: "%", pp: "%p", num: ""};
   const fv = (k, v) => v == null ? "–" : (FT[k] && FT[k][1] === "pct" && v > 0 ? "+" : "") + num(v, 2) + (unitOf[(FT[k] || [])[1]] || "");
   const aiA = list(HC.analogs);
   const ymKo = d => `${d.slice(0, 4)}년 ${+d.slice(5, 7)}월`;
@@ -449,7 +455,7 @@ for (const g of groups) {
     h += `<div class="mc"><div class="hd"><span class="nm">${esc(a.name)}</span><span class="lv">${lvOf(a)}</span></div>
       <div class="ch"><span>1일 <b class="${cls(a.chg_1d)}">${chgOf(a, "chg_1d")}</b></span><span>1개월 <b class="${cls(a.chg_1m)}">${chgOf(a, "chg_1m")}</b></span><span>1년 <b class="${cls(a.yoy)}">${chgOf(a, "yoy")}</b></span></div>
       <div class="sp"><canvas id="ms-${a.key}"></canvas></div>
-      <div class="pc">5년 백분위 ${a.pct_5y ?? "–"} · 범위 ${num(a.min_5y)}~${num(a.max_5y)} · 200일선 ${esc(a.trend || "–")}</div>
+      <div class="pc">${rank5(a.pct_5y)} (${zone5(a.pct_5y, a.kind === "rate")}) · 5년 범위 ${num(a.min_5y)}~${num(a.max_5y)} · 장기 흐름 ${esc(a.trend || "–")}</div>
       ${x ? `<div class="ai"><span class="pill ${stanceCls(x.view)}">${esc(x.view)}</span> ${esc(x.level_comment)} ${x.impact ? "→ " + esc(x.impact) : ""}</div>` : ""}</div>`;
     sparks.push(["ms-" + a.key, a.spark, a.avg_3y]);
   }
@@ -459,7 +465,7 @@ for (const g of groups) {
 // ── ③ 사회 흐름 · 예측 ──
 const SO = V.social || {};
 h += `<h2 id="sec-forecast"><span class="no">3</span>사회적 흐름과 ${DATA.slot === "am" ? "오늘 국내 증시" : "오늘 밤 미국 증시"} 예측</h2>
-<p class="lead">최근 36시간 국내외 경제·사회 뉴스 ${NW.count || 0}건에서 뽑은 흐름과, 정량 기준선 위에 뉴스를 반영한 예측입니다.</p>
+<p class="lead">최근 36시간 국내외 경제·사회 뉴스 ${NW.count || 0}건에서 뽑은 흐름과, 밤사이 시장 흐름으로 계산한 예상 범위에 뉴스를 더한 예측입니다.</p>
 ${list(V.chains).length ? `<h3>오늘 시장의 연결고리 — 무엇이 무엇을 움직이나</h3><div class="chains" id="chains">${V.chains.map(c =>
   `<div class="chain"><span class="node first">${esc(c.from)}</span>${list(c.steps).map(s => `<span class="arr">→</span><span class="node">${esc(s)}</span>`).join("")}<span class="arr">→</span><span class="node last">${esc(c.so)}</span>${c.now ? `<span class="now">지금: ${esc(c.now)}</span>` : ""}</div>`).join("")}</div><div class="mt"></div>` : ""}
 <div class="grid2 social"><div class="panel"><h3>뉴스 키워드</h3>
@@ -478,11 +484,11 @@ h += `<div class="panel fc mt"><h3>${esc(fc.market || Q.target || "지수")} ${D
   <span>상승 확률 <span class="v">${fc.prob_up != null ? Math.round(fc.prob_up) + "%" : "–"}</span></span>
   <span class="k">기준 ${num(fc.base_level ?? Q.base_close, 2)}</span></div>
  ${isFinite(lo) && isFinite(hi) ? `<div class="gauge"><div class="ax"></div>
-   ${Q.band_low ? `<div class="qb" style="left:${X(Q.band_low)}%;width:${X(Q.band_high) - X(Q.band_low)}%" title="정량 기준선"></div>` : ""}
+   ${Q.band_low ? `<div class="qb" style="left:${X(Q.band_low)}%;width:${X(Q.band_high) - X(Q.band_low)}%" title="밤사이 시장 흐름으로 계산한 일반적인 예상 등락 범위"></div>` : ""}
    ${fc.band_low ? `<div class="band" style="left:${X(fc.band_low)}%;width:${X(fc.band_high) - X(fc.band_low)}%"></div>
      <span class="lbl" style="left:${X(fc.band_low)}%">${num(fc.band_low, 0)}</span><span class="lbl" style="left:${X(fc.band_high)}%">${num(fc.band_high, 0)}</span>` : ""}
    ${Q.base_close ? `<div class="bs" style="left:${X(Q.base_close)}%"></div>` : ""}</div>
-   <div class="k">색 막대 = ${RB ? "정량" : "AI"} 예상 밴드 · 회색 막대 = 정량 기준선(${esc(Q.driver || "")}) · 점선 = 기준 종가</div>` : ""}
+   <div class="k">색 막대 = ${RB ? "데이터" : "AI"} 예상 범위 · 회색 막대 = 밤사이 미국 시장 흐름으로 계산한 일반적인 예상 등락 범위(${esc(Q.driver || "")}) · 점선 = 어제 종가</div>` : ""}
  ${fc.open_view ? `<div class="grid2 mt"><div><h3>개장·초반</h3><p class="txt">${esc(fc.open_view)}</p></div><div><h3>장중 흐름</h3><p class="txt">${esc(fc.intraday)}</p></div></div>` : ""}
  ${fc.secondary ? `<p class="txt"><b>${DATA.slot === "am" ? "코스닥" : "나스닥"}</b> ${esc(fc.secondary)}</p>` : ""}
  ${list(fc.scenarios).length ? `<div class="scen">${fc.scenarios.map(s => `<div class="${esc(s.name)}"><b><span>${esc(s.name)} 시나리오</span><span>${s.prob != null ? s.prob + "%" : ""}</span></b>${esc(s.trigger)}<div class="k">${esc(s.path)}</div></div>`).join("")}</div>` : ""}
@@ -495,26 +501,26 @@ const CATS = SC.categories || [];
 const aiSec = Object.fromEntries(list(V.sectors).map(s => [s.name, s]));
 const LD = SC.leadership || {};
 h += `<h2 id="sec-sectors"><span class="no">4</span>${CATS.length}개 분야 전수 브리핑</h2>
-<p class="lead">분야별 동일가중 지수 기준. 시장 대비 = 분야 수익률 − 전체 유니버스 수익률. 상대강도 백분위는 최근 3년 범위 안의 위치, 거래대금은 최근 5일 평균 ÷ 60일 평균.
-${LD.now ? `지금 60일 주도: <b>${LD.now.map(esc).join(", ")}</b> / 1년 전 주도: <b>${(LD.year_ago || []).map(esc).join(", ")}</b>` : ""}</p>`;
+<p class="lead">분야마다 대표 종목들의 평균 주가 흐름입니다. "시장 평균 대비 힘"이 플러스면 시장 평균보다 잘 오른 분야, "상승 흐름 종목 비율"은 그 분야에서 최근 한 달 오름세를 타는 종목의 비율, "거래 활발도"가 1보다 크면 평소보다 사고파는 돈이 많은 상태입니다.
+${LD.now ? `지금 가장 힘센 분야: <b>${LD.now.map(esc).join(", ")}</b> / 1년 전엔: <b>${(LD.year_ago || []).map(esc).join(", ")}</b>` : ""}</p>`;
 if (CATS.length) {
   const cell = (v, s = 10) => { if (v == null) return `<td>–</td>`; const t = Math.min(Math.abs(v) / s, 1);
     return `<td style="background:color-mix(in srgb, var(${v >= 0 ? "--up" : "--down"}) ${Math.round(t * 45)}%, var(--panel))">${(v > 0 ? "+" : "") + v.toFixed(1)}</td>`; };
-  h += `<div class="panel scroll heat" style="padding:6px 8px"><table class="t"><thead><tr><th>분야</th><th>판단</th><th>1일</th><th>5일</th><th>20일</th><th>60일</th><th>1년</th><th>시장대비 60일</th><th>1년 전 시장대비</th><th>상대강도 3년%</th><th>20일선 위</th><th>거래대금</th><th>자금</th></tr></thead><tbody>` +
+  h += `<div class="panel scroll heat" style="padding:6px 8px"><table class="t"><thead><tr><th>분야</th><th>판단</th><th>1일</th><th>5일</th><th>20일</th><th>60일</th><th>1년</th><th>시장 평균 대비 힘(60일)</th><th>1년 전의 힘</th><th>힘의 위치(3년 중)</th><th>상승 흐름 종목 비율</th><th>거래 활발도</th><th>돈의 흐름</th></tr></thead><tbody>` +
     CATS.map((c, i) => { const s = aiSec[c.name] || {};
-      return `<tr><td class="nm"><a href="#c-${i}">${esc(c.name)}</a></td><td>${s.stance ? `<span class="pill ${stanceCls(s.stance)}">${esc(s.stance)}</span>` : "–"}</td>
+      return `<tr><td class="nm"><a href="#c-${i}">${esc(c.name)}</a></td><td>${s.stance ? `<span class="pill ${stanceCls(secWord(s.stance))}">${esc(secWord(s.stance))}</span>` : "–"}</td>
       ${cell(c.ret_1d, 3)}${cell(c.ret_5d, 6)}${cell(c.ret_20d, 12)}${cell(c.ret_60d, 20)}${cell(c.ret_1y, 50)}${cell(c.rs_60d, 12)}${cell(c.rs_60d_1y_ago, 12)}
       <td>${c.rs_pct_3y ?? "–"}</td><td>${c.breadth ?? "–"}%</td><td>${c.turnover_ratio != null ? c.turnover_ratio.toFixed(2) + "배" : "–"}</td><td>${esc(c.flow || "–")}</td></tr>`; }).join("") + `</tbody></table></div>
-  <p class="k" style="margin:6px 0 0">표 읽는 법: 빨간 칸은 오른 것, 파란 칸은 내린 것(진할수록 큼). "시장대비"가 플러스면 시장 평균보다 잘 오른 분야, "1년 전 시장대비"와 비교하면 주도 분야가 바뀌었는지 알 수 있어요.</p>`;
+  <p class="k" style="margin:6px 0 0">표 읽는 법: 빨간 칸은 오른 것, 파란 칸은 내린 것(진할수록 큼). "1년 전의 힘"과 비교하면 시장을 이끄는 분야가 바뀌었는지 알 수 있어요.</p>`;
   h += easyBox(EZ.sectors);
   h += `<div class="cats">`;
   CATS.forEach((c, i) => { const s = aiSec[c.name] || {};
     const scol = /확대/.test(s.stance) ? "var(--up)" : /축소/.test(s.stance) ? "var(--down)" : "var(--line)";
     h += `<section class="cat" id="c-${i}" style="--sc:${scol}"><div class="hd"><h3>${esc(c.name)}<small>${c.n}종목</small></h3>
-      <span>${s.stance ? `<span class="pill ${stanceCls(s.stance)}">${esc(s.stance)}</span> ` : ""}<span class="big ${cls(c.ret_20d)}">${pct(c.ret_20d, 1)}</span><span class="sm"> 20일</span></span></div>
-      <div class="sm">60일 <b class="${cls(c.ret_60d)}">${pct(c.ret_60d, 1)}</b> · 1년 <b class="${cls(c.ret_1y)}">${pct(c.ret_1y, 1)}</b> · 시장대비 <b class="${cls(c.rs_60d)}">${pct(c.rs_60d, 1)}</b> (1년 전 ${pct(c.rs_60d_1y_ago, 1)}) · 순위 ${c.rank_60d ?? "–"}위 (1년 전 ${c.rank_60d_1y_ago ?? "–"}위)</div>
+      <span>${s.stance ? `<span class="pill ${stanceCls(secWord(s.stance))}">${esc(secWord(s.stance))}</span> ` : ""}<span class="big ${cls(c.ret_20d)}">${pct(c.ret_20d, 1)}</span><span class="sm"> 20일</span></span></div>
+      <div class="sm">60일 <b class="${cls(c.ret_60d)}">${pct(c.ret_60d, 1)}</b> · 1년 <b class="${cls(c.ret_1y)}">${pct(c.ret_1y, 1)}</b> · 시장 평균 대비 <b class="${cls(c.rs_60d)}">${pct(c.rs_60d, 1)}</b> (1년 전 ${pct(c.rs_60d_1y_ago, 1)}) · 순위 ${c.rank_60d ?? "–"}위 (1년 전 ${c.rank_60d_1y_ago ?? "–"}위)</div>
       <div class="sp"><canvas id="cs-${i}"></canvas></div>
-      <div class="ln"><em>자금</em><span>${esc(c.flow || "–")} · 거래대금 ${c.turnover_ratio ?? "–"}배 · 20일선 위 ${c.breadth ?? "–"}%</span></div>
+      <div class="ln"><em>돈의 흐름</em><span>${esc(c.flow || "–")} · 거래 활발도 ${c.turnover_ratio ?? "–"}배 · 상승 흐름 종목 ${c.breadth ?? "–"}%</span></div>
       <div class="ln"><em>실적</em><span>매출성장 중앙값 ${pct(c.rev_g, 1)}${c.pe_kr != null || c.pe_us != null ? ` · PER ${[c.pe_kr != null ? "국내 " + c.pe_kr + "배" : "", c.pe_us != null ? "미국 " + c.pe_us + "배" : ""].filter(Boolean).join(" / ")}` : ""}</span></div>
       ${c.best ? `<div class="ln"><em>5일</em><span>강 ${esc(c.best[0])} <span class="${cls(c.best[1])}">${pct(c.best[1], 1)}</span>${c.worst ? ` · 약 ${esc(c.worst[0])} <span class="${cls(c.worst[1])}">${pct(c.worst[1], 1)}</span>` : ""}</span></div>` : ""}
       ${c.value_pick ? `<div class="ln"><em>저평가</em><span>${esc(c.value_pick[0])} (${esc(c.value_pick[1])})</span></div>` : ""}
@@ -592,7 +598,7 @@ else if (SC.universe_size) {
   }
   h += `</div>`;
 }
-h += `<h3 class="mt">관심 종목 요약</h3><div class="tbl"><table><thead><tr><th>종목</th><th>종가</th><th>1일</th><th>5일</th><th>20일</th><th>52주 위치</th><th>RSI</th><th>TSI</th><th>판정</th></tr></thead><tbody>`;
+h += `<h3 class="mt">관심 종목 요약</h3><div class="tbl"><table><thead><tr><th>종목</th><th>종가</th><th>1일</th><th>5일</th><th>20일</th><th>1년 중 위치</th><th>단기 과열·침체(RSI)</th><th>추세 힘(TSI)</th><th>판정</th></tr></thead><tbody>`;
 for (const [code, r] of ok) h += `<tr><td><a href="#t-${esc(code)}" style="color:inherit">${esc(r.name)}</a></td><td>${num(r.close)}</td>
   <td class="${cls(r.chg_1d)}">${pct(r.chg_1d)}</td><td class="${cls(r.chg_5d)}">${pct(r.chg_5d)}</td><td class="${cls(r.chg_20d)}">${pct(r.chg_20d)}</td>
   <td>${r.pos_52w == null ? "–" : r.pos_52w + "%"}</td><td>${num(r.rsi)}</td><td>${num(r.tsi)}</td><td><span class="badge ${r.label}">${r.label} ${r.score > 0 ? "+" : ""}${r.score}</span></td></tr>`;
@@ -610,7 +616,7 @@ for (const [code, r] of ok) {
     <div class="cv2"><canvas id="m-${esc(code)}" aria-label="${esc(r.name)} 모멘텀 차트"></canvas></div></section>`;
 }
 h += `</div><footer>이 리포트는 공개 시세·거시 데이터, 뉴스 헤드라인, 기술적 지표와 ${RB ? "규칙 기반 계산" : "AI 분석"}을 바탕으로 자동 생성된 참고 자료이며 투자 권유가 아닙니다. 투자 판단과 책임은 본인에게 있습니다.
-지표 점수: 이동평균 배열(20/60/120일), MACD 히스토그램, TSI(25,13,7) 시그널, RSI(14) 50선을 항목별 ±1로 합산. 예측 밴드는 1σ(약 68%) 범위입니다.</footer>`;
+지표 점수: 이동평균 배열(20/60/120일), MACD 히스토그램, TSI(25,13,7) 시그널, RSI(14) 50선을 항목별 ±1로 합산. 예상 범위는 일반적인 예상 등락 범위(대략 3번 중 2번 이 안에서 끝나는 범위)입니다.</footer>`;
 document.getElementById("app").innerHTML = h;
 
 // ── 차트 ──

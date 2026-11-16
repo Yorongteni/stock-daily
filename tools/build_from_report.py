@@ -601,13 +601,17 @@ def main() -> None:
             browser.close()
             print(f"DATE={date}")
             return
-        shots = take_shots(browser, path, work)
         if a.full or os.environ.get("VIDEO_MODE") == "full":
+            shots = take_shots(browser, path, work)
             plan_scenes(job, shots, a.ticker_details or os.environ.get("TICKER_DETAILS") == "true")
+            slides = render_slides(job, browser, work)
         else:
-            plan_short(job, shots)
+            # 영상 전용 16:9 슬라이드 (리포트 캡처 대신 큰 글씨·차트로 새로 그림)
+            import video_slides
+            vs = video_slides.build(job.data, slot, date)
+            job.scenes = [Scene(s.title, s.section, s.narration) for s in vs]
+            slides = video_slides.render(vs, browser, work, date, slot, FONT, DISCLAIMER)
         print(f"영상 화면 {len(job.scenes)}장")
-        slides = render_slides(job, browser, work)
         browser.close()
 
     audio = make_audio(job, work, a.silent)

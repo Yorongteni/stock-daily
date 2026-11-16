@@ -27,6 +27,11 @@ what will could would may might up down more less than vs not no has have had wh
 
 
 def _fetch(url: str, timeout: int = 15):
+    from netretry import retry
+    return retry(_fetch_once, url, timeout, tries=3, base=1.5, label="RSS")
+
+
+def _fetch_once(url: str, timeout: int = 15):
     import feedparser
     import urllib.request
     req = urllib.request.Request(url, headers={"User-Agent": UA})
@@ -100,7 +105,9 @@ def run(cfg: dict, categories: list[str] | None = None, demo: bool = False) -> d
 
     items, seen, errors = [], set(), []
     by_sector: dict[str, list] = {}
+    import time
     for name, lang, url, tag in jobs:
+        time.sleep(0.4)          # 구글 뉴스 RSS 과다 요청(429) 방지
         try:
             feed = _fetch(url)
             n = 0

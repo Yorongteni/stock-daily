@@ -30,6 +30,7 @@ import news
 import report
 import screener
 from indicators import analyze
+from netretry import retry
 
 KST = timezone(timedelta(hours=9))
 
@@ -37,7 +38,7 @@ KST = timezone(timedelta(hours=9))
 def fetch(code: str, days: int) -> pd.DataFrame:
     import FinanceDataReader as fdr
     start = (datetime.now(KST) - timedelta(days=days)).strftime("%Y-%m-%d")
-    df = fdr.DataReader(code, start)
+    df = retry(fdr.DataReader, code, start, tries=3, label=code)
     if df is None or df.empty or "Close" not in df:
         raise ValueError("데이터 없음")
     return df[["Close"]].dropna()
@@ -81,32 +82,41 @@ def valuation_history(out: Path, today_val: dict) -> dict:
 def collect(cfg: dict, slot: str, today: str, demo: bool, out: Path) -> dict:
     days = cfg.get("lookback_days", 420)
     loader = fake if demo else fetch
-    print(f"[1/4] 관심 종목 ({slot})")
-    results = {}
-    for market, items in cfg["watchlist"].items():
-        for it in items:
-            code, name = str(it["code"]), it["name"]
-            try:
-                df = loader(code, days)
-                if len(df) < 60:
-                    raise ValueError(f"데이터가 {len(df)}일뿐이라 분석 불가")
-                r = analyze(df, cfg.get("chart_days", 180))
-                print(f"  ✓ {name:<14} {r['close']:>12,.2f}  {r['chg_1d']:+.2f}%  {r['label']}({r['score']:+d})")
-            except Exception as e:  # noqa: BLE001
-                r = {"error": str(e)}
-                print(f"  ✗ {name:<14} {e}")
-            results[code] = {"name": name, "market": market, **r}
-
-    print("[2/4] 매크로·다중 자산 (5년)")
+    print("[1/4] 매크로·다중 자산 (5년 비교 + 20년 유사 국면)")
+    _series = {}
     try:
         mac, _series = macro.run(cfg.get("macro", {}), slot, demo)
         print(f"  ✓ {mac['ok']}/{len(mac['assets'])}개 자산, 유사 국면 {len((mac.get('analogs') or {}).get('matches', []))}개")
         for a in mac["assets"]:
             if "error" in a:
                 print(f"  ✗ {a['name']}: {a['error']}")
+            else:
+                print(f"    {a['name']}: {a['last']} ({a['date']}, {mac['sources'].get(a['key'], '')})")
     except Exception as e:  # noqa: BLE001
         mac = {"assets": [], "regimes": [], "analogs": {}, "quant": {"error": str(e)}, "error": str(e)}
         print(f"  ✗ 매크로 수집 실패: {e}")
+
+    # 관심 종목 중 지수는 매크로와 같은 시계열을 써서, 리포트 어디서나 같은 수치가 나오게 한다
+    same = {"KS11": "kospi", "KQ11": "kosdaq", "US500": "spx", "IXIC": "ndx", "GLD": "gld"}
+    print(f"[2/4] 관심 종목 ({slot})")
+    results = {}
+    for market, items in cfg["watchlist"].items():
+        for it in items:
+            code, name = str(it["code"]), it["name"]
+            try:
+                key = same.get(code)
+                if key and key in _series:
+                    df = _series[key].to_frame("Close").tail(int(days * 0.75))
+                else:
+                    df = loader(code, days)
+                if len(df) < 60:
+                    raise ValueError(f"데이터가 {len(df)}일뿐이라 분석 불가")
+                r = analyze(df, cfg.get("chart_days", 180))
+                print(f"  ✓ {name:<14} {r['close']:>12,.2f}  {r['chg_1d']:+.2f}%  {r['label']}({r['score']:+d})  {r['date']}")
+            except Exception as e:  # noqa: BLE001
+                r = {"error": str(e)}
+                print(f"  ✗ {name:<14} {e}")
+            results[code] = {"name": name, "market": market, **r}
 
     sc_cfg = cfg.get("screening", {})
     screens = {}

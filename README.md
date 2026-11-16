@@ -13,15 +13,17 @@
 ## 자동 실행 구조 (API 키 없이)
 
 ```
-06:05 / 21:05  GitHub Actions  수집 → docs/data/<날짜>_<슬롯>.json, _brief.md 커밋
-06:15 / 21:15  claude.ai 루틴   brief 읽기 + 웹 검색 → docs/ai/<날짜>_<슬롯>.json 푸시   (.claude/skills/daily-briefing)
+06:00 / 21:00  claude.ai 루틴   docs/trigger/<날짜>_<슬롯>.txt 푸시 = 수집 시작 신호   (.claude/skills/daily-briefing)
+   (푸시 직후)  GitHub Actions  수집 → docs/data/<날짜>_<슬롯>.json, _brief.md 커밋
+   (수집 직후)  claude.ai 루틴   brief 읽기 + 웹 검색 → docs/ai/<날짜>_<슬롯>.json 푸시
    (푸시 즉시)  GitHub Actions  리포트 생성 → PDF·영상 → Pages·Releases·유튜브(비공개)
-06:45 / 21:45  GitHub Actions  안전장치: AI 결과가 없으면 정량(규칙 기반) 결론으로 리포트·영상 생성
+06:10·06:25 / 21:10·21:25   GitHub Actions  백업 수집 (이미 했으면 건너뜀)
+06:50·07:15·07:45 / 21:50·22:15·22:45  누락 복구: 리포트가 없으면 AI 없이(데이터 기반 쉬운 요약) 리포트·영상 생성
 ```
 
 - AI 분석은 claude.ai 예약 작업(루틴)이 맡아 **API 키가 필요 없습니다** (Claude 요금제 사용량을 씁니다).
 - API 키로 바꾸려면 `config.yaml` 의 `claude.mode` 를 `api` 로 바꾸고 Secrets 에 `ANTHROPIC_API_KEY` 를 등록합니다.
-- GitHub 예약 실행은 붐비는 시간에 10~30분 늦어질 수 있습니다.
+- GitHub 예약 실행은 수십 분 늦거나 빠질 수 있어(2026-11-16 실제 발생), 시작 신호는 시간이 정확한 루틴이 푸시로 보냅니다.
 
 ## 파일 구성
 

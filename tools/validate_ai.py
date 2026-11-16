@@ -19,7 +19,8 @@ REQUIRED = ["headline", "stance", "history_context", "macro", "social", "forecas
             "opportunities", "risks", "sectors", "allocation", "action_plan", "script",
             "easy", "chains", "glossary"]
 SCRIPT_KEYS = ["intro", "history", "macro", "social_forecast", "sectors", "opps_risks", "conclusion"]
-STANCES = ["공격적 비중확대", "선별적 매수", "중립·관망", "방어적 비중축소"]
+STANCES = ["적극 매수 (주식 비중 늘리기)", "골라서 매수 (좋은 종목만 조금씩)", "관망 (지금 비중 유지)", "현금 확보·관망 (주식 비중 줄이기)"]
+OLD_STANCES = {"공격적 비중확대": STANCES[0], "선별적 매수": STANCES[1], "중립·관망": STANCES[2], "방어적 비중축소": STANCES[3]}
 
 
 def _num(v):
@@ -39,6 +40,8 @@ def normalize(ai: dict, sectors: list[str] | None = None) -> tuple[dict, list[st
     st = ai.get("stance")
     if isinstance(st, str):
         ai["stance"] = st = {"label": st}
+    if isinstance(st, dict) and st.get("label") in OLD_STANCES:
+        st["label"] = OLD_STANCES[st["label"]]
     if isinstance(st, dict) and st.get("label") not in STANCES:
         warns.append(f"stance.label '{st.get('label')}' → 허용값 {STANCES}")
     if isinstance(st, dict) and _num(st.get("score")) is not None:

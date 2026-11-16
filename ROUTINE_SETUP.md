@@ -21,8 +21,8 @@
 
 기존(공동) 계정으로 https://claude.ai/code/routines 에 들어가 아래 두 루틴을 **끄거나(비활성화) 삭제**합니다.
 
-- `stock-daily 모닝 브리핑 AI 분석 (06:15 KST)`
-- `stock-daily 나이트 브리핑 AI 분석 (21:15 KST)`
+- `stock-daily 모닝 브리핑 AI 분석 (06:00 KST)`
+- `stock-daily 나이트 브리핑 AI 분석 (21:00 KST)`
 
 둘 다 켜져 있어도 망가지지는 않지만(이미 결과 파일이 있으면 두 번째 실행은 그냥 끝남) 사용량이 두 계정에서 나갑니다.
 
@@ -39,26 +39,27 @@
 
 ### 루틴 A — 모닝
 
-- 이름: `stock-daily 모닝 브리핑 AI 분석 (06:15 KST)`
-- 일정: 평일 06:15 KST = cron `15 21 * * 0-4` (UTC, 한국 월요일 아침 = UTC 일요일)
+- 이름: `stock-daily 모닝 브리핑 AI 분석 (06:00 KST)`
+- 일정: 평일 06:00 KST = cron `0 21 * * 0-4` (UTC, 한국 월요일 아침 = UTC 일요일)
 - 지시문:
 
 ```
 stock-daily 저장소의 모닝 브리핑(슬롯 am) AI 분석을 작성해 주세요.
 
 저장소의 .claude/skills/daily-briefing/SKILL.md 를 먼저 읽고 그 절차를 처음부터 끝까지 그대로 따르세요. 요약:
-1. 날짜는 한국 시간 오늘(TZ=Asia/Seoul date +%F), 슬롯은 am.
-2. git pull 후 docs/data/<날짜>_am_brief.md 가 생길 때까지 2분 간격으로 최대 30분 기다립니다. 없으면 스킬의 대체 절차를 따르고, 그래도 안 되면 아무것도 푸시하지 말고 끝냅니다. docs/ai/<날짜>_am.json 이 이미 있으면 끝냅니다.
-3. brief 전체를 읽고, brief가 요구하는 웹 검색(최소 6회)을 실제로 한 뒤, brief의 원칙과 출력 형식대로 JSON을 docs/ai/<날짜>_am.json 에 저장합니다. script 필드는 .claude/skills/briefing-script/SKILL.md 규칙을 따릅니다. 결론 없는 중립 표현 대신 방향·밴드·확률·자산 비중을 숫자로, 근거 수치와 무효화 조건을 함께 제시합니다.
-4. python tools/validate_ai.py docs/ai/<날짜>_am.json 이 '사용 가능'이 될 때까지 고칩니다.
-5. 그 파일만 커밋해 main에 푸시합니다(git push origin HEAD:main). main 푸시가 막히면 현재 브랜치에 푸시합니다(git push origin HEAD). PR은 만들지 않고 다른 파일은 건드리지 않습니다.
-6. 끝나면 headline, stance, 예측 밴드, 푸시 결과를 한두 줄로 보고합니다.
+1. 날짜는 한국 시간 오늘(TZ=Asia/Seoul date +%F), 슬롯은 am. docs/ai/<날짜>_am.json 이 이미 있으면 끝냅니다.
+2. docs/data/<날짜>_am_brief.md 가 없으면 가장 먼저 docs/trigger/<날짜>_am.txt 를 만들어 커밋하고 main에 푸시합니다 (수집 시작 신호, GitHub 예약 실행이 늦거나 빠지는 것을 막기 위함).
+3. 1분 간격으로 git pull 하며 brief 를 최대 35분 기다립니다. 끝내 없으면 스킬의 대체 절차를 따르고, 그래도 안 되면 AI 결과는 푸시하지 않고 끝냅니다.
+4. brief 전체를 읽고 웹 검색(최소 6회)을 한 뒤, brief의 원칙(초보자용 3단계 해설, 일상 언어 번역 규칙, 데이터 수치 통일)과 출력 형식대로 JSON을 docs/ai/<날짜>_am.json 에 저장합니다. script 필드는 .claude/skills/briefing-script/SKILL.md 규칙을 따릅니다.
+5. python tools/validate_ai.py docs/ai/<날짜>_am.json 이 '사용 가능'이 될 때까지 고칩니다.
+6. 그 파일만 커밋해 main에 푸시합니다(git push origin HEAD:main). main 푸시가 막히면 현재 브랜치에 푸시합니다(git push origin HEAD). PR은 만들지 않고 다른 파일은 건드리지 않습니다.
+7. 끝나면 headline, stance, 예측 범위, 푸시 결과를 한두 줄로 보고합니다.
 ```
 
 ### 루틴 B — 나이트
 
-- 이름: `stock-daily 나이트 브리핑 AI 분석 (21:15 KST)`
-- 일정: 평일 21:15 KST = cron `15 12 * * 1-5`
+- 이름: `stock-daily 나이트 브리핑 AI 분석 (21:00 KST)`
+- 일정: 평일 21:00 KST = cron `0 12 * * 1-5`
 - 지시문: 루틴 A 지시문에서 **`모닝` → `나이트`, `am` → `pm`** 으로 바꾼 것 (네 군데).
 
 ## 4. 확인
@@ -71,6 +72,6 @@ stock-daily 저장소의 모닝 브리핑(슬롯 am) AI 분석을 작성해 주�
 
 ## 참고
 
-- 루틴이 실패하거나 사용량 한도에 걸려도 06:45 / 21:45 안전장치가 AI 없이(정량 결론) 리포트·영상을 만듭니다.
+- 루틴이 실패하거나 사용량 한도에 걸려도 06:50·07:15·07:45 / 21:50·22:15·22:45 누락 복구가 AI 없이(정량 결론) 리포트·영상을 만듭니다.
 - 사용량을 줄이려면 나이트 루틴(B)만 끄면 절반이 됩니다.
 - API 키 방식으로 바꾸려면 `config.yaml` 의 `claude.mode` 를 `api` 로 바꾸고 GitHub Secrets 에 `ANTHROPIC_API_KEY` 를 등록합니다 (그러면 루틴은 필요 없음).

@@ -40,5 +40,6 @@ python main.py --slot am --build --out /tmp/live                 # 저장된 묶
 ## 주의
 
 - report.py 의 `const DATA = ...;\nconst esc` 형식을 build_from_report.py 가 정규식으로 읽습니다.
-- cron 은 UTC. 모닝 = `5 21 * * 0-4` (KST 월~금 06:05).
+- cron 은 UTC. 시작 신호는 루틴의 docs/trigger 푸시, cron 은 백업(06:10·06:25 수집, 06:50·07:15·07:45 누락 복구).
+- 네트워크 작업은 netretry.retry() 로 감싼다 (최대 3회, 지수 백오프).
 - 저장소는 Public 입니다. 키·토큰을 파일에 넣지 않습니다.

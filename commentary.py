@@ -31,7 +31,7 @@ SEARCH_LIST = {
 
 SCHEMA = """{
   "headline": "핵심 뷰가 담긴 한 줄 제목 (35자 이내)",
-  "stance": {"label": "공격적 비중확대 | 선별적 매수 | 중립·관망 | 방어적 비중축소 중 하나", "score": 1, "one_liner": "결론 한 문장 (근거 수치 포함)"},
+  "stance": {"label": "적극 매수 (주식 비중 늘리기) | 골라서 매수 (좋은 종목만 조금씩) | 관망 (지금 비중 유지) | 현금 확보·관망 (주식 비중 줄이기) 중 하나 (글자 그대로)", "score": 1, "one_liner": "결론 한 문장 (근거 수치 포함)"},
   "history_context": {
     "summary": "작년 이맘때·최근 3~5년과 비교해 지금 시장이 결정적으로 달라진 점 (5~7문장, 수치 포함)",
     "regime": {"market_type": "유동성 장세 | 실적 장세 | 역금융 장세 | 역실적 장세 + 근거", "leadership_shift": "작년 주도 섹터 → 지금 주도 섹터와 이유", "rate_fx": "금리·환율 레짐 변화"},
@@ -60,8 +60,9 @@ SCHEMA = """{
   "watch_events": ["오늘·이번 주 주요 일정 (KST 시각)"],
   "tickers": {"관심 종목 code": "한 줄 코멘트 (60자 이내)"},
   "easy": {"summary": ["경제를 모르는 사람도 이해하는 오늘의 핵심 3줄 (각 60자 안팎)"],
-           "history": "①을 쉬운 말로 2~4문장", "macro": "②를 쉬운 말로", "forecast": "③을 쉬운 말로",
-           "sectors": "④를 쉬운 말로", "opps_risks": "⑤를 쉬운 말로", "conclusion": "⑥을 쉬운 말로 (그래서 나는 무엇을 하면 되는지)"},
+           "history": {"one": "[한 줄 결론] 지금 시장이 왜 이런지 쉬운 말 1문장", "why": "[원인과 배경] 뉴스·지표를 연결한 이유 1~2문장", "do": "[행동 지침] 그래서 오늘 어떻게 대응할지 1문장"},
+           "macro": {"one": "", "why": "", "do": ""}, "forecast": {"one": "", "why": "", "do": ""},
+           "sectors": {"one": "", "why": "", "do": ""}, "opps_risks": {"one": "", "why": "", "do": ""}, "conclusion": {"one": "", "why": "", "do": ""}},
   "chains": [{"from": "출발 사건 (예: 미국 금리 상승)", "steps": ["중간 연결 1 (예: 돈 빌리는 비용 증가)", "중간 연결 2"], "so": "결과 (예: 반도체·성장주 주가 부담)", "now": "지금 이 고리가 어디까지 진행됐는지 (수치)"}],
   "glossary": [{"term": "오늘 리포트에 나온 용어", "meaning": "중학생도 알아듣는 뜻 (1문장)", "why": "오늘 이 용어가 왜 중요한지 (1문장)"}],
   "script": {"intro": "", "history": "", "macro": "", "social_forecast": "", "sectors": "", "opps_risks": "", "conclusion": ""}
@@ -83,17 +84,18 @@ def _macro_text(macro: dict) -> str:
         if "error" in a:
             rows.append(f"| {a['name']} | 데이터 없음 ({a['error'][:40]}) |||||||||||")
             continue
-        u = "bp" if a["kind"] == "rate" else "%"
-        fm = "+.0f" if a["kind"] == "rate" else "+.1f"
-        rows.append(f"| {a['name']} | {a['date']} | {a['last']:,} | {_f(a['chg_1d'], fm, u)} | {_f(a['chg_1w'], fm, u)} | "
-                    f"{_f(a['chg_1m'], fm, u)} | {_f(a['yoy'], fm, u)} | {a.get('year_ago') or '–'} | {_f(a['vs_avg_3y'], fm, u)} | "
+        rate = a["kind"] == "rate"
+        u, fm = ("%p", "+.2f") if rate else ("%", "+.1f")
+        cv = (lambda v: None if v is None else v / 100) if rate else (lambda v: v)  # 금리는 bp → %p
+        rows.append(f"| {a['name']} | {a['date']} | {a['last']:,} | {_f(cv(a['chg_1d']), fm, u)} | {_f(cv(a['chg_1w']), fm, u)} | "
+                    f"{_f(cv(a['chg_1m']), fm, u)} | {_f(cv(a['yoy']), fm, u)} | {a.get('year_ago') or '–'} | {_f(cv(a['vs_avg_3y']), fm, u)} | "
                     f"{_f(a['pct_5y'], '.0f')} | {a['min_5y']:,}~{a['max_5y']:,} | {a.get('trend') or '–'} |")
-    out = ["## 매크로·다중 자산 (과거 5년 비교, 금리 변화는 bp)", "\n".join(rows), "", "## 레짐 판정"]
+    out = ["## 매크로·다중 자산 (과거 5년 비교, 금리 변화는 %p. 5년 백분위 85 = 최근 5년 중 상위 15%)", "\n".join(rows), "", "## 레짐 판정"]
     out += [f"- {r['label']}: **{r['value']}** — {r['evidence']}" for r in macro.get("regimes", [])]
     an = macro.get("analogs") or {}
     if an.get("matches"):
         feats = an.get("features") or {}
-        unit = {"pct": "%", "rate": "%", "bp": "bp", "num": ""}
+        unit = {"pct": "%", "rate": "%", "pp": "%p", "num": ""}
 
         def st(s):
             return ", ".join(f"{feats.get(k, [k, ''])[0]} {v}{unit.get(feats.get(k, ['', ''])[1], '')}"
@@ -111,7 +113,7 @@ def _macro_text(macro: dict) -> str:
         out.append(f"- 계산 실패: {q.get('error', '데이터 없음')}")
     else:
         out.append(f"- {q['target']}: 전일 종가 {q['base_close']:,} → 기대 {q['expected']:,} ({_f(q['expected_pct'], '+.2f', '%')}), "
-                   f"1σ 밴드 {q['band_low']:,} ~ {q['band_high']:,}, 일간 변동성 {q['sigma_pct']}%, 상승 확률 {q.get('prob_up')}% · 근거: {q['driver']}")
+                   f"일반적인 예상 등락 범위 {q['band_low']:,} ~ {q['band_high']:,}, 하루 평균 변동 {q['sigma_pct']}%, 상승 확률 {q.get('prob_up')}% · 근거: {q['driver']} (내부 모델: {q.get('model', '')} — 본문에 쓰지 말 것)")
     return "\n".join(out)
 
 
@@ -220,12 +222,14 @@ def generate_api(brief: str, cfg: dict) -> dict:
     if cfg.get("web_search", True):
         kwargs["tools"] = [{"type": "web_search_20250305", "name": "web_search",
                             "max_uses": cfg.get("max_searches", 15)}]
+    import time
     last = None
-    for _ in range(2):
+    for i in range(3):
         try:
             resp = anthropic.Anthropic().messages.create(**kwargs)
             text = "\n".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
             return extract_json(text)
         except Exception as e:  # noqa: BLE001
             last = e
+            time.sleep(5 * (2 ** i))
     return {"error": f"API 브리핑 생성 실패: {last}"}

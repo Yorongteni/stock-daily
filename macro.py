@@ -17,6 +17,8 @@ from datetime import datetime, timedelta, timezone
 import numpy as np
 import pandas as pd
 
+from netretry import retry
+
 KST = timezone(timedelta(hours=9))
 UA = {"User-Agent": "Mozilla/5.0 (stock-daily briefing bot)"}
 
@@ -78,34 +80,40 @@ def fetch_all(assets: list[dict], years: int = 5) -> tuple[dict[str, pd.Series],
     series, used = {}, {}
     yf_first = [a["sources"][0][1] for a in assets if a["sources"] and a["sources"][0][0] == "yf"]
     try:
-        yf_data = _yf_batch(yf_first, start)
+        yf_data = retry(_yf_batch, yf_first, start, label="야후 일괄")
     except Exception as e:  # noqa: BLE001
         print(f"    ✗ 야후 일괄 수집 실패: {e}")
         yf_data = {}
+    today = pd.Timestamp(datetime.now(KST).date())
     for a in assets:
-        errs = []
+        errs, best = [], None
         for src, code in a["sources"]:
             try:
                 if src == "yf":
                     s = yf_data.get(code)
                     if s is None:
-                        s = _yf_batch([code], start).get(code)
+                        s = retry(_yf_batch, [code], start, tries=2, label=code).get(code)
                     if s is None:
                         raise ValueError("빈 데이터")
                 elif src == "fdr":
-                    s = _fdr(code, start)
+                    s = retry(_fdr, code, start, tries=2, label=code)
                 elif src == "fred":
-                    s = _fred(code, start)
+                    s = retry(_fred, code, start, tries=3, label=code)
                 else:
                     raise ValueError(f"알 수 없는 출처 {src}")
                 if len(s) < 20:
                     raise ValueError(f"{len(s)}일뿐")
                 if a.get("kind") == "rate" and s.median() > 20:   # 일부 출처는 금리×10
                     s = s / 10
-                series[a["key"]], used[a["key"]] = s, f"{src}:{code}"
-                break
+                if best is None or s.index[-1] > best[0].index[-1]:
+                    best = (s, f"{src}:{code}")
+                # 최신 데이터면 확정. 3일 넘게 묵은 값이면(출처 갱신 지연) 다음 출처도 확인해 더 최신 것을 쓴다
+                if (today - best[0].index[-1]).days <= 3:
+                    break
             except Exception as e:  # noqa: BLE001
                 errs.append(f"{src}:{code} {type(e).__name__}")
+        if best is not None:
+            series[a["key"]], used[a["key"]] = best
         else:
             used[a["key"]] = "실패 — " + "; ".join(errs)
     return series, used
@@ -159,6 +167,13 @@ def metrics(s: pd.Series, kind: str = "price") -> dict:
     return out
 
 
+def rank5(p) -> str:
+    """5년 백분위 → '최근 5년 중 상위 15%' 같은 일상 표현."""
+    if p is None:
+        return "5년 위치 정보 없음"
+    return f"최근 5년 중 상위 {max(1, round(100 - p))}%" if p >= 50 else f"최근 5년 중 하위 {max(1, round(p))}%"
+
+
 def regimes(m: dict) -> list[dict]:
     """금리·달러·원화·변동성·커브·위험선호 레짐을 판정. 근거 수치 포함."""
     out = []
@@ -170,27 +185,27 @@ def regimes(m: dict) -> list[dict]:
     if t and "error" not in t:
         d3, yoy = t.get("chg_3m") or 0, t.get("yoy") or 0
         v = "금리 상승기" if d3 > 25 else "금리 하락기" if d3 < -25 else "금리 고원(횡보)"
-        add("rate", "미국 금리", v, f"10년물 {t['last']:.2f}%, 3개월 {d3:+.0f}bp, 1년 {yoy:+.0f}bp, 5년 백분위 {t['pct_5y']:.0f}")
+        add("rate", "미국 금리", v, f"10년 금리 {t['last']:.2f}%, 3개월 {d3 / 100:+.2f}%p, 1년 {yoy / 100:+.2f}%p, {rank5(t['pct_5y'])}")
     d = m.get("dxy")
     if d and "error" not in d:
         v = "강달러" if (d["pct_5y"] or 0) >= 65 else "약달러" if (d["pct_5y"] or 0) <= 35 else "달러 중립"
         add("dollar", "달러", v + (" · 상승 추세" if d.get("trend") == "상승" else " · 하락 추세"),
-            f"달러 인덱스 {d['last']:.1f}, 5년 백분위 {d['pct_5y']:.0f}, 1년 {d.get('yoy') or 0:+.1f}%")
+            f"달러 인덱스 {d['last']:.1f}, {rank5(d['pct_5y'])}, 1년 {d.get('yoy') or 0:+.1f}%")
     k = m.get("usdkrw")
     if k and "error" not in k:
         p = k["pct_5y"] or 0
         v = "원화 약세(고환율)" if p >= 70 else "원화 강세(저환율)" if p <= 30 else "환율 중립"
-        add("krw", "원화", v, f"원/달러 {k['last']:,.0f}원, 5년 백분위 {p:.0f}, 3년 평균 대비 {k.get('vs_avg_3y') or 0:+.1f}%")
+        add("krw", "원화", v, f"원/달러 {k['last']:,.0f}원, {rank5(p)}, 3년 평균 대비 {k.get('vs_avg_3y') or 0:+.1f}%")
     x = m.get("vix")
     if x and "error" not in x:
         lv = x["last"]
         v = "저변동(낙관)" if lv < 15 else "보통" if lv < 20 else "경계" if lv < 30 else "공포"
-        add("vol", "변동성", v, f"VIX {lv:.1f}, 5년 백분위 {x['pct_5y']:.0f}")
+        add("vol", "변동성(공포지수)", v, f"VIX {lv:.1f} (20 아래 평온, 30 위 공포), {rank5(x['pct_5y'])}")
     c = m.get("curve")
     if c and "error" not in c:
         lv = c["last"]
-        v = "역전" if lv < 0 else "정상화 진행" if (c.get("yoy") or 0) > 0 else "평탄화"
-        add("curve", "장단기 금리차", v, f"10Y-2Y {lv:+.2f}%p, 1년 변화 {c.get('yoy') or 0:+.0f}bp")
+        v = "역전(경기 침체 경고)" if lv < 0 else "확대(경기 회복 기대)" if (c.get("yoy") or 0) > 0 else "축소(경기 둔화 신호)"
+        add("curve", "장단기 금리차", v, f"10년−2년 금리 {lv:+.2f}%p, 1년 변화 {(c.get('yoy') or 0) / 100:+.2f}%p")
     cu, au = m.get("copper"), m.get("gold")
     if cu and au and "error" not in cu and "error" not in au and cu.get("chg_3m") is not None and au.get("chg_3m") is not None:
         diff = cu["chg_3m"] - au["chg_3m"]
@@ -206,7 +221,7 @@ FEATURES = {
     "kospi_6m": ("kospi", "ret26", "코스피 6개월 수익률", "pct"),
     "spx_6m": ("spx", "ret26", "S&P500 6개월 수익률", "pct"),
     "us10y": ("us10y", "level", "미국 10년 금리", "rate"),
-    "us10y_6m": ("us10y", "diff26", "미국 10년 금리 6개월 변화", "bp"),
+    "us10y_6m": ("us10y", "diff26", "미국 10년 금리 6개월 변화", "pp"),
     "usdkrw": ("usdkrw", "level", "원/달러 환율", "num"),
     "vix": ("vix", "level", "공포지수(VIX)", "num"),
     "cuau_6m": ("cuau", "ret26", "구리/금 6개월 변화", "pct"),
@@ -218,7 +233,7 @@ WEIGHTS = {"kospi_dd": 1.5, "kospi_6m": 1.3, "spx_6m": 1.0, "us10y": 0.8, "us10y
 def _fmt_feat(v, how):
     if v is None or (isinstance(v, float) and math.isnan(v)):
         return None
-    return {"pct": _r(v * 100, 1), "rate": _r(v, 2), "bp": _r(v * 100, 0), "num": _r(v, 1)}[how]
+    return {"pct": _r(v * 100, 1), "rate": _r(v, 2), "pp": _r(v, 2), "num": _r(v, 1)}[how]
 
 
 def analogs(series: dict[str, pd.Series], top: int = 3, min_gap_days: int = 365) -> dict:
@@ -313,7 +328,8 @@ def quant_forecast(series: dict[str, pd.Series], slot: str) -> dict:
             drv_ret = float((1 + new).prod() - 1) if len(new) else 0.0
             exp = alpha + beta * drv_ret
             base = float(tgt.iloc[-1])
-            name, driver = "코스피", f"EWY 간밤 {drv_ret * 100:+.2f}% (베타 {beta:.2f}, 설명력 {r2 * 100:.0f}%)"
+            name, driver = "코스피", f"밤사이 미국 시장의 한국 ETF(EWY) {drv_ret * 100:+.2f}%"
+            model = f"EWY 회귀 베타 {beta:.2f}, 설명력 {r2 * 100:.0f}%"
         else:
             tgt, drv = series["spx"], series["es"]
             sig = float(tgt.pct_change().dropna().tail(60).std())
@@ -322,13 +338,14 @@ def quant_forecast(series: dict[str, pd.Series], slot: str) -> dict:
             else:
                 drv_ret = 0.0
             exp, base, beta, r2 = drv_ret, float(tgt.iloc[-1]), 1.0, None
-            name, driver = "S&P 500", f"S&P500 선물 {drv_ret * 100:+.2f}% (지수 전일 종가 대비)"
+            name, driver = "S&P 500", f"S&P500 선물 {drv_ret * 100:+.2f}% (어제 종가 대비)"
+            model = "선물 등락 + 60일 변동성"
         mid = base * (1 + exp)
         return {
             "target": name, "base_close": _r(base), "expected_pct": _r(exp * 100),
             "expected": _r(mid), "band_low": _r(mid * (1 - sig)), "band_high": _r(mid * (1 + sig)),
             "sigma_pct": _r(sig * 100), "prob_up": _r(_norm_cdf(exp / sig) * 100, 0) if sig > 0 else None,
-            "driver": driver, "method": "1σ(약 68%) 밴드, 최근 1년 회귀/60일 변동성 기준",
+            "driver": driver, "model": model, "method": "일반적인 예상 등락 범위 (대략 3번 중 2번 이 안에서 끝남)",
         }
     except Exception as e:  # noqa: BLE001
         return {"error": f"정량 예측 계산 실패: {type(e).__name__}: {e}"}

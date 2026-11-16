@@ -34,8 +34,8 @@ macro:
   analog_years: 20      # 유사 국면을 찾는 기간 (데이터가 있는 만큼, 최대 20년)
   assets:
     # 주식 지수 · 선행 지표
-    - { key: kospi,   name: 코스피,            group: 지수,   sources: [[yf, "^KS11"], [fdr, KS11]] }
-    - { key: kosdaq,  name: 코스닥,            group: 지수,   sources: [[yf, "^KQ11"], [fdr, KQ11]] }
+    - { key: kospi,   name: 코스피,            group: 지수,   sources: [[fdr, KS11], [yf, "^KS11"]] }
+    - { key: kosdaq,  name: 코스닥,            group: 지수,   sources: [[fdr, KQ11], [yf, "^KQ11"]] }
     - { key: spx,     name: S&P 500,           group: 지수,   sources: [[yf, "^GSPC"], [fdr, US500]] }
     - { key: ndx,     name: 나스닥 종합,       group: 지수,   sources: [[yf, "^IXIC"], [fdr, IXIC]] }
     - { key: sox,     name: 필라델피아 반도체, group: 지수,   sources: [[yf, "^SOX"]] }

@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from indicators import rsi
+from netretry import retry
 
 SECTOR_KO = {"Technology": "기술", "Financial Services": "금융", "Healthcare": "헬스케어",
              "Industrials": "산업재", "Consumer Cyclical": "경기소비재", "Consumer Defensive": "필수소비재",
@@ -61,7 +62,7 @@ def load_fundamentals(universe: dict, refresh_days: int = 7, demo=False) -> dict
         print(f"  … 실적 데이터 수집 {len(todo)}종목 (주 1회, 몇 분 걸릴 수 있음)")
     for i, t in enumerate(todo, 1):
         try:
-            cache[t] = _fetch_one(t)
+            cache[t] = retry(_fetch_one, t, tries=2, base=2, label=t)
         except Exception as e:  # noqa: BLE001
             print(f"    ✗ {t} 실적 수집 실패: {e}")
         if i % 20 == 0:
@@ -80,8 +81,8 @@ def load_prices(tickers: list, demo=False, period="5y") -> tuple[dict, dict]:
         p = _fake_prices(tickers)
         return p, {t: s * 1e6 for t, s in p.items()}
     import yfinance as yf
-    df = yf.download(tickers, period=period, auto_adjust=True, group_by="ticker",
-                     threads=True, progress=False)
+    df = retry(yf.download, tickers, period=period, auto_adjust=True, group_by="ticker",
+               threads=True, progress=False, label="종목 주가")
     out, val = {}, {}
     for t in tickers:
         try:

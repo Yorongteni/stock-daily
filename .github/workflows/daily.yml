@@ -1,22 +1,31 @@
 # 모닝(07:00) · 나이트(22:00) 브리핑 자동 실행
 #
-#  KST 06:05 / 21:05  수집 → docs/data/<날짜>_<슬롯>.json + _brief.md 커밋
-#  KST 06:15 / 21:15  claude.ai 루틴이 brief를 읽고 AI 분석 → docs/ai/<날짜>_<슬롯>.json 푸시
-#                     → (push 이벤트) 리포트 생성 → PDF·영상(daily-report.yml)
-#  KST 06:45 / 21:45  안전장치: 그때까지 리포트가 없으면 AI 없이(정량 결론) 리포트·영상 생성.
-#                     나중에 AI 결과가 도착하면 push 이벤트로 AI 반영본을 다시 만듭니다.
+# GitHub 예약 실행(cron)은 '최선 노력'이라 수십 분 늦거나 아예 빠질 수 있습니다 (2026-11-16 밤: 두 번 모두 누락,
+# 11-17 아침: 49분 지연). 그래서 시작 신호는 시간이 정확한 Claude 루틴이 '푸시'로 보내고, 예약 실행은 여러 번 겹쳐 둔 백업입니다.
+#
+#  KST 06:00 / 21:00  Claude 루틴 → docs/trigger/<날짜>_<슬롯>.txt 푸시 → (push) 즉시 수집
+#  수집 직후           루틴이 brief 를 읽고 AI 분석 → docs/ai/<날짜>_<슬롯>.json 푸시 → (push) 리포트 → PDF·영상
+#  백업 수집           KST 06:10·06:25 / 21:10·21:25  (이미 수집했으면 건너뜀)
+#  누락 복구           KST 06:50·07:15·07:45 / 21:50·22:15·22:45
+#                      그 시각까지 리포트가 없으면 (데이터가 없으면 수집부터) AI 없이 리포트·영상 생성.
+#                      나중에 AI 결과가 오면 push 이벤트로 AI 반영본을 다시 만듭니다.
 #  cron 은 UTC 기준입니다. 한국 월요일 아침 = UTC 일요일이라 아침 요일이 0-4 입니다.
-#  GitHub 예약 실행은 붐비는 시간에 10~30분 늦어질 수 있습니다.
 name: daily-market-report
 on:
   schedule:
-    - cron: "5 21 * * 0-4"    # 모닝 수집   (KST 월~금 06:05)
-    - cron: "45 21 * * 0-4"   # 모닝 안전장치 (KST 06:45)
-    - cron: "5 12 * * 1-5"    # 나이트 수집  (KST 월~금 21:05)
-    - cron: "45 12 * * 1-5"   # 나이트 안전장치 (KST 21:45)
+    - cron: "10 21 * * 0-4"   # 모닝 백업 수집 (KST 06:10)
+    - cron: "25 21 * * 0-4"   # 모닝 백업 수집 (KST 06:25)
+    - cron: "50 21 * * 0-4"   # 모닝 누락 복구 (KST 06:50)
+    - cron: "15 22 * * 0-4"   # 모닝 누락 복구 (KST 07:15)
+    - cron: "45 22 * * 0-4"   # 모닝 누락 복구 (KST 07:45)
+    - cron: "10 12 * * 1-5"   # 나이트 백업 수집 (KST 21:10)
+    - cron: "25 12 * * 1-5"   # 나이트 백업 수집 (KST 21:25)
+    - cron: "50 12 * * 1-5"   # 나이트 누락 복구 (KST 21:50)
+    - cron: "15 13 * * 1-5"   # 나이트 누락 복구 (KST 22:15)
+    - cron: "45 13 * * 1-5"   # 나이트 누락 복구 (KST 22:45)
   push:
     branches: [main, "claude/**"]   # 루틴이 main 대신 claude/ 브랜치에 올려도 반영
-    paths: ["docs/ai/**"]
+    paths: ["docs/ai/**", "docs/trigger/**"]
   workflow_dispatch:
     inputs:
       step:
@@ -37,14 +46,14 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: daily-market-report
-  cancel-in-progress: false
-
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
+    # 같은 종류 작업은 한 번에 하나씩 (대기 중인 이전 작업은 최신 작업으로 대체되어도 결과는 같음)
+    concurrency:
+      group: daily-report-job
+      cancel-in-progress: false
     outputs:
       built: ${{ steps.build.outputs.built }}
       date: ${{ steps.plan.outputs.date }}
@@ -59,7 +68,9 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-      - run: pip install -r requirements.txt
+      - name: 패키지 설치 (재시도)
+        run: |
+          for i in 1 2 3; do pip install --retries 5 -r requirements.txt && break; echo "재시도 $i"; sleep $((i*15)); done
 
       - name: 할 일·날짜·슬롯 정하기
         id: plan
@@ -69,19 +80,23 @@ jobs:
           IN_STEP: ${{ github.event.inputs.step }}
           IN_SLOT: ${{ github.event.inputs.slot }}
           IN_DATE: ${{ github.event.inputs.date }}
+          BEFORE: ${{ github.event.before }}
         run: |
           d="$(TZ=Asia/Seoul date +%F)"; h=$((10#$(TZ=Asia/Seoul date +%H)))
           slot=""; step=""; force=false
           case "$EVENT" in
             schedule)
-              case "$SCHEDULE" in "5 "*) step=collect ;; *) step=build ;; esac ;;
+              case "$SCHEDULE" in "10 "*|"25 "*) step=collect ;; *) step=recover ;; esac ;;
             push)
-              step=build
-              if [ "$GITHUB_REF" != "refs/heads/main" ]; then   # 다른 브랜치의 AI 결과를 main 작업본으로 가져옴
-                git fetch -q origin "$GITHUB_SHA" && git checkout "$GITHUB_SHA" -- docs/ai/
+              if [ "$GITHUB_REF" != "refs/heads/main" ]; then   # 다른 브랜치의 파일을 main 작업본으로 가져옴
+                git fetch -q origin "$GITHUB_SHA" && git checkout "$GITHUB_SHA" -- docs/ai/ docs/trigger/ 2>/dev/null || true
               fi
-              f="$(ls docs/ai/????-??-??_*.json 2>/dev/null | sort | tail -n 1)"
-              if [ -n "$f" ]; then s="$(basename "$f" .json)"; d="${s%_*}"; slot="${s##*_}"; fi ;;
+              git fetch -q --depth=50 origin "$GITHUB_SHA" 2>/dev/null || true
+              changed="$(git diff --name-only "$BEFORE" "$GITHUB_SHA" 2>/dev/null || git show --name-only --format= "$GITHUB_SHA")"
+              f="$(echo "$changed" | grep -E '^docs/ai/[0-9-]+_(am|pm)\.json$' | tail -n 1)"
+              if [ -n "$f" ]; then step=build; else
+                f="$(echo "$changed" | grep -E '^docs/trigger/[0-9-]+_(am|pm)\.txt$' | tail -n 1)"; step=collect; fi
+              if [ -n "$f" ]; then s="$(basename "$f")"; s="${s%.*}"; d="${s%_*}"; slot="${s##*_}"; fi ;;
             workflow_dispatch)
               step="${IN_STEP:-all}"; slot="${IN_SLOT}"; [ -n "$IN_DATE" ] && d="$IN_DATE"; force=true ;;
           esac
@@ -90,22 +105,32 @@ jobs:
           fi
           echo "step=$step" >> "$GITHUB_OUTPUT"; echo "date=$d" >> "$GITHUB_OUTPUT"
           echo "slot=$slot" >> "$GITHUB_OUTPUT"; echo "force=$force" >> "$GITHUB_OUTPUT"
-          echo "### $d ($slot) · $step" >> "$GITHUB_STEP_SUMMARY"
+          echo "### $d ($slot) · $step (event: $EVENT ${SCHEDULE})" >> "$GITHUB_STEP_SUMMARY"
           echo "할 일: $step / 날짜: $d / 슬롯: $slot"
 
       - name: 수집 (데이터 묶음 + AI 입력)
-        if: steps.plan.outputs.step == 'collect' || steps.plan.outputs.step == 'all'
+        id: collect
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           D: ${{ steps.plan.outputs.date }}
           S: ${{ steps.plan.outputs.slot }}
+          STEP: ${{ steps.plan.outputs.step }}
+          FORCE: ${{ steps.plan.outputs.force }}
         run: |
+          git pull -q --rebase --autostash origin main || true
+          stem="${D}_${S}"
+          need=false
+          case "$STEP" in
+            collect|all) [ "$FORCE" = "true" ] || [ ! -f "docs/data/$stem.json" ] && need=true ;;
+            recover|build) [ ! -f "docs/data/$stem.json" ] && [ ! -f "docs/report_$stem.html" ] && need=true ;;
+          esac
+          if [ "$need" != "true" ]; then echo "수집 건너뜀 (이미 있음 또는 필요 없음)"; exit 0; fi
           python main.py --slot "$S" --date "$D" --collect --out docs
           git config user.name  "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add docs/data docs/ai cache/ 2>/dev/null || true
-          git commit -m "데이터 수집: $D ($S)" || echo "변경 없음"
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          git commit -q -m "데이터 수집: $D ($S)" || echo "변경 없음"
+          for i in 1 2 3 4; do git pull -q --rebase --autostash origin main && git push -q origin HEAD:main && break; echo "푸시 재시도 $i"; sleep $((i*10)); done
 
       - name: 리포트 생성
         id: build
@@ -115,15 +140,15 @@ jobs:
           STEP: ${{ steps.plan.outputs.step }}
           FORCE: ${{ steps.plan.outputs.force }}
         run: |
-          git pull --rebase -q || true
+          git pull -q --rebase --autostash origin main || true
           stem="${D}_${S}"
-          # 수집만 하는 실행: API 모드로 AI 결과까지 생긴 경우에만 바로 리포트를 만든다
+          # 수집 신호로 시작한 실행: API 모드로 AI 결과까지 생긴 경우에만 바로 리포트를 만든다
           if [ "$STEP" = "collect" ] && [ ! -f "docs/ai/$stem.json" ]; then
-            echo "수집만 완료 (AI 결과는 루틴이 올리면 push 이벤트로 이어서 생성)"; echo "built=false" >> "$GITHUB_OUTPUT"; exit 0
+            echo "수집만 완료 (AI 결과가 올라오면 push 이벤트로 이어서 생성)"; echo "built=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           # 이미 만든 리포트가 있고, 그 리포트가 AI 반영본이거나 새 AI 결과가 없으면 건너뜀
           if [ "$FORCE" != "true" ] && [ -f "docs/report_$stem.html" ]; then
-            has_ai=$(python -c "import json,sys;h=json.load(open('docs/history.json',encoding='utf-8'));print(str(h.get('$D',{}).get('slots',{}).get('$S',{}).get('ai',False)).lower())")
+            has_ai=$(python -c "import json;h=json.load(open('docs/history.json',encoding='utf-8'));print(str(h.get('$D',{}).get('slots',{}).get('$S',{}).get('ai',False)).lower())")
             if [ "$has_ai" = "true" ] || [ ! -f "docs/ai/$stem.json" ]; then
               echo "이미 생성됨 → 건너뜀"; echo "built=false" >> "$GITHUB_OUTPUT"; exit 0
             fi
@@ -132,8 +157,8 @@ jobs:
           git config user.name  "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add docs/ cache/
-          git commit -m "브리핑 리포트: $D ($S)" || echo "변경 없음"
-          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          git commit -q -m "브리핑 리포트: $D ($S)" || echo "변경 없음"
+          for i in 1 2 3 4; do git pull -q --rebase --autostash origin main && git push -q origin HEAD:main && break; echo "푸시 재시도 $i"; sleep $((i*10)); done
           echo "built=true" >> "$GITHUB_OUTPUT"
 
   video:

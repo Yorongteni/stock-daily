@@ -93,34 +93,34 @@ def analyze(df: pd.DataFrame, chart_days: int = 180) -> dict:
     signals = []
     gc = _crossed(df["SMA20"], df["SMA60"])
     if gc == 1:
-        signals.append(("bull", "20/60일선 골든크로스"))
+        signals.append(("bull", "상승 추세 전환 신호(골든크로스)"))
     elif gc == -1:
-        signals.append(("bear", "20/60일선 데드크로스"))
+        signals.append(("bear", "하락 추세 전환 신호(데드크로스)"))
     tc = _crossed(df["TSI"], df["TSI_SIG"], 2)
     if tc == 1:
-        signals.append(("bull", f"TSI 시그널 상향 돌파 (TSI {last.TSI:.1f})"))
+        signals.append(("bull", "추세 전환 신호: 오름세 강해짐(TSI)"))
     elif tc == -1:
-        signals.append(("bear", f"TSI 시그널 하향 돌파 (TSI {last.TSI:.1f})"))
+        signals.append(("bear", "추세 전환 신호: 오름세 약해짐(TSI)"))
     mc = _crossed(df["MACD"], df["MACD_SIG"], 2)
     if mc == 1:
-        signals.append(("bull", "MACD 매수 신호 전환"))
+        signals.append(("bull", "추세 전환 신호: 매수 타이밍(MACD)"))
     elif mc == -1:
-        signals.append(("bear", "MACD 매도 신호 전환"))
+        signals.append(("bear", "추세 전환 신호: 매도 타이밍(MACD)"))
     if last.RSI >= 70:
-        signals.append(("warn", f"RSI {last.RSI:.0f} 과열권"))
+        signals.append(("warn", f"단기 과열 신호 (RSI {last.RSI:.0f})"))
     elif last.RSI <= 30:
-        signals.append(("warn", f"RSI {last.RSI:.0f} 과매도권"))
+        signals.append(("warn", f"단기 침체(많이 떨어짐) 신호 (RSI {last.RSI:.0f})"))
     if pd.notna(last.BB_UP) and last.Close > last.BB_UP:
-        signals.append(("warn", "볼린저밴드 상단 이탈"))
+        signals.append(("warn", "평소 범위보다 너무 많이 오름(볼린저밴드)"))
     elif pd.notna(last.BB_LO) and last.Close < last.BB_LO:
-        signals.append(("warn", "볼린저밴드 하단 이탈"))
+        signals.append(("warn", "평소 범위보다 너무 많이 내림(볼린저밴드)"))
 
     yr = c.tail(252)
     hi, lo = yr.max(), yr.min()
     if last.Close >= hi * 0.98:
-        signals.append(("bull", "52주 신고가 근접"))
+        signals.append(("bull", "1년 중 최고가 근처"))
     elif last.Close <= lo * 1.02:
-        signals.append(("bear", "52주 신저가 근접"))
+        signals.append(("bear", "1년 중 최저가 근처"))
 
     def back(n):
         return _pct(last.Close, c.iloc[-n - 1]) if len(c) > n else None
