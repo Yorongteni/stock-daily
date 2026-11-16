@@ -1206,14 +1206,14 @@
  "2026-11-17": {
   "kospi": -3.59,
   "sp500": -1.92,
-  "headline": "모닝 브리핑 · 정량 판단 '방어적 비중축소'",
-  "stance": "방어적 비중축소",
+  "headline": "반도체 급락 여파, 코스피 5,000선 시험",
+  "stance": "현금 확보·관망 (주식 비중 줄이기)",
   "allocation": {
    "kr_equity": 20,
-   "us_equity": 26,
-   "gold_commodities": 12,
+   "us_equity": 25,
+   "gold_commodities": 10,
    "usd_cash": 20,
-   "krw_cash_bonds": 17,
+   "krw_cash_bonds": 20,
    "alternatives": 5
   },
   "lists": {
@@ -1278,10 +1278,10 @@
   },
   "slots": {
    "am": {
-    "ai": false,
-    "stance": "방어적 비중축소",
-    "headline": "모닝 브리핑 · 정량 판단 '방어적 비중축소'",
-    "built_at": "2026-11-17 07:33"
+    "ai": true,
+    "stance": "현금 확보·관망 (주식 비중 줄이기)",
+    "headline": "반도체 급락 여파, 코스피 5,000선 시험",
+    "built_at": "2026-11-17 08:51"
    }
   }
  }
