@@ -4,3 +4,7 @@
 
 __pycache__/
 *.pyc
+out/
+client_secret*.json
+tools/client_secret*.json
+token*.json
