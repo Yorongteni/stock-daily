@@ -1120,5 +1120,87 @@
     "비자"
    ]
   }
+ },
+ "2026-11-16": {
+  "kospi": -0.98,
+  "sp500": -0.4,
+  "headline": "금리 5.15% 쇼크, 코스피 5,050~5,380 박스",
+  "stance": "방어적 비중축소",
+  "allocation": {
+   "kr_equity": 20,
+   "us_equity": 28,
+   "gold_commodities": 10,
+   "usd_cash": 17,
+   "krw_cash_bonds": 20,
+   "alternatives": 5
+  },
+  "lists": {
+   "value": [
+    "MU",
+    "SMCI",
+    "009540.KS",
+    "GOOGL",
+    "214450.KQ"
+   ],
+   "growth": [
+    "MU",
+    "PLTR",
+    "SMCI",
+    "196170.KQ",
+    "012450.KS"
+   ],
+   "overvalued": [
+    "CRWD",
+    "003670.KS",
+    "017670.KS",
+    "277810.KQ",
+    "TSLA"
+   ]
+  },
+  "names": {
+   "value": [
+    "마이크론",
+    "슈퍼마이크로",
+    "HD한국조선해양",
+    "알파벳",
+    "파마리서치"
+   ],
+   "growth": [
+    "마이크론",
+    "팔란티어",
+    "슈퍼마이크로",
+    "알테오젠",
+    "한화에어로스페이스"
+   ],
+   "overvalued": [
+    "크라우드스트라이크",
+    "포스코퓨처엠",
+    "SK텔레콤",
+    "레인보우로보틱스",
+    "테슬라"
+   ]
+  },
+  "valuation": {
+   "kr": {
+    "pe_median": 19.48,
+    "pb_median": 2.56,
+    "earnings_yield": 5.13,
+    "n": 57
+   },
+   "us": {
+    "pe_median": 25.55,
+    "pb_median": 6.1,
+    "earnings_yield": 3.91,
+    "n": 90
+   }
+  },
+  "slots": {
+   "am": {
+    "ai": true,
+    "stance": "방어적 비중축소",
+    "headline": "금리 5.15% 쇼크, 코스피 5,050~5,380 박스",
+    "built_at": "2026-11-16 10:53"
+   }
+  }
  }
 }
