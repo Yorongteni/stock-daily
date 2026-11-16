@@ -40,6 +40,11 @@ def normalize(ai: dict, sectors: list[str] | None = None) -> tuple[dict, list[st
         ai["stance"] = st = {"label": st}
     if isinstance(st, dict) and st.get("label") not in STANCES:
         warns.append(f"stance.label '{st.get('label')}' → 허용값 {STANCES}")
+    if isinstance(st, dict) and _num(st.get("score")) is not None:
+        sc = _num(st["score"])
+        if not -2 <= sc <= 2:
+            warns.append(f"stance.score {sc} → -2~+2 범위로 맞춤")
+        st["score"] = max(-2.0, min(2.0, sc))
 
     al = ai.get("allocation")
     if isinstance(al, dict):
