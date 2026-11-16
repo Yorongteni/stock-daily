@@ -56,7 +56,9 @@ git commit -m "AI 브리핑: <날짜> (<슬롯>)"
 git pull --rebase -q && git push origin HEAD:main
 ```
 
-- **main 브랜치에 직접 푸시**합니다 (새 브랜치·PR을 만들지 않습니다). 푸시가 거부되면 `git pull --rebase` 후 한 번 더 시도합니다.
+- **main 브랜치에 직접 푸시**합니다 (PR은 만들지 않습니다). 거부되면 `git pull --rebase` 후 한 번 더 시도합니다.
+- 권한 제한으로 main 푸시가 막히면 현재 작업 브랜치(`claude/...`)에 그대로 푸시합니다: `git push origin HEAD`.
+  Actions가 `claude/**` 브랜치의 `docs/ai/` 파일도 main으로 가져와 리포트를 만듭니다.
 - 다른 파일은 고치거나 커밋하지 않습니다.
 
 ## 5. 마무리 보고

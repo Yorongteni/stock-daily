@@ -15,7 +15,7 @@ on:
     - cron: "5 12 * * 1-5"    # 나이트 수집  (KST 월~금 21:05)
     - cron: "45 12 * * 1-5"   # 나이트 안전장치 (KST 21:45)
   push:
-    branches: [main]
+    branches: [main, "claude/**"]   # 루틴이 main 대신 claude/ 브랜치에 올려도 반영
     paths: ["docs/ai/**"]
   workflow_dispatch:
     inputs:
@@ -77,6 +77,9 @@ jobs:
               case "$SCHEDULE" in "5 "*) step=collect ;; *) step=build ;; esac ;;
             push)
               step=build
+              if [ "$GITHUB_REF" != "refs/heads/main" ]; then   # 다른 브랜치의 AI 결과를 main 작업본으로 가져옴
+                git fetch -q origin "$GITHUB_SHA" && git checkout "$GITHUB_SHA" -- docs/ai/
+              fi
               f="$(ls docs/ai/????-??-??_*.json 2>/dev/null | sort | tail -n 1)"
               if [ -n "$f" ]; then s="$(basename "$f" .json)"; d="${s%_*}"; slot="${s##*_}"; fi ;;
             workflow_dispatch)
