@@ -200,55 +200,92 @@ def regimes(m: dict) -> list[dict]:
 
 
 # ───────────────────────── 유사 국면 ─────────────────────────
+# 비교 항목: (원자료, 계산 방식, 보고서에 보일 이름, 표시 방식)
 FEATURES = {
-    "kospi_6m": ("kospi", "ret26"), "spx_6m": ("spx", "ret26"), "us10y": ("us10y", "level"),
-    "us10y_6m": ("us10y", "diff26"), "dxy": ("dxy", "level"), "usdkrw": ("usdkrw", "level"),
-    "vix": ("vix", "loglevel"), "cuau_6m": ("cuau", "ret26"),
+    "kospi_dd": ("kospi", "dd52", "코스피 1년 고점 대비", "pct"),
+    "kospi_6m": ("kospi", "ret26", "코스피 6개월 수익률", "pct"),
+    "spx_6m": ("spx", "ret26", "S&P500 6개월 수익률", "pct"),
+    "us10y": ("us10y", "level", "미국 10년 금리", "rate"),
+    "us10y_6m": ("us10y", "diff26", "미국 10년 금리 6개월 변화", "bp"),
+    "usdkrw": ("usdkrw", "level", "원/달러 환율", "num"),
+    "vix": ("vix", "level", "공포지수(VIX)", "num"),
+    "cuau_6m": ("cuau", "ret26", "구리/금 6개월 변화", "pct"),
 }
+WEIGHTS = {"kospi_dd": 1.5, "kospi_6m": 1.3, "spx_6m": 1.0, "us10y": 0.8, "us10y_6m": 1.0,
+           "usdkrw": 0.6, "vix": 1.0, "cuau_6m": 0.6}
 
 
-def analogs(series: dict[str, pd.Series], top: int = 3) -> dict:
-    """주간 데이터로 지금과 가장 비슷한 과거 시점을 찾아, 이후 코스피·S&P500 흐름을 붙인다."""
+def _fmt_feat(v, how):
+    if v is None or (isinstance(v, float) and math.isnan(v)):
+        return None
+    return {"pct": _r(v * 100, 1), "rate": _r(v, 2), "bp": _r(v * 100, 0), "num": _r(v, 1)}[how]
+
+
+def analogs(series: dict[str, pd.Series], top: int = 3, min_gap_days: int = 365) -> dict:
+    """지금과 가장 비슷했던 과거 시점(최대 20여 년 전까지)을 찾고, 그때 전후 코스피·S&P500 흐름을 붙인다.
+
+    비슷함의 기준: 코스피가 1년 고점에서 얼마나 내려왔는지, 6개월 수익률, 미국 금리 수준·변화, 환율, VIX, 구리/금.
+    각 사례마다 '그 시점 1년 전 → 이후 6개월' 주간 경로(시점=100)를 함께 저장해 그래프로 겹쳐 볼 수 있게 한다.
+    """
     w = {k: s.resample("W-FRI").last() for k, s in series.items()}
     if "copper" in w and "gold" in w:
         w["cuau"] = w["copper"] / w["gold"]
     cols = {}
-    for name, (key, how) in FEATURES.items():
+    for name, (key, how, _, _) in FEATURES.items():
         s = w.get(key)
         if s is None:
             continue
-        cols[name] = {"ret26": s / s.shift(26) - 1, "diff26": s - s.shift(26),
-                      "level": s, "loglevel": np.log(s)}[how]
+        cols[name] = {"ret26": s / s.shift(26) - 1, "diff26": s - s.shift(26), "level": s,
+                      "dd52": s / s.rolling(52, min_periods=40).max() - 1}[how]
     if len(cols) < 4 or "kospi" not in w or "spx" not in w:
         return {}
     f = pd.DataFrame(cols).dropna()
-    if len(f) < 80:
+    if len(f) < 150:
         return {}
     z = (f - f.mean()) / f.std(ddof=0).replace(0, np.nan)
     z = z.dropna(axis=1)
+    wts = pd.Series({c: WEIGHTS.get(c, 1.0) for c in z.columns})
     cur = z.iloc[-1]
-    hist = z.iloc[:-26]                       # 최근 6개월은 제외
-    dist = np.sqrt(((hist - cur) ** 2).mean(axis=1)).sort_values()
+    hist = z.iloc[:-52]                       # 최근 1년은 제외 (같은 흐름의 연장선이므로)
+    hist = hist[hist.index <= z.index[-1] - pd.Timedelta(weeks=26 + 52)]  # 이후 6개월 결과가 있는 시점만
+    dist = np.sqrt((((hist - cur) ** 2) * wts).sum(axis=1) / wts.sum()).sort_values()
     picked = []
     for d, v in dist.items():
-        if all(abs((d - p).days) > 120 for p, _ in picked):
+        if all(abs((d - p).days) > min_gap_days for p, _ in picked):
             picked.append((d, v))
         if len(picked) == top:
             break
+
+    def path(key, d, before=52, after=26):
+        s = w[key].dropna()
+        base = _asof(s, d)
+        if not base:
+            return []
+        out = []
+        for k in range(-before, after + 1, 2):
+            v = _asof(s, d + pd.Timedelta(weeks=k))
+            if v is not None and (k <= 0 or d + pd.Timedelta(weeks=k) <= s.index[-1]):
+                out.append([k, _r(v / base * 100, 1)])
+        return out
+
+    def state(d):
+        return {k: _fmt_feat(f.loc[d, k], FEATURES[k][3]) for k in f.columns}
+
     out = []
     for d, v in picked:
-        row = {"date": d.strftime("%Y-%m-%d"), "similarity": _r(100 / (1 + v * 2), 0)}
-        for key, nm in (("kospi", "kospi"), ("spx", "spx")):
+        row = {"date": d.strftime("%Y-%m-%d"), "similarity": _r(100 / (1 + v * 2), 0), "state": state(d),
+               "path_kospi": path("kospi", d), "path_spx": path("spx", d)}
+        for key in ("kospi", "spx"):
             s = w[key].dropna()
             base = _asof(s, d)
-            for wk in (4, 13):
+            for wk in (4, 13, 26):
                 fut = _asof(s, d + pd.Timedelta(weeks=wk))
-                row[f"{nm}_{wk}w"] = None if base in (None, 0) or fut is None else _r((fut / base - 1) * 100, 1)
-        row["state"] = {k: _r(f.loc[d, k] * (100 if k.endswith("_6m") and k != "us10y_6m" else 1), 2)
-                        for k in f.columns}
+                row[f"{key}_{wk}w"] = None if base in (None, 0) or fut is None else _r((fut / base - 1) * 100, 1)
         out.append(row)
-    out_state = {k: _r(f.iloc[-1][k] * (100 if k.endswith("_6m") and k != "us10y_6m" else 1), 2) for k in f.columns}
-    return {"features": list(f.columns), "now": out_state, "matches": out}
+    d0 = f.index[-1]
+    return {"features": {k: [FEATURES[k][2], FEATURES[k][3]] for k in f.columns},
+            "now": state(d0), "now_path_kospi": path("kospi", d0, after=0), "now_path_spx": path("spx", d0, after=0),
+            "since": f.index[0].strftime("%Y-%m-%d"), "matches": out}
 
 
 # ───────────────────────── 정량 예측 기준선 ─────────────────────────
@@ -301,9 +338,9 @@ def quant_forecast(series: dict[str, pd.Series], slot: str) -> dict:
 def run(cfg: dict, slot: str, demo: bool = False) -> tuple[dict, dict[str, pd.Series]]:
     assets = cfg.get("assets", [])
     if demo:
-        series, used = _fake(assets, cfg.get("years", 5)), {a["key"]: "demo" for a in assets}
+        series, used = _fake(assets, max(cfg.get("years", 5), cfg.get("analog_years", 20))), {a["key"]: "demo" for a in assets}
     else:
-        series, used = fetch_all(assets, cfg.get("years", 5))
+        series, used = fetch_all(assets, max(cfg.get("years", 5), cfg.get("analog_years", 20)))
     out = {"assets": [], "sources": used}
     m = {}
     for a in assets:

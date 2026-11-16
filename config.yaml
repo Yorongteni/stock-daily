@@ -30,7 +30,8 @@ claude:
 #   sources: 앞에서부터 시도하고 실패하면 다음 출처로 (yf=야후, fdr=FinanceDataReader, fred=FRED CSV)
 #   kind: price(%) / rate(금리, 변화를 bp로 표시)
 macro:
-  years: 5
+  years: 5              # 그래프·백분위 비교 기간
+  analog_years: 20      # 유사 국면을 찾는 기간 (데이터가 있는 만큼, 최대 20년)
   assets:
     # 주식 지수 · 선행 지표
     - { key: kospi,   name: 코스피,            group: 지수,   sources: [[yf, "^KS11"], [fdr, KS11]] }

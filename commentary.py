@@ -36,7 +36,9 @@ SCHEMA = """{
     "summary": "작년 이맘때·최근 3~5년과 비교해 지금 시장이 결정적으로 달라진 점 (5~7문장, 수치 포함)",
     "regime": {"market_type": "유동성 장세 | 실적 장세 | 역금융 장세 | 역실적 장세 + 근거", "leadership_shift": "작년 주도 섹터 → 지금 주도 섹터와 이유", "rate_fx": "금리·환율 레짐 변화"},
     "same": ["과거와 같은 점"], "different": ["과거와 다른 점"],
-    "analogs": [{"period": "예: 2023년 9~10월", "why_similar": "", "what_differs": "", "lesson": "그 뒤 흐름이 주는 시사점"}]
+    "analogs": [{"date": "[유사 국면] 데이터의 날짜 그대로 (예: 2008-09-05)", "period": "예: 2008년 9월 — 리먼 브라더스 파산 직전",
+                 "what_happened": "그때 무슨 일이 있었는지 쉬운 말 2문장", "why_similar": "지금과 닮은 점 (수치)", "what_differs": "지금과 다른 점 (수치)",
+                 "lesson": "그 뒤 시장이 어떻게 됐고, 지금 우리에게 주는 시사점 (쉬운 말)"}]
   },
   "macro": {"summary": "매크로·다중 자산 진단 (4~6문장)",
             "assets": [{"name": "원/달러 환율", "view": "상승 | 보합 | 하락", "level_comment": "역사적 위치와 의미", "impact": "주식·섹터에 주는 영향"}]},
@@ -90,11 +92,19 @@ def _macro_text(macro: dict) -> str:
     out += [f"- {r['label']}: **{r['value']}** — {r['evidence']}" for r in macro.get("regimes", [])]
     an = macro.get("analogs") or {}
     if an.get("matches"):
-        out += ["", "## 유사 국면 (주간 데이터 기준, 지금 상태와 가장 비슷했던 과거 시점)",
-                f"- 현재 상태: {json.dumps(an['now'], ensure_ascii=False)}  (kospi_6m·spx_6m·cuau_6m=6개월 수익률 %, us10y_6m=6개월 금리 변화 %p, vix=로그값)"]
+        feats = an.get("features") or {}
+        unit = {"pct": "%", "rate": "%", "bp": "bp", "num": ""}
+
+        def st(s):
+            return ", ".join(f"{feats.get(k, [k, ''])[0]} {v}{unit.get(feats.get(k, ['', ''])[1], '')}"
+                             for k, v in (s or {}).items() if v is not None)
+        out += ["", f"## 유사 국면 ({an.get('since', '')[:4]}년 이후 주간 데이터 중 지금과 가장 비슷했던 시점, 비슷한 순)",
+                f"- 지금: {st(an['now'])}"]
         for m in an["matches"]:
-            out.append(f"- {m['date']} (유사도 {m['similarity']}): 이후 4주 코스피 {_f(m['kospi_4w'], '+.1f', '%')}, 13주 {_f(m['kospi_13w'], '+.1f', '%')} / "
-                       f"S&P500 4주 {_f(m['spx_4w'], '+.1f', '%')}, 13주 {_f(m['spx_13w'], '+.1f', '%')} · 당시 상태 {json.dumps(m['state'], ensure_ascii=False)}")
+            out.append(f"- {m['date']} (유사도 {m['similarity']}): 당시 {st(m['state'])} → 이후 코스피 1개월 {_f(m.get('kospi_4w'), '+.1f', '%')}, "
+                       f"3개월 {_f(m.get('kospi_13w'), '+.1f', '%')}, 6개월 {_f(m.get('kospi_26w'), '+.1f', '%')} / S&P500 1개월 {_f(m.get('spx_4w'), '+.1f', '%')}, "
+                       f"3개월 {_f(m.get('spx_13w'), '+.1f', '%')}, 6개월 {_f(m.get('spx_26w'), '+.1f', '%')}")
+        out.append("- history_context.analogs 에 위 사례를 같은 순서로 모두 설명하세요 (date 는 위 날짜 그대로).")
     q = macro.get("quant") or {}
     out += ["", "## 정량 예측 기준선"]
     if "error" in q or not q:

@@ -131,7 +131,7 @@ def _cap(text: str, limit: int) -> str:
 
 
 # ───────────────────────────── 장면 구성: 핵심 요약(약 5분) ─────────────────────────────
-SHORT_CAP = {"intro": 220, "easy": 300, "gloss": 380, "sum": 220, "history": 560, "macro": 560, "chains": 620,
+SHORT_CAP = {"analog": 560, "intro": 220, "easy": 300, "gloss": 380, "sum": 220, "history": 560, "macro": 560, "chains": 620,
              "fc": 700, "heat": 700, "or": 520, "conc": 620}
 
 
@@ -177,10 +177,33 @@ def plan_short(job: Job, shots: dict[str, list[str]]) -> None:
     if sc_.get("history"):
         t = sc_["history"]
     else:
-        t = "작년과 비교해 보겠습니다. " + " ".join(
-            f"{a['name']}{josa(a['name'])} 1년 전보다 {say_asset_chg(a, 'yoy')}, 5년 중 {a.get('pct_5y', 0):.0f} 백분위입니다."
-            for k in ("kospi", "us10y", "usdkrw") if (a := A.get(k)))
+        def hist_line(a):
+            sp = [v for _, v in (a.get("spark") or []) if v is not None]
+            line = f"{a['name']}{josa(a['name'])} 1년 전보다 {say_asset_chg(a, 'yoy')}"
+            if sp and a.get("kind") != "rate" and max(sp) > 0:
+                dd = (a["last"] / max(sp) - 1) * 100
+                if dd <= -10:
+                    line += f", 다만 최근 고점보다는 {abs(dd):.0f}퍼센트 낮은 상태"
+            return line + "입니다."
+        t = "작년과 비교해 보겠습니다. " + " ".join(hist_line(a) for k in ("kospi", "us10y", "usdkrw") if (a := A.get(k)))
     S.append(Scene("과거 대비 지금의 위치", "① 과거 대비", _cap(t, SHORT_CAP["history"]), one("pctl", "hist_ai")))
+
+    an = (M.get("analogs") or {}).get("matches") or []
+    if an and shots.get("analog_ch"):
+        aia = ((V.get("history_context") or {}).get("analogs") or []) if not RB else []
+        parts = []
+        for i, m in enumerate(an[:3]):
+            x = next((a for a in aia if a.get("date") == m["date"]), aia[i] if i < len(aia) else {})
+            name = x.get("period") or f"{m['date'][:4]}년 {int(m['date'][5:7])}월"
+            line = f"{name}. "
+            if x.get("what_happened"):
+                line += x["what_happened"] + " "
+            line += f"그 뒤 코스피는 3개월 {say_chg(m.get('kospi_13w'))}, 6개월 {say_chg(m.get('kospi_26w'))}했습니다."
+            if x.get("lesson"):
+                line += " " + x["lesson"]
+            parts.append(line)
+        t = "지금과 비슷했던 과거 사례를 그래프로 겹쳐 보겠습니다. 검은 선이 지금이고, 색 선이 과거입니다. " + " ".join(parts)
+        S.append(Scene("지금과 비슷했던 과거 사례", "① 과거 대비", _cap(t, SHORT_CAP["analog"]), one("analog_ch")))
 
     t = sc_.get("macro") or ("매크로 환경입니다. " + " ".join(f"{r['label']}는 {r['value']}." for r in (M.get("regimes") or [])))
     S.append(Scene("매크로·환율·금리", "② 매크로", _cap(t, SHORT_CAP["macro"]), one("regimes", "macro_ai")))
@@ -278,9 +301,9 @@ def plan_scenes(job: Job, shots: dict[str, list[str]], ticker_details: bool = Fa
     if shots.get("hist_ai") and shots.get("pctl"):
         hi = sorted(A.values(), key=lambda a: -(a.get("pct_5y") or 0))[:3]
         lo = sorted(A.values(), key=lambda a: (a.get("pct_5y") or 0))[:2]
-        S.append(Scene("5년 범위 속 지금의 위치", "① 과거 대비 진단",
-                       "5년 범위에서 지금 가장 높은 곳에 있는 자산은 " + ", ".join(f"{a['name']} {a['pct_5y']:.0f}" for a in hi)
-                       + " 백분위입니다. 반대로 가장 낮은 곳은 " + ", ".join(f"{a['name']} {a['pct_5y']:.0f}" for a in lo) + " 백분위입니다.",
+        S.append(Scene("5년 그래프로 본 지금", "① 과거 대비 진단",
+                       "최근 5년 그래프로 보면, 지금 5년 중 가장 높은 쪽에 있는 것은 " + ", ".join(a["name"] for a in hi)
+                       + "입니다. 반대로 가장 낮은 쪽에 있는 것은 " + ", ".join(a["name"] for a in lo) + "입니다.",
                        one("pctl")))
     an = (M.get("analogs") or {}).get("matches") or []
     if an and shots.get("analog"):
@@ -414,8 +437,8 @@ def open_report(browser, path: Path, dpr: int = 2):
 
 
 SHOTS = {  # 키: (선택자, 여러 개)
-    "easy_sum": ("#easy-sum", False), "chains": ("#chains", False), "gloss": ("h3 + .gloss", False),
-    "sum": ("#sum", False), "hist_ai": (".hist-ai", False), "pctl": (".pctl", False), "analog": (".analog", False),
+    "easy_sum": ("#easy-sum", False), "analog_ch": (".analog > .grid2", False), "chains": ("#chains", False), "gloss": ("h3 + .gloss", False),
+    "sum": ("#sum", False), "hist_ai": (".hist-ai", False), "pctl": (".hist-key", False), "analog": (".analog", False),
     "regimes": (".regimes", False), "macro_ai": (".macro-ai", False), "mgrp": (".mgrp", True),
     "social": (".social", False), "fc": (".fc", False), "heat": (".heat", False), "cats": ("section.cat", True),
     "or": (".or", False), "conc": (".conc", False), "plan": (".conc .plan", False),

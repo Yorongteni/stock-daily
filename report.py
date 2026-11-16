@@ -102,6 +102,21 @@ table.t td:first-child,table.t th:first-child{text-align:left}
 table.t tr:last-child td{border-bottom:none}
 .scroll{overflow-x:auto}
 
+.ach{height:260px}
+.acard .t td,.acard .t th{padding:5px 8px;font-size:13px}
+.acard .ln2{font-size:13.5px;margin-top:4px} .acard .ln2 em{font-style:normal;color:var(--sub);margin-right:6px}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,350px),1fr));gap:12px}
+.hcard{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+.hcard .hd{display:flex;justify-content:space-between;align-items:baseline}
+.hcard .lv{font-size:19px;font-weight:700}
+.hcard .state{margin-top:4px}
+.hcard .state .pill{font-size:12.5px}
+.hcard .hch{height:150px;margin:6px 0}
+.hcard ul.hl{list-style:none;margin:0;padding:0;font-size:13.5px}
+.hcard ul.hl li{padding:3px 0;border-top:1px dashed var(--line)}
+.hcard ul.hl span{display:inline-block;min-width:84px;color:var(--sub)}
+.hcard ul.hl b{font-weight:600}
+
 /* 매크로 */
 .mgrp{margin-top:14px}
 .mgrp h3{font-size:14px;color:var(--sub);font-weight:500;margin:0 0 6px}
@@ -330,7 +345,7 @@ h += `<div class="sum" id="sum">
 // ── ① 과거 대비 ──
 const HC = V.history_context || {};
 h += `<h2 id="sec-history"><span class="no">1</span>과거 대비 현재 시장 진단</h2>
-<p class="lead">작년 이맘때와 최근 3~5년 범위 안에서 지금의 위치를 봅니다. 막대는 5년 범위(왼쪽=최저, 오른쪽=최고), 검은 막대=지금, 빈 원=1년 전, 점선=3년 평균.</p>`;
+<p class="lead">작년 이맘때, 그리고 최근 5년과 비교해 지금이 높은지 낮은지를 봅니다.</p>`;
 if (!RB && HC.summary) {
   const rg = HC.regime || {};
   h += `<div class="panel hist-ai"><p class="txt">${esc(HC.summary)}</p>
@@ -339,22 +354,83 @@ if (!RB && HC.summary) {
    <div><h3>결정적으로 달라진 점</h3><ul class="clean">${list(HC.different).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div></div>`;
 } else h += rbNote("과거 대비 해설");
 h += easyBox(EZ.history);
-const PK = ["kospi","kosdaq","spx","ndx","sox","usdkrw","dxy","us10y","us2y","curve","vix","gold","wti","copper","btc"];
-const span = a => (a.max_5y - a.min_5y) || 1;
-const posOf = (a, v) => Math.max(0, Math.min(100, (v - a.min_5y) / span(a) * 100));
-h += `<div class="panel pctl mt"><div class="cap">5년 범위 안의 위치 · 작년 동기 대비 · 3년 평균 대비</div>` +
-  PK.filter(k => A[k] && !A[k].error).map(k => { const a = A[k];
-    return `<div class="row"><span><b>${esc(a.name)}</b> <span class="k">${lvOf(a)}</span></span>
-      <span class="track"><span class="avg" style="left:${posOf(a, a.avg_3y)}%"></span>${a.year_ago != null ? `<span class="ago" style="left:${posOf(a, a.year_ago)}%"></span>` : ""}<span class="now" style="left:${posOf(a, a.last)}%"></span></span>
-      <span class="val">백분위 <b>${a.pct_5y ?? "–"}</b> · 1년 <b class="${cls(a.yoy)}">${chgOf(a, "yoy")}</b> · 3년평균 <b class="${cls(a.vs_avg_3y)}">${chgOf(a, "vs_avg_3y")}</b></span></div>`; }).join("") + `</div>`;
+// 5년 월별 그래프 + 문장 설명 (1년 전 → 지금, 5년 중 높고 낮음, 최고점 대비)
+const KEY6 = ["kospi", "spx", "usdkrw", "us10y", "vix", "gold"];
+const REST = ["kosdaq", "ndx", "sox", "dxy", "us2y", "curve", "wti", "copper", "btc"];
+const histCharts = [];
+const fmtv = (a, v) => v == null ? "–" : a.kind === "rate" ? Number(v).toFixed(2) + "%" : num(v, v < 10 ? 3 : v < 1000 ? 1 : 0);
+const ym = d => d ? d.slice(2, 4) + "." + d.slice(5, 7) : "";
+const lvlWord = p => p == null ? "–" : p >= 80 ? "매우 높은 편" : p >= 60 ? "높은 편" : p >= 40 ? "중간" : p >= 20 ? "낮은 편" : "매우 낮은 편";
+const monthly = s => { const m = new Map(); for (const p of s || []) m.set(p[0].slice(0, 7), p); return [...m.values()]; };
+function histCard(k) {
+  const a = A[k];
+  if (!a || a.error || !(a.spark || []).length) return "";
+  const s = a.spark;
+  let hi = s[0], lo = s[0];
+  for (const p of s) { if (p[1] > hi[1]) hi = p; if (p[1] < lo[1]) lo = p; }
+  const rate = a.kind === "rate";
+  // 고점·저점 대비 (금리는 %p 차이, 그 밖은 %)
+  const dd = rate ? (a.last - hi[1]) * 100 : (a.last / hi[1] - 1) * 100;     // 최고점 대비 (음수)
+  const ru = rate ? (a.last - lo[1]) * 100 : (a.last / lo[1] - 1) * 100;     // 최저점 대비 (양수)
+  const big = rate ? 50 : 20, mid = rate ? 25 : 10;                           // 큰 하락/조정 기준 (bp / %)
+  const m3 = a.chg_3m, m3big = rate ? 30 : 8;
+  const hiDays = (Date.parse(s[s.length - 1][0]) - Date.parse(hi[0])) / 864e5;
+  const loDays = (Date.parse(s[s.length - 1][0]) - Date.parse(lo[0])) / 864e5;
+  // 지금 상태: 최근 흐름을 먼저 판단하고, 5년 위치는 그 뒤에 덧붙인다
+  let state, tone;
+  if (dd <= -big && hiDays < 540) { state = `최근 고점에서 크게 하락한 상태`; tone = "neg"; }
+  else if (dd <= -mid && hiDays < 540) { state = `최근 고점에서 조정 중`; tone = "mid"; }
+  else if (ru >= (rate ? 50 : 20) && loDays < 540 && (m3 ?? 0) > 0) { state = `최근 저점에서 크게 반등한 상태`; tone = "pos"; }
+  else if (m3 != null && m3 >= m3big) { state = `최근 3개월 상승 흐름`; tone = "pos"; }
+  else if (m3 != null && m3 <= -m3big) { state = `최근 3개월 하락 흐름`; tone = "neg"; }
+  else { state = `최근 3개월 큰 변화 없음`; tone = ""; }
+  let pos5 = `5년 전체로 보면 ${lvlWord(a.pct_5y)}`;
+  if ((a.pct_5y ?? 50) >= 60 && tone === "neg") pos5 += `이지만, 최근 고점보다는 크게 낮아진 상태`;
+  else if ((a.pct_5y ?? 50) <= 40 && tone === "pos") pos5 += `이지만, 최근에는 오르는 중`;
+  const dChg = v => rate ? bp(v) : pct(v, 1);
+  histCharts.push(["hc-" + k, a]);
+  return `<div class="hcard"><div class="hd"><b>${esc(a.name)}</b><span class="lv">${lvOf(a)}</span></div>
+    <div class="state"><span class="pill ${tone}">${state}</span></div>
+    <div class="hch"><canvas id="hc-${k}" aria-label="${esc(a.name)} 5년 월별 그래프"></canvas></div>
+    <ul class="hl">
+      <li><span>최근 고점 대비</span>${ym(hi[0])} 최고 ${fmtv(a, hi[1])} → 지금 <b class="${cls(dd)}">${dChg(dd)}</b>${m3 != null ? ` · 최근 3개월 <b class="${cls(m3)}">${chgOf(a, "chg_3m")}</b>` : ""}</li>
+      <li><span>1년 전 → 지금</span><b>${fmtv(a, a.year_ago)} → ${fmtv(a, a.last)}</b> <b class="${cls(a.yoy)}">(${chgOf(a, "yoy")})</b></li>
+      <li><span>5년 전체</span>${pos5} · 최저 ${fmtv(a, lo[1])}(${ym(lo[0])}) ~ 최고 ${fmtv(a, hi[1])}(${ym(hi[0])})</li>
+    </ul></div>`;
+}
+h += `<p class="k mt" style="margin-bottom:6px">그래프 읽는 법: 최근 5년 월별 값입니다. <b style="color:var(--sub)">○ 1년 전</b> · <b>● 지금</b> · 점선 = 3년 평균. 금리는 %, 그 밖은 지수·가격입니다.</p>
+<div class="hgrid hist-key">${KEY6.map(histCard).join("")}</div>
+<details class="more"><summary>나머지 자산 ${REST.filter(k => A[k] && !A[k].error).length}개 그래프 보기</summary><div class="hgrid mt">${REST.map(histCard).join("")}</div></details>`;
 const AN = M.analogs || {};
-if ((AN.matches || []).length || list(HC.analogs).length) {
-  h += `<div class="grid2 mt analog">`;
-  if ((AN.matches || []).length) h += `<div class="panel"><h3>데이터로 찾은 유사 국면</h3><p class="k" style="margin:0 0 8px">금리·달러·환율·VIX·6개월 수익률·구리/금 비율이 지금과 가장 비슷했던 시점과 그 이후 흐름</p>
-    <div class="scroll"><table class="t"><thead><tr><th>시점</th><th>유사도</th><th>코스피 4주</th><th>13주</th><th>S&amp;P 4주</th><th>13주</th></tr></thead><tbody>` +
-    AN.matches.map(m => `<tr><td>${esc(m.date)}</td><td>${m.similarity}</td><td class="${cls(m.kospi_4w)}">${pct(m.kospi_4w, 1)}</td><td class="${cls(m.kospi_13w)}">${pct(m.kospi_13w, 1)}</td><td class="${cls(m.spx_4w)}">${pct(m.spx_4w, 1)}</td><td class="${cls(m.spx_13w)}">${pct(m.spx_13w, 1)}</td></tr>`).join("") + `</tbody></table></div></div>`;
-  if (!RB && list(HC.analogs).length) h += `<div class="panel"><h3>AI가 본 과거 국면 비교</h3>` + HC.analogs.map(x => `<div style="margin-top:8px;font-size:14px"><b>${esc(x.period)}</b><div>닮은 점: ${esc(x.why_similar)}</div><div>다른 점: ${esc(x.what_differs)}</div><div class="k">시사점: ${esc(x.lesson)}</div></div>`).join("") + `</div>`;
-  h += `</div>`;
+const AC = ["--c2", "--c4", "--c3"];     // 사례별 색
+const analogCharts = [];
+if ((AN.matches || []).length) {
+  const FT = AN.features || {}, unitOf = {pct: "%", rate: "%", bp: "bp", num: ""};
+  const fv = (k, v) => v == null ? "–" : (FT[k] && FT[k][1] === "pct" && v > 0 ? "+" : "") + num(v, 2) + (unitOf[(FT[k] || [])[1]] || "");
+  const aiA = list(HC.analogs);
+  const ymKo = d => `${d.slice(0, 4)}년 ${+d.slice(5, 7)}월`;
+  h += `<div class="analog mt"><h3>지금과 비슷했던 과거 사례 — ${esc((AN.since || "").slice(0, 4))}년 이후 약 ${new Date().getFullYear() - Number((AN.since || "2007").slice(0, 4))}년 중</h3>
+  <p class="k" style="margin:0 0 8px">코스피가 1년 고점에서 얼마나 내려왔는지, 6개월 흐름, 미국 금리, 환율, 공포지수(VIX), 구리/금 비율이 지금과 가장 비슷했던 때를 데이터로 찾았습니다.
+  아래 그래프는 <b>그 시점(0주)을 100으로 맞춰</b> 그 전 1년과 그 뒤 6개월을 겹친 것입니다. 검은 선이 지금, 색 선이 과거 사례입니다.</p>
+  <div class="grid2"><div class="panel"><h3>코스피 — 지금 vs 과거 사례</h3><div class="ach"><canvas id="an-kospi"></canvas></div></div>
+  <div class="panel"><h3>S&amp;P 500 — 지금 vs 과거 사례</h3><div class="ach"><canvas id="an-spx"></canvas></div></div></div>
+  <div class="grid3 mt">` + AN.matches.map((m, i) => {
+    const x = aiA.find(a => a.date === m.date) || aiA[i] || {};
+    const keys = ["kospi_dd", "kospi_6m", "us10y", "usdkrw", "vix"].filter(k => k in (m.state || {}));
+    const res = (k, l) => m[k] == null ? "" : `${l} <b class="${cls(m[k])}">${pct(m[k], 1)}</b>`;
+    const auto = `그때도 코스피가 1년 고점에서 ${num(Math.abs(m.state.kospi_dd ?? 0), 0)}% 내려와 있었습니다(지금 ${num(Math.abs((AN.now || {}).kospi_dd ?? 0), 0)}%). `
+      + `그 뒤 코스피는 3개월 ${pct(m.kospi_13w, 1)}, 6개월 ${pct(m.kospi_26w, 1)} 움직였습니다.`;
+    return `<div class="panel acard" style="border-top:4px solid var(${AC[i % 3]})">
+      <h3>${esc(x.period || ymKo(m.date))}</h3><div class="k">데이터 유사도 ${m.similarity} / 100</div>
+      ${!RB && x.what_happened ? `<p class="txt" style="margin:8px 0 6px">${esc(x.what_happened)}</p>` : `<p class="txt" style="margin:8px 0 6px">${esc(auto)}</p>`}
+      <table class="t"><thead><tr><th></th><th>그때</th><th>지금</th></tr></thead><tbody>${keys.map(k => `<tr><td>${esc(FT[k][0])}</td><td>${fv(k, m.state[k])}</td><td><b>${fv(k, (AN.now || {})[k])}</b></td></tr>`).join("")}</tbody></table>
+      <p style="margin:8px 0 4px;font-size:14px"><b>그 뒤 코스피</b> ${[res("kospi_4w", "1개월"), res("kospi_13w", "3개월"), res("kospi_26w", "6개월")].filter(Boolean).join(" · ")}<br>
+      <b>그 뒤 S&amp;P</b> ${[res("spx_4w", "1개월"), res("spx_13w", "3개월"), res("spx_26w", "6개월")].filter(Boolean).join(" · ")}</p>
+      ${!RB && x.why_similar ? `<div class="ln2"><em>닮은 점</em>${esc(x.why_similar)}</div>` : ""}
+      ${!RB && x.what_differs ? `<div class="ln2"><em>다른 점</em>${esc(x.what_differs)}</div>` : ""}
+      ${!RB && x.lesson ? `<div class="easy" style="margin-bottom:0"><b>그래서 지금은</b>${esc(x.lesson)}</div>` : ""}</div>`;
+  }).join("") + `</div><p class="k" style="margin-top:6px">과거와 비슷하다고 같은 결과가 반복되는 것은 아닙니다. 그때 무엇이 시장을 바꿨는지를 참고하는 용도입니다.</p></div>`;
+  analogCharts.push(["an-kospi", "now_path_kospi", "path_kospi"], ["an-spx", "now_path_spx", "path_spx"]);
 }
 
 // ── ② 매크로 ──
@@ -552,6 +628,44 @@ if (window.Chart) {
     const ds = [{data: ys, borderColor: css(up ? "--up" : "--down"), fill: false}];
     if (avg != null) ds.push({data: ys.map(() => avg), borderColor: css("--sub"), borderDash: [3, 3], borderWidth: 1});
     new Chart(el, {type: "line", options: tiny, data: {labels: s.map(p => p[0]), datasets: ds}});
+  }
+  for (const [id, a] of histCharts) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const m = monthly(a.spark);
+    const lastD = m[m.length - 1][0];
+    const agoKey = (Number(lastD.slice(0, 4)) - 1) + lastD.slice(4, 7);
+    const agoIdx = m.findIndex(p => p[0].slice(0, 7) === agoKey);
+    const ink = css("--ink"), sub = css("--sub");
+    const radius = m.map((_, i) => i === m.length - 1 ? 5 : i === agoIdx ? 5 : 0);
+    const fill = m.map((_, i) => i === m.length - 1 ? ink : css("--panel"));
+    new Chart(el, {type: "line", data: {labels: m.map(p => p[0].slice(2, 7).replace("-", ".")), datasets: [
+        {label: a.name, data: m.map(p => p[1]), borderColor: css("--accent"), borderWidth: 1.8,
+         pointRadius: radius, pointBackgroundColor: fill, pointBorderColor: m.map((_, i) => i === agoIdx ? sub : ink), pointBorderWidth: 2},
+        {label: "3년 평균", data: m.map(() => a.avg_3y), borderColor: sub, borderDash: [4, 4], borderWidth: 1, pointRadius: 0}]},
+      options: {responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: {mode: "index", intersect: false},
+        plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => `${c.dataset.label}: ${fmtv(a, c.parsed.y)}`}}},
+        scales: {x: {grid: {display: false}, ticks: {font: {size: 10}, maxRotation: 0, autoSkip: false,
+                   callback(v, i) { const l = this.getLabelForValue(v); return l.endsWith(".01") ? "20" + l.slice(0, 2) : ""; }}},
+                 y: {ticks: {font: {size: 10}, maxTicksLimit: 4, callback: v => fmtv(a, v)}}}}});
+  }
+  for (const [id, nowKey, pKey] of analogCharts) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const labels = []; for (let k = -52; k <= 26; k += 2) labels.push(k);
+    const toData = p => labels.map(k => { const f = (p || []).find(q => q[0] === k); return f ? f[1] : null; });
+    const ds = AN.matches.map((m, i) => ({label: (list(HC.analogs).find(a => a.date === m.date) || {}).period || m.date.slice(0, 7),
+      data: toData(m[pKey]), borderColor: css(AC[i % 3]), borderWidth: 1.6, pointRadius: 0, spanGaps: true}));
+    ds.unshift({label: "지금", data: toData(AN[nowKey]), borderColor: css("--ink"), borderWidth: 3, pointRadius: 0, spanGaps: true});
+    new Chart(el, {type: "line", data: {labels, datasets: ds},
+      options: {responsive: true, maintainAspectRatio: false, animation: false, interaction: {mode: "index", intersect: false},
+        plugins: {legend: {position: "bottom", labels: {boxWidth: 12, font: {size: 11}}},
+                  tooltip: {callbacks: {title: t => `${t[0].label}주 (${t[0].label < 0 ? "그 전" : t[0].label > 0 ? "그 뒤" : "기준 시점"})`, label: c => `${c.dataset.label}: ${c.parsed.y}`}}},
+        scales: {x: {grid: {color: c => c.tick && c.tick.value === labels.indexOf(0) ? css("--sub") : "transparent", lineWidth: 2},
+                     ticks: {font: {size: 10}, maxRotation: 0, autoSkip: false,
+                       callback(v) { const k = labels[v]; return k === 0 ? "지금/그때" : k === -52 ? "1년 전" : k === -26 ? "6개월 전" : k === 13 ? "+3개월" : k === 26 ? "+6개월" : ""; }}},
+                 y: {ticks: {font: {size: 10}}, title: {display: true, text: "기준 시점 = 100", font: {size: 10}}}}}});
   }
   const ael = document.getElementById("alloc");
   if (ael) new Chart(ael, {type: "doughnut", options: {responsive:true, maintainAspectRatio:false, animation:false, cutout:"58%",
