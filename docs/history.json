@@ -1202,5 +1202,87 @@
     "built_at": "2026-11-16 10:53"
    }
   }
+ },
+ "2026-11-17": {
+  "kospi": -3.59,
+  "sp500": -1.92,
+  "headline": "모닝 브리핑 · 정량 판단 '방어적 비중축소'",
+  "stance": "방어적 비중축소",
+  "allocation": {
+   "kr_equity": 20,
+   "us_equity": 26,
+   "gold_commodities": 12,
+   "usd_cash": 20,
+   "krw_cash_bonds": 17,
+   "alternatives": 5
+  },
+  "lists": {
+   "value": [
+    "MU",
+    "SMCI",
+    "009540.KS",
+    "GOOGL",
+    "214450.KQ"
+   ],
+   "growth": [
+    "MU",
+    "PLTR",
+    "SMCI",
+    "196170.KQ",
+    "012450.KS"
+   ],
+   "overvalued": [
+    "CRWD",
+    "003670.KS",
+    "017670.KS",
+    "277810.KQ",
+    "TSLA"
+   ]
+  },
+  "names": {
+   "value": [
+    "마이크론",
+    "슈퍼마이크로",
+    "HD한국조선해양",
+    "알파벳",
+    "파마리서치"
+   ],
+   "growth": [
+    "마이크론",
+    "팔란티어",
+    "슈퍼마이크로",
+    "알테오젠",
+    "한화에어로스페이스"
+   ],
+   "overvalued": [
+    "크라우드스트라이크",
+    "포스코퓨처엠",
+    "SK텔레콤",
+    "레인보우로보틱스",
+    "테슬라"
+   ]
+  },
+  "valuation": {
+   "kr": {
+    "pe_median": 19.48,
+    "pb_median": 2.56,
+    "earnings_yield": 5.13,
+    "n": 57
+   },
+   "us": {
+    "pe_median": 25.55,
+    "pb_median": 6.1,
+    "earnings_yield": 3.91,
+    "n": 90
+   }
+  },
+  "slots": {
+   "am": {
+    "ai": false,
+    "stance": "방어적 비중축소",
+    "headline": "모닝 브리핑 · 정량 판단 '방어적 비중축소'",
+    "built_at": "2026-11-17 07:33"
+   }
+  }
  }
 }
