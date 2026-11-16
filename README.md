@@ -1,26 +1,50 @@
-# 매일 주식 동향 분석 리포트
+# 매일 시장 브리핑 — 종합 투자 어드바이저
 
-국내·미국 관심 종목의 시세를 매일 받아 기술적 지표로 추세를 판정하고, Claude가 당일 뉴스를 검색해 해설과 시나리오를 붙인 HTML 대시보드를 만듭니다.
+평일 하루 두 번, 국내·미국 시장과 금리·환율·원자재·가상자산의 **과거 5년 대비 현재 위치**, 13개 분야 자금 흐름,
+국내외 뉴스를 모아 Claude가 **당일 시장 예측과 자산 배분 전략**을 붙인 리포트(HTML·PDF)와 SunHi 음성 영상을 만듭니다.
+
+| 브리핑 | 완성 | 내용 |
+|---|---|---|
+| 모닝 (am) | 07:00 KST | 밤사이 미국·글로벌 마감 → 오늘 코스피·코스닥 개장·장중 시나리오, 주도 섹터 |
+| 나이트 (pm) | 22:00 KST | 국내장 마감 복기 → 오늘 밤 미국 증시 예측, 글로벌 매크로 점검 |
+
+리포트·영상 순서: 오늘의 결론 → ① 과거 대비 진단 → ② 매크로·환율·현물 → ③ 사회 흐름·당일 예측 → ④ 13개 분야 → ⑤ 기회 & 리스크 → ⑥ 종합 투자 총론(자산 배분·액션 플랜) → 부록
+
+## 자동 실행 구조 (API 키 없이)
+
+```
+06:05 / 21:05  GitHub Actions  수집 → docs/data/<날짜>_<슬롯>.json, _brief.md 커밋
+06:15 / 21:15  claude.ai 루틴   brief 읽기 + 웹 검색 → docs/ai/<날짜>_<슬롯>.json 푸시   (.claude/skills/daily-briefing)
+   (푸시 즉시)  GitHub Actions  리포트 생성 → PDF·영상 → Pages·Releases·유튜브(비공개)
+06:45 / 21:45  GitHub Actions  안전장치: AI 결과가 없으면 정량(규칙 기반) 결론으로 리포트·영상 생성
+```
+
+- AI 분석은 claude.ai 예약 작업(루틴)이 맡아 **API 키가 필요 없습니다** (Claude 요금제 사용량을 씁니다).
+- API 키로 바꾸려면 `config.yaml` 의 `claude.mode` 를 `api` 로 바꾸고 Secrets 에 `ANTHROPIC_API_KEY` 를 등록합니다.
+- GitHub 예약 실행은 붐비는 시간에 10~30분 늦어질 수 있습니다.
 
 ## 파일 구성
 
 | 파일 | 역할 |
 |---|---|
-| `config.yaml` | 관심 종목, Claude 모델, 저장 폴더 설정 |
-| `main.py` | 실행 진입점 (데이터 수집 → 분석 → 해설 → 리포트) |
-| `indicators.py` | 이동평균·RSI·MACD·TSI·볼린저밴드 계산, 추세 점수와 신호 판정 |
-| `commentary.py` | Claude API 호출 (웹 검색으로 뉴스 반영) |
-| `report.py` | 단일 HTML 대시보드 생성 |
-| `screener.py` | 3년 실적·밸류에이션 스크리닝 (저평가 / 성장 기대 / 고평가 위험) |
-| `universe.yaml` | 스크리닝 대상 종목 목록 (국내 약 70, 미국 약 90) |
-| `run.bat` | 윈도우에서 더블클릭 실행 |
-| `.github/workflows/daily.yml` | GitHub Actions 자동 실행 설정 |
+| `config.yaml` | 관심 종목, 매크로 자산(출처 순서), 뉴스 피드, AI 방식, 브리핑 슬롯 |
+| `main.py` | 진입점 (`--collect` 수집 / `--build` 리포트, `--slot am/pm`) |
+| `macro.py` | 금리·환율·원자재·비트코인 5년 수집, YoY·백분위·레짐·유사 국면·정량 예측 기준선 |
+| `news.py` | 국내외 경제·사회 뉴스 RSS 수집, 키워드 |
+| `screener.py` | 13개 분야 장기 비교(상대강도·거래대금) + 3년 실적 스크리닝 |
+| `indicators.py` | 이동평균·RSI·MACD·TSI·볼린저밴드, 추세 점수와 신호 |
+| `commentary.py`, `prompts/briefing.md` | AI 입력(brief) 생성, API 모드 호출 |
+| `advisor.py`, `tools/validate_ai.py` | AI 결과 검사·정리, AI 없을 때 규칙 기반 결론 |
+| `report.py` | HTML 리포트 |
+| `tools/build_from_report.py` | PDF·영상·유튜브 정보 |
+| `.claude/skills/` | 루틴용 분석 절차, 앵커 대본 규칙, 개발 가이드 |
+| `.github/workflows/daily.yml` | 수집·리포트 자동 실행 / `daily-report.yml` PDF·영상 |
 
 ## 1. 처음 실행해 보기 (개인 PC)
 
 ```bash
 pip install -r requirements.txt
-python main.py --demo --no-ai --open   # 인터넷 없이 가상 데이터로 화면 확인
+python main.py --demo --no-ai --open   # 인터넷 없이 가상 데이터로 화면 확인 (--slot am/pm)
 python main.py --no-ai --open          # 실제 시세, AI 해설 없이
 ```
 

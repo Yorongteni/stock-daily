@@ -1,66 +1,190 @@
-"""Claude API로 시장 해설·시나리오를 생성."""
+"""AI 브리핑 입력(brief) 만들기와, API 모드일 때 Claude 호출.
+
+- build_brief(): 수집한 데이터 묶음 + prompts/briefing.md → 루틴/API가 읽을 마크다운 한 파일.
+- generate_api(): mode: api 일 때 GitHub Actions 안에서 직접 호출 (ANTHROPIC_API_KEY 필요).
+루틴 모드에서는 claude.ai 예약 작업이 brief 파일을 읽고 docs/ai/<날짜>_<슬롯>.json 을 씁니다
+(.claude/skills/daily-briefing/SKILL.md).
+"""
+from __future__ import annotations
+
 import json
 import os
 import re
+from pathlib import Path
 
-PROMPT = """당신은 한국 개인투자자를 위한 시장 애널리스트입니다.
-아래는 오늘({today}) 기준 관심 종목들의 기술적 지표 요약(JSON)입니다.
-{search_line}
+ROOT = Path(__file__).resolve().parent
 
-[지표 데이터]
-{data}
+SLOT_FOCUS = {
+    "am": ("모닝 브리핑(07:00 공개). 밤사이 마감된 미국·유럽 증시와 금리·환율·원자재·비트코인 움직임을 근거로 "
+           "**오늘 한국 시장(코스피·코스닥)**을 예측합니다: 개장 예상(시초가 갭 크기), 장중 흐름 시나리오"
+           "(09:00~10:00 / 오전 / 오후·마감), 예상 종가 밴드, 오늘 집중할 주도 섹터. forecast.market = \"코스피\"."),
+    "pm": ("나이트 브리핑(22:00 공개). 오늘 한국장 마감을 복기(지수·섹터·수급·원인)하고, 미국 선물·프리마켓 흐름과 "
+           "오늘 밤 발표 지표·연준 발언·실적을 근거로 **오늘 밤 미국 증시(S&P 500·나스닥)**를 예측합니다. "
+           "금리·달러·유가·지정학 등 글로벌 매크로 이슈를 점검합니다. forecast.market = \"S&P 500\"."),
+}
+SEARCH_LIST = {
+    "am": "간밤 미국 증시 마감 원인 · 미국채 금리와 달러 움직임 · 오늘 국내 증시 전망과 외국인 수급 · 오늘 국내외 발표 일정 · "
+          "주요 기업 실적·정부 정책 뉴스 · 13개 분야 중 뉴스가 있는 분야",
+    "pm": "오늘 코스피·코스닥 마감 원인과 외국인·기관 수급 · 미국 지수 선물과 프리마켓 특징주 · 오늘 밤 미국 경제지표·연준 발언·실적 · "
+          "유가·지정학 · 13개 분야 중 뉴스가 있는 분야",
+}
 
-{screens}
+SCHEMA = """{
+  "headline": "핵심 뷰가 담긴 한 줄 제목 (35자 이내)",
+  "stance": {"label": "공격적 비중확대 | 선별적 매수 | 중립·관망 | 방어적 비중축소 중 하나", "score": 1, "one_liner": "결론 한 문장 (근거 수치 포함)"},
+  "history_context": {
+    "summary": "작년 이맘때·최근 3~5년과 비교해 지금 시장이 결정적으로 달라진 점 (5~7문장, 수치 포함)",
+    "regime": {"market_type": "유동성 장세 | 실적 장세 | 역금융 장세 | 역실적 장세 + 근거", "leadership_shift": "작년 주도 섹터 → 지금 주도 섹터와 이유", "rate_fx": "금리·환율 레짐 변화"},
+    "same": ["과거와 같은 점"], "different": ["과거와 다른 점"],
+    "analogs": [{"period": "예: 2023년 9~10월", "why_similar": "", "what_differs": "", "lesson": "그 뒤 흐름이 주는 시사점"}]
+  },
+  "macro": {"summary": "매크로·다중 자산 진단 (4~6문장)",
+            "assets": [{"name": "원/달러 환율", "view": "상승 | 보합 | 하락", "level_comment": "역사적 위치와 의미", "impact": "주식·섹터에 주는 영향"}]},
+  "social": {"summary": "사회·정책·지정학 흐름과 시장 반영 (4~6문장)",
+             "themes": [{"theme": "이슈", "channel": "금리 | 환율 | 실적 | 수급 | 심리 | 정책", "impact": "영향받는 자산·섹터와 방향", "priced_in": "미반영 | 일부 반영 | 대부분 반영", "signal": "확인할 선행 신호"}]},
+  "forecast": {"market": "코스피 또는 S&P 500", "base_level": 0, "band_low": 0, "band_high": 0, "direction": "상승 | 보합 | 하락", "prob_up": 55,
+               "open_view": "시초가 예상 (갭 크기 포함)", "intraday": "장중 흐름 시나리오 (시간대별)", "secondary": "모닝=코스닥 / 나이트=나스닥 예상",
+               "scenarios": [{"name": "강세", "prob": 25, "trigger": "조건", "path": "전개"}, {"name": "기본", "prob": 50, "trigger": "", "path": ""}, {"name": "약세", "prob": 25, "trigger": "", "path": ""}],
+               "focus_sectors": ["오늘 집중할 분야"], "adjustment": "정량 기준선 대비 조정한 이유"},
+  "opportunities": [{"title": "", "why": "근거 수치", "how": "대응 전략·타점 (가격대·조건)", "sectors": ["관련 분야"]}],
+  "risks": [{"title": "", "why": "", "signal": "감시 지표와 경계 수준", "severity": "높음 | 중간 | 낮음"}],
+  "sectors": [{"name": "분야명 (데이터 표기 그대로)", "stance": "비중확대 | 중립 | 비중축소", "score": 0, "flow": "유입 | 유출 | 중립",
+               "why": "지금 강·약한 이유 (2문장, 수치·뉴스)", "vs_past": "1년 전·3년 범위 대비 위치 변화", "trigger": "판단을 바꿀 조건"}],
+  "allocation": {"kr_equity": 25, "us_equity": 30, "gold_commodities": 10, "usd_cash": 15, "krw_cash_bonds": 15, "alternatives": 5,
+                 "neutral": {"kr_equity": 25, "us_equity": 30, "gold_commodities": 10, "usd_cash": 15, "krw_cash_bonds": 15, "alternatives": 5},
+                 "rationale": "비중 근거 (4~6문장: 달러·금리·원자재·주식의 역사적 위치)", "hedges": "헤지 수단과 규모", "rebalance_trigger": "비중을 바꿀 조건"},
+  "action_plan": ["오늘의 구체적 행동 (예: 반도체 비중 5%p 이내 분할 매수, 코스피 5,150 이탈 시 중단)"],
+  "invalidation": ["이 뷰가 틀렸다고 판단할 조건 (수치)"],
+  "watch_events": ["오늘·이번 주 주요 일정 (KST 시각)"],
+  "tickers": {"관심 종목 code": "한 줄 코멘트 (60자 이내)"},
+  "script": {"intro": "", "history": "", "macro": "", "social_forecast": "", "sectors": "", "opps_risks": "", "conclusion": ""}
+}
+분량: opportunities 3~4개, risks 3~4개, sectors 13개 전부, macro.assets 9개 이상(환율·달러·미국 10년·장단기 금리차·VIX·금·원유·구리·비트코인),
+social.themes 3~6개, history_context.analogs 1~2개, action_plan 3~5개, invalidation 2~3개.
+allocation 6개 비중의 합은 100. neutral 은 평소 기준 비중(위 예시값 그대로 써도 됨)."""
 
-다음 JSON 형식으로만 답하세요. JSON 앞뒤에 다른 글자나 ``` 표시를 넣지 마세요.
-{{
-  "headline": "오늘 시장을 한 문장으로 (40자 이내)",
-  "market_overview": "국내·미국 시장 흐름과 주요 원인 (4~6문장)",
-  "kr_view": "국내 시장 관전 포인트 (2~3문장)",
-  "us_view": "미국 시장 관전 포인트 (2~3문장)",
-  "scenarios": {{
-    "bull": "강세 시나리오와 그 조건 (2문장)",
-    "base": "기본 시나리오 (2문장)",
-    "bear": "약세 시나리오와 그 조건 (2문장)"
-  }},
-  "categories": {{ "<분야명>": "해당 분야의 최근 뉴스·수요/기술 변화·단기 흐름 (2~3문장)" }},
-  "tickers": {{ "<code>": "종목별 한 줄 코멘트 (지표 근거 포함, 60자 이내)" }},
-  "risks": ["향후 1~2주 주의할 이벤트/리스크", "..."],
-  "watch_events": ["다가오는 주요 일정(실적, FOMC, 지표 발표 등)", "..."],
-  "picks": [
-    {{"ticker": "티커", "name": "종목명", "category": "분야명", "thesis": "주목하는 이유 (실적·밸류에이션·뉴스 근거, 2문장)",
-      "risk": "핵심 리스크 (1문장)", "check": "투자 전 확인할 점 (1문장)"}}
-  ]
-}}
 
-원칙:
-- 지표 수치와 뉴스를 근거로 쓰고, 단정적 예측이나 매수/매도 권유는 하지 마세요.
-- 확인되지 않은 정보는 쓰지 마세요.
-- tickers에는 데이터에 있는 모든 code를 넣으세요.
-- categories에는 [분야별 동향]의 모든 분야를 빠짐없이 넣으세요. 그날 주목받은 분야만이 아니라
-  부진하거나 소외된 분야도 각각 분야 고유의 뉴스로 채우세요. 분야마다 웹 검색을 따로 해도 좋습니다.
-- picks는 스크리닝 결과와 뉴스를 종합해 지금 살펴볼 만한 종목 5개입니다. 5개 모두 서로 다른 분야에서 고르고,
-  최소 1개는 최근 20일 부진했던 분야에서 실적·밸류에이션상 회복 근거가 있는 종목으로 고르세요.
-  고평가 위험 목록 종목은 제외하고, 매수 권유가 아니라 검토 후보로 쓰세요.
-"""
+# ───────────────────────── 데이터 → 텍스트 ─────────────────────────
+def _f(v, fmt="+.1f", unit=""):
+    return "–" if v is None else format(v, fmt) + unit
 
 
-def _compact(results: dict) -> dict:
-    out = {}
+def _macro_text(macro: dict) -> str:
+    rows = ["| 자산 | 기준일 | 현재 | 1일 | 1주 | 1개월 | 작년 동기 대비 | 1년 전 값 | 3년 평균 대비 | 5년 백분위 | 5년 범위 | 200일선 |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for a in macro.get("assets", []):
+        if "error" in a:
+            rows.append(f"| {a['name']} | 데이터 없음 ({a['error'][:40]}) |||||||||||")
+            continue
+        u = "bp" if a["kind"] == "rate" else "%"
+        fm = "+.0f" if a["kind"] == "rate" else "+.1f"
+        rows.append(f"| {a['name']} | {a['date']} | {a['last']:,} | {_f(a['chg_1d'], fm, u)} | {_f(a['chg_1w'], fm, u)} | "
+                    f"{_f(a['chg_1m'], fm, u)} | {_f(a['yoy'], fm, u)} | {a.get('year_ago') or '–'} | {_f(a['vs_avg_3y'], fm, u)} | "
+                    f"{_f(a['pct_5y'], '.0f')} | {a['min_5y']:,}~{a['max_5y']:,} | {a.get('trend') or '–'} |")
+    out = ["## 매크로·다중 자산 (과거 5년 비교, 금리 변화는 bp)", "\n".join(rows), "", "## 레짐 판정"]
+    out += [f"- {r['label']}: **{r['value']}** — {r['evidence']}" for r in macro.get("regimes", [])]
+    an = macro.get("analogs") or {}
+    if an.get("matches"):
+        out += ["", "## 유사 국면 (주간 데이터 기준, 지금 상태와 가장 비슷했던 과거 시점)",
+                f"- 현재 상태: {json.dumps(an['now'], ensure_ascii=False)}  (kospi_6m·spx_6m·cuau_6m=6개월 수익률 %, us10y_6m=6개월 금리 변화 %p, vix=로그값)"]
+        for m in an["matches"]:
+            out.append(f"- {m['date']} (유사도 {m['similarity']}): 이후 4주 코스피 {_f(m['kospi_4w'], '+.1f', '%')}, 13주 {_f(m['kospi_13w'], '+.1f', '%')} / "
+                       f"S&P500 4주 {_f(m['spx_4w'], '+.1f', '%')}, 13주 {_f(m['spx_13w'], '+.1f', '%')} · 당시 상태 {json.dumps(m['state'], ensure_ascii=False)}")
+    q = macro.get("quant") or {}
+    out += ["", "## 정량 예측 기준선"]
+    if "error" in q or not q:
+        out.append(f"- 계산 실패: {q.get('error', '데이터 없음')}")
+    else:
+        out.append(f"- {q['target']}: 전일 종가 {q['base_close']:,} → 기대 {q['expected']:,} ({_f(q['expected_pct'], '+.2f', '%')}), "
+                   f"1σ 밴드 {q['band_low']:,} ~ {q['band_high']:,}, 일간 변동성 {q['sigma_pct']}%, 상승 확률 {q.get('prob_up')}% · 근거: {q['driver']}")
+    return "\n".join(out)
+
+
+def _results_text(results: dict) -> str:
+    lines = ["## 관심 종목 기술적 지표 (추세 점수 -6~+6: 이동평균 배열·MACD·TSI·RSI 합산)"]
     for code, r in results.items():
         if "error" in r:
             continue
-        out[code] = {
-            "name": r["name"], "market": r["market"], "date": r["date"],
-            "close": r["close"], "chg_1d%": r["chg_1d"], "chg_5d%": r["chg_5d"],
-            "chg_20d%": r["chg_20d"], "pos_52w%": r["pos_52w"],
-            "rsi": r["rsi"], "tsi": r["tsi"], "score(-6~6)": r["score"],
-            "label": r["label"], "signals": [s[1] for s in r["signals"]],
-        }
-    return out
+        sig = ", ".join(s[1] for s in r.get("signals", [])) or "특이 신호 없음"
+        lines.append(f"- {r['name']}({code}) {r['date']} 종가 {r['close']:,} | 1일 {_f(r['chg_1d'], '+.2f', '%')} 5일 {_f(r['chg_5d'], '+.2f', '%')} "
+                     f"20일 {_f(r['chg_20d'], '+.2f', '%')} | 52주 위치 {_f(r['pos_52w'], '.0f', '%')} | RSI {_f(r['rsi'], '.0f')} TSI {_f(r['tsi'], '.1f')} "
+                     f"| {r['label']}({r['score']:+d}) | {sig}")
+    return "\n".join(lines)
 
 
-def _extract_json(text: str):
+def _sector_text(screens: dict) -> str:
+    if not screens or "error" in screens:
+        return "## 13개 분야\n(분야 데이터 없음)"
+    rows = ["## 13개 분야 (동일가중 분야 지수, 상대강도 = 분야 수익률 − 전체 유니버스 수익률)",
+            "| 분야 | 종목수 | 1일 | 5일 | 20일 | 60일 | 1년 | 3년 | 시장대비 60일 | 1년 전 시장대비 60일 | 상대강도 3년 백분위 | 60일 순위(지금/1년 전) | 20일선 위 | 거래대금(5일/60일) | 자금 흐름 | 매출성장 중앙값 | PER 중앙값 국내/미국 |",
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for c in screens.get("categories", []):
+        rows.append(f"| {c['name']} | {c['n']} | {_f(c.get('ret_1d'))} | {_f(c.get('ret_5d'))} | {_f(c.get('ret_20d'))} | {_f(c.get('ret_60d'))} | "
+                    f"{_f(c.get('ret_1y'))} | {_f(c.get('ret_3y'))} | {_f(c.get('rs_60d'))} | {_f(c.get('rs_60d_1y_ago'))} | {_f(c.get('rs_pct_3y'), '.0f')} | "
+                    f"{c.get('rank_60d') or '–'}/{c.get('rank_60d_1y_ago') or '–'} | {c.get('breadth', '–')}% | {c.get('turnover_ratio') or '–'} | {c.get('flow') or '–'} | "
+                    f"{_f(c.get('rev_g'))} | {c.get('pe_kr') or '–'}/{c.get('pe_us') or '–'} |")
+    ld = screens.get("leadership") or {}
+    out = ["\n".join(rows)]
+    if ld:
+        out.append(f"\n## 분야 리더십\n- 지금 60일 상위: {', '.join(ld.get('now', []))} / 하위: {', '.join(ld.get('laggards_now', []))}\n"
+                   f"- 1년 전 60일 상위: {', '.join(ld.get('year_ago', []))}")
+    val = screens.get("valuation") or {}
+    if val:
+        out.append("\n## 밸류에이션 (유니버스 중앙값)\n" + "\n".join(
+            f"- {'국내' if m == 'kr' else '미국'}: PER {v.get('pe_median') or '–'}배, PBR {v.get('pb_median') or '–'}배, "
+            f"이익수익률 {v.get('earnings_yield') or '–'}% ({v.get('n')}종목)" for m, v in val.items()))
+    titles = {"value": "저평가 후보", "growth": "성장 기대 후보", "overvalued": "고평가 위험"}
+    out.append("\n## 종목 스크리닝 (3년 실적·밸류에이션, 목록마다 분야당 1종목)")
+    for k, t in titles.items():
+        out.append(f"- {t}: " + "; ".join(f"{r['name']}({r['ticker']}, {r['category']}) {r['reason']}" for r in screens.get(k, [])))
+    return "\n".join(out)
+
+
+def _val_hist_text(valhist: dict) -> str:
+    if not valhist:
+        return ""
+    lines = ["\n## 밸류에이션 누적 기록 (매일 쌓는 값, 기간이 짧을 수 있음)"]
+    for m, v in valhist.items():
+        lines.append(f"- {'국내' if m == 'kr' else '미국'} PER 중앙값: 현재 {v.get('now')}, 누적 {v.get('days')}일 평균 {v.get('avg')}, "
+                     f"누적 범위 내 백분위 {v.get('pct')}")
+    return "\n".join(lines)
+
+
+def _news_text(news: dict) -> str:
+    if not news or not news.get("count"):
+        return "## 뉴스 헤드라인\n(수집 실패 — 웹 검색으로 직접 확인)"
+    ko = [i for i in news["items"] if i["lang"] == "ko"][:28]
+    en = [i for i in news["items"] if i["lang"] == "en"][:22]
+    out = [f"## 뉴스 헤드라인 (수집 {news.get('collected_at')} KST, 최근 36시간)",
+           "- 국내 키워드: " + ", ".join(f"{w}({n})" for w, n in news["keywords"].get("ko", [])),
+           "- 해외 키워드: " + ", ".join(f"{w}({n})" for w, n in news["keywords"].get("en", [])), "", "### 국내"]
+    out += [f"- [{i['time']}] {i['title']} ({i['source']})" for i in ko]
+    out += ["", "### 해외"] + [f"- [{i['time']}] {i['title']} ({i['source']})" for i in en]
+    out += ["", "### 분야별"]
+    for k, v in (news.get("by_sector") or {}).items():
+        out.append(f"- {k}: " + " / ".join(i["title"] for i in v[:3]))
+    return "\n".join(out)
+
+
+def build_brief(bundle: dict, slot_cfg: dict) -> str:
+    slot = bundle["slot"]
+    data = "\n\n".join([
+        f"## 시점\n- 수집 시각: {bundle['collected_at']} KST · 슬롯: {slot} ({slot_cfg.get('name', '')})",
+        _macro_text(bundle.get("macro") or {}),
+        _results_text(bundle.get("results") or {}),
+        _sector_text(bundle.get("screens") or {}) + _val_hist_text(bundle.get("valuation_history") or {}),
+        _news_text(bundle.get("news") or {}),
+    ])
+    tpl = (ROOT / "prompts" / "briefing.md").read_text(encoding="utf-8")
+    rep = {"{date}": bundle["date"], "{slot_name}": slot_cfg.get("name", slot), "{ready}": slot_cfg.get("ready", ""),
+           "{slot_focus}": SLOT_FOCUS[slot], "{search_list}": SEARCH_LIST[slot], "{schema}": SCHEMA, "{data}": data}
+    for k, v in rep.items():
+        tpl = tpl.replace(k, v)
+    return tpl
+
+
+# ───────────────────────── API 모드 ─────────────────────────
+def extract_json(text: str) -> dict:
     text = re.sub(r"```(?:json)?", "", text)
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end == -1:
@@ -68,107 +192,25 @@ def _extract_json(text: str):
     return json.loads(text[start:end + 1])
 
 
-def generate(results: dict, screens: dict, today: str, cfg: dict) -> dict:
-    """성공 시 해설 dict, 실패 시 {"error": "..."} 반환."""
+def generate_api(brief: str, cfg: dict) -> dict:
+    """성공 시 AI dict, 실패 시 {"error": ...}."""
     if not os.environ.get("ANTHROPIC_API_KEY"):
-        return {"error": "ANTHROPIC_API_KEY 환경변수가 없어 AI 해설을 건너뛰었습니다."}
+        return {"error": "ANTHROPIC_API_KEY 가 없어 API 모드를 건너뜀"}
     try:
         import anthropic
     except ImportError:
-        return {"error": "anthropic 패키지가 설치되지 않았습니다 (pip install anthropic)."}
-
-    use_search = cfg.get("web_search", True)
-    prompt = PROMPT.format(
-        today=today,
-        data=json.dumps(_compact(results), ensure_ascii=False, indent=1),
-        screens=screens_text(screens),
-        search_line=("먼저 웹 검색으로 오늘·어제의 국내/미국 증시 주요 뉴스와 "
-                     "다가오는 일정을 확인한 뒤 분석에 반영하세요." if use_search else ""),
-    )
-    kwargs = dict(
-        model=cfg.get("model", "claude-sonnet-5-5"),
-        max_tokens=8000,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    if use_search:
-        kwargs["tools"] = [{
-            "type": "web_search_20250305", "name": "web_search",
-            "max_uses": cfg.get("max_searches", 15),
-        }]
-
-    try:
-        client = anthropic.Anthropic()
-        resp = client.messages.create(**kwargs)
-        # 웹 검색을 쓰면 텍스트 블록이 여러 개로 나뉘므로 마지막 JSON을 추출
-        text = "\n".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
-        return _extract_json(text)
-    except Exception as e:  # noqa: BLE001
-        return {"error": f"AI 해설 생성 실패: {e}"}
-
-
-CHAT_PROMPT = """아래는 {today} 기준 내 관심 종목 지표와, 분야별로 나눈 160여 종목의 동향·스크리닝 결과입니다.
-웹 검색으로 최근 뉴스를 확인하되, 시장 전체 뉴스만 보지 말고 아래 분야마다 따로 검색해서
-분야별로 고르게 정리해 주세요. 그날 크게 움직인 분야에 치우치지 않는 것이 중요합니다.
-
-1. 오늘 시장 한 줄 요약과 국내·미국 시장 흐름 (짧게)
-2. 분야별 뉴스와 흐름 — [분야별 동향]의 모든 분야를 하나도 빠짐없이, 분야마다
-   - 최근 주요 뉴스 1~2개 (수요 변화, 신기술, 정책, 실적 등)
-   - 지금 흐름과 앞으로 1~3개월 관전 포인트
-   - 분야 안에서 눈여겨볼 종목 1개와 이유
-3. 강세 / 기본 / 약세 시나리오와 각각의 조건
-4. "지금 살펴볼 만한 종목" 5개
-   - 5개 모두 서로 다른 분야에서
-   - 최소 1개는 최근 부진했던 분야에서 실적·밸류에이션상 회복 근거가 있는 종목
-   - 고평가 위험 목록 종목은 제외
-   - 종목마다 주목 이유(실적·밸류에이션·뉴스 근거), 핵심 리스크, 투자 전 확인할 점
-5. 향후 1~2주 주의할 리스크와 주요 일정
-
-단정적 예측이나 매수/매도 권유는 하지 말고, 확인되지 않은 정보는 쓰지 마세요.
-
-[관심 종목 지표] 점수는 -6~+6 (이동평균 배열, MACD, TSI 시그널, RSI 50선 합산)
-{data}
-
-{screens}
-"""
-
-
-def chat_prompt(results: dict, screens: dict, today: str) -> str:
-    """API 없이 Claude 채팅에 붙여넣을 질문 텍스트."""
-    def f(v, fmt):
-        return "-" if v is None else format(v, fmt)
-
-    lines = []
-    for code, r in _compact(results).items():
-        sig = ", ".join(r["signals"]) or "특이 신호 없음"
-        lines.append(
-            f"- {r['name']}({code}, {'국내' if r['market']=='kr' else '미국'}) "
-            f"종가 {f(r['close'], ',.2f')} | 1일 {f(r['chg_1d%'], '+.2f')}% "
-            f"5일 {f(r['chg_5d%'], '+.2f')}% 20일 {f(r['chg_20d%'], '+.2f')}% "
-            f"| 52주위치 {f(r['pos_52w%'], '.0f')}% | RSI {f(r['rsi'], '.0f')} TSI {f(r['tsi'], '.1f')} "
-            f"| {r['label']}({r['score(-6~6)']:+d}) | 신호: {sig}")
-    return CHAT_PROMPT.format(today=today, data="\n".join(lines), screens=screens_text(screens))
-
-
-SCREEN_TITLES = {"value": "저평가 후보", "growth": "성장 기대 후보", "overvalued": "고평가 위험"}
-
-
-def screens_text(screens: dict) -> str:
-    if not screens or "error" in screens:
-        return "(스크리닝 결과 없음)"
-
-    def p(v):
-        return "-" if v is None else f"{v:+.1f}%"
-    out = ["[분야별 동향] 분야 평균 등락률 / 20일선 위 종목 비율 / 최근 매출성장 중앙값 / 5일 최강·최약"]
-    for c in screens.get("categories", []):
-        best = f"{c['best'][0]} {p(c['best'][1])}" if c.get("best") else "-"
-        worst = f"{c['worst'][0]} {p(c['worst'][1])}" if c.get("worst") else "-"
-        out.append(f"- {c['name']}({c['n']}종목): 1일 {p(c['ret_1d'])}, 5일 {p(c['ret_5d'])}, 20일 {p(c['ret_20d'])}"
-                   f" | 20일선 위 {c['breadth']}% | 매출성장 {p(c['rev_g'])} | 강 {best} / 약 {worst}")
-    out.append("")
-    out.append("[스크리닝 결과 — 3년 실적·밸류에이션 기준, 목록마다 분야당 1종목]")
-    for key, title in SCREEN_TITLES.items():
-        out.append(f"■ {title}")
-        for r in screens.get(key, []):
-            m = ", ".join(f"{k} {v}" for k, v in r["metrics"].items())
-            out.append(f"- {r['name']}({r['ticker']}, {r.get('category', r['sector'])}): {m}")
-    return "\n".join(out)
+        return {"error": "anthropic 패키지 없음"}
+    kwargs = dict(model=cfg.get("model", "claude-sonnet-5-5"), max_tokens=16000,
+                  messages=[{"role": "user", "content": brief}])
+    if cfg.get("web_search", True):
+        kwargs["tools"] = [{"type": "web_search_20250305", "name": "web_search",
+                            "max_uses": cfg.get("max_searches", 15)}]
+    last = None
+    for _ in range(2):
+        try:
+            resp = anthropic.Anthropic().messages.create(**kwargs)
+            text = "\n".join(b.text for b in resp.content if getattr(b, "type", "") == "text")
+            return extract_json(text)
+        except Exception as e:  # noqa: BLE001
+            last = e
+    return {"error": f"API 브리핑 생성 실패: {last}"}

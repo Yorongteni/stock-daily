@@ -225,8 +225,21 @@ def render_slides(d: Daily, work: Path, browser) -> list[Path]:
 
 
 # ───────────────────────────── 음성 ─────────────────────────────
+TTS_WORDS = [  # 앵커가 읽는 발음으로 (긴 것부터)
+    (r"10Y-2Y", "장단기 금리차"), (r"S&P\s?500", "에스앤피 500"), (r"S&P", "에스앤피"), (r"\bVIX\b", "빅스"),
+    (r"\bEWY\b", "이더블유와이"), (r"\bSOX\b", "필라델피아 반도체 지수"), (r"\bETF\b", "이티에프"), (r"\bPER\b", "퍼"),
+    (r"\bPBR\b", "피비알"), (r"\bROE\b", "로이"), (r"\bRSI\b", "알에스아이"), (r"\bMACD\b", "맥디"), (r"\bTSI\b", "티에스아이"),
+    (r"\bAI\b", "에이아이"), (r"\bYoY\b", "작년 대비"), (r"\bFOMC\b", "에프오엠씨"), (r"\bCPI\b", "소비자물가"),
+    (r"([0-9])\s?%p", r"\1퍼센트포인트"), (r"([0-9])\s?bp", r"\1베이시스포인트"), (r"([0-9])\s?%", r"\1퍼센트"),
+    (r"([0-9])\s?σ", r"\1시그마"), (r"\+([0-9])", r"플러스 \1"), (r"(?<![0-9])-([0-9])", r"마이너스 \1"),
+]
+
+
 def tts_text(text: str) -> str:
-    text = text.replace("→", ", ").replace("·", ", ").replace("~", " 에서 ")
+    text = text.replace("→", ", ").replace("·", ", ").replace("~", " 에서 ").replace("|", ", ")
+    for pat, rep in TTS_WORDS:
+        text = re.sub(pat, rep, text)
+    text = re.sub(r"[\[\]\(\)\"'“”‘’*#]", " ", text)
     return re.sub(r"\s+", " ", text).strip()
 
 

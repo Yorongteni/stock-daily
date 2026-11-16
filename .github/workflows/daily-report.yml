@@ -1,25 +1,23 @@
 name: 리포트 PDF·영상 만들기
 
-# daily-market-report(리포트 생성)가 끝나면 자동 실행.
-#   오전 실행(10시대, 장 초반) → PDF·영상(_am) + 유튜브 업로드
-#   오후 실행(17시대, 장 마감) → PDF·영상(_pm) + 유튜브 업로드
-# Actions 탭에서 수동 실행도 가능.
+# daily-market-report(리포트 생성)가 끝나면 그 워크플로우가 이 파일을 불러서 실행합니다.
+#   모닝(am) → PDF·영상(_am) + 유튜브 업로드 / 나이트(pm) → PDF·영상(_pm) + 유튜브 업로드
+# Actions 탭에서 날짜·슬롯을 골라 수동 실행도 가능합니다.
 on:
-  workflow_run:
-    workflows: ["daily-market-report"]
-    types: [completed]
+  workflow_call:
+    inputs:
+      date: { type: string, required: true }
+      slot: { type: string, required: true }
   workflow_dispatch:
     inputs:
       date:
-        description: "리포트 날짜 (예: 2026-10-20, 비우면 최신)"
-        required: false
-        default: ""
+        description: "리포트 날짜 (예: 2026-11-17)"
+        required: true
       slot:
-        description: "am = 장 초반판 / pm = 장 마감판 / auto = 지금 시각 기준(12시 전이면 am)"
-        required: false
-        default: "auto"
+        description: "am = 모닝 / pm = 나이트"
         type: choice
-        options: [auto, am, pm]
+        options: [am, pm]
+        default: am
 
 permissions:
   contents: write
@@ -30,10 +28,11 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 50
     env:
+      DATE: ${{ inputs.date }}
+      SLOT: ${{ inputs.slot }}
       TTS_VOICE: ko-KR-SunHiNeural   # 남성 음성: ko-KR-InJoonNeural
       TTS_RATE: "+8%"
       YT_PRIVACY: private
@@ -45,28 +44,17 @@ jobs:
         with:
           ref: main      # 방금 커밋된 리포트까지 받기
 
-      - name: 날짜와 오전/오후 정하기
-        env:
-          INPUT_DATE: ${{ github.event.inputs.date }}
-          INPUT_SLOT: ${{ github.event.inputs.slot }}
+      - name: 입력 확인
         run: |
-          if [ -n "$INPUT_DATE" ]; then
-            d="$INPUT_DATE"
-          else
-            f="$(ls docs/report_????-??-??.html | sort | tail -n 1)"
-            d="$(basename "$f" .html)"; d="${d#report_}"
+          if ! [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! [[ "$SLOT" =~ ^(am|pm)$ ]]; then
+            echo "::error::날짜/슬롯 형식 오류: $DATE $SLOT"; exit 1
           fi
-          if ! [[ "$d" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || [ ! -f "docs/report_$d.html" ]; then
-            echo "::error::docs/report_$d.html 이 없습니다."; exit 1
+          if [ ! -f "docs/report_${DATE}_${SLOT}.html" ]; then
+            echo "::error::docs/report_${DATE}_${SLOT}.html 이 없습니다."; exit 1
           fi
-          slot="$INPUT_SLOT"
-          if [ -z "$slot" ] || [ "$slot" = "auto" ]; then
-            h=$((10#$(TZ=Asia/Seoul date +%H)))
-            if [ "$h" -lt 12 ]; then slot=am; else slot=pm; fi
-          fi
-          echo "DATE=$d" >> "$GITHUB_ENV"
-          echo "SLOT=$slot" >> "$GITHUB_ENV"
-          echo "처리: $d ($slot)"
+          td=$(python3 -c "import yaml;print(str((yaml.safe_load(open('config.yaml',encoding='utf-8')).get('video') or {}).get('ticker_details',False)).lower())" 2>/dev/null || echo false)
+          echo "TICKER_DETAILS=$td" >> "$GITHUB_ENV"
+          echo "처리: $DATE ($SLOT)"
 
       - uses: actions/setup-python@v6
         with:
@@ -98,8 +86,7 @@ jobs:
             echo "변경 없음"
           else
             git commit -m "리포트 PDF: $DATE ($SLOT)"
-            git pull --rebase -q
-            git push
+            for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
           fi
 
       - name: 릴리스에 올리기 (휴대폰 다운로드용)
@@ -113,11 +100,12 @@ jobs:
             gh release upload "$tag" "${files[@]}" --clobber
           else
             notes="out/$DATE/description.txt"
-            [ -f "$notes" ] || echo "$DATE 시장 일일 리포트" > "$notes"
+            [ -f "$notes" ] || echo "$DATE 시장 브리핑" > "$notes"
             gh release create "$tag" "${files[@]}" --title "$DATE 시장 브리핑" --notes-file "$notes"
           fi
           {
             echo "### $DATE ($SLOT) 결과물"
+            echo "- 리포트: https://yorongteni.github.io/stock-daily/report_${DATE}_${SLOT}.html"
             echo "- PDF: https://yorongteni.github.io/stock-daily/pdf/report_${DATE}_${SLOT}.pdf (반영까지 1~2분)"
             echo "- 다운로드: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -24,7 +24,7 @@ SECTOR_KO = {"Technology": "기술", "Financial Services": "금융", "Healthcare
 CACHE = Path("cache/fundamentals.json")
 INFO_KEYS = ["trailingPE", "forwardPE", "priceToBook", "priceToSalesTrailing12Months",
              "returnOnEquity", "revenueGrowth", "earningsGrowth", "profitMargins",
-             "marketCap", "sector", "industry", "currency"]
+             "marketCap", "sector", "industry", "currency", "currentPrice", "regularMarketPrice"]
 
 
 # ───────────────────────── 데이터 수집 ─────────────────────────
@@ -74,21 +74,31 @@ def load_fundamentals(universe: dict, refresh_days: int = 7, demo=False) -> dict
     return {t: cache[t] for t in universe if t in cache}
 
 
-def load_prices(tickers: list, demo=False) -> dict:
+def load_prices(tickers: list, demo=False, period="5y") -> tuple[dict, dict]:
+    """종가와 거래대금(종가×거래량) 시계열."""
     if demo:
-        return _fake_prices(tickers)
+        p = _fake_prices(tickers)
+        return p, {t: s * 1e6 for t, s in p.items()}
     import yfinance as yf
-    df = yf.download(tickers, period="1y", auto_adjust=True, group_by="ticker",
+    df = yf.download(tickers, period=period, auto_adjust=True, group_by="ticker",
                      threads=True, progress=False)
-    out = {}
+    out, val = {}, {}
     for t in tickers:
         try:
-            s = df[t]["Close"].dropna() if len(tickers) > 1 else df["Close"].dropna()
+            d = df[t] if len(tickers) > 1 else df
+            s = d["Close"].dropna()
             if len(s) > 60:
+                if getattr(s.index, "tz", None) is not None:
+                    s.index = s.index.tz_localize(None)
                 out[t] = s
+                if "Volume" in d:
+                    v = (d["Close"] * d["Volume"]).dropna()
+                    if getattr(v.index, "tz", None) is not None:
+                        v.index = v.index.tz_localize(None)
+                    val[t] = v
         except KeyError:
             pass
-    return out
+    return out, val
 
 
 # ───────────────────────── 지표 계산 ─────────────────────────
@@ -105,11 +115,20 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
         if not f:
             continue
         rev, ni = f.get("revenue") or [], f.get("net_income") or []
+        p = prices.get(t)
+        # 실적은 주 1회 받으므로, 받은 날 이후 주가 변화만큼 PER·PBR·PSR을 보정
+        px0 = f.get("currentPrice") or f.get("regularMarketPrice")
+        adj = float(p.iloc[-1]) / px0 if p is not None and px0 else 1.0
+        if not 0.2 < adj < 5:
+            adj = 1.0
+
+        def mult(k, f=f, adj=adj):
+            return None if f.get(k) is None else f.get(k) * adj
         row = {
             "ticker": t, "name": name, "market": market, "category": cat,
             "sector": SECTOR_KO.get(f.get("sector"), f.get("sector") or "기타"), "industry": f.get("industry") or "",
-            "pe": f.get("trailingPE"), "fpe": f.get("forwardPE"),
-            "pb": f.get("priceToBook"), "ps": f.get("priceToSalesTrailing12Months"),
+            "pe": mult("trailingPE"), "fpe": mult("forwardPE"),
+            "pb": mult("priceToBook"), "ps": mult("priceToSalesTrailing12Months"),
             "roe": f.get("returnOnEquity"), "rev_g": f.get("revenueGrowth"),
             "eps_g": f.get("earningsGrowth"), "margin": f.get("profitMargins"),
             "rev_cagr": _cagr(rev), "ni_cagr": _cagr(ni),
@@ -117,7 +136,12 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
             "ni_last": ni[-1] if ni else None,
             "years": len(rev),
         }
-        p = prices.get(t)
+        # 국내 종목은 야후가 PER·PBR을 비워 두는 경우가 많아 시가총액/순이익, PER×ROE로 보완
+        mc = mult("marketCap")
+        if row["pe"] is None and mc and ni and ni[-1] > 0:
+            row["pe"] = mc / ni[-1]
+        if row["pb"] is None and row["pe"] and row["roe"] and row["roe"] > 0:
+            row["pb"] = row["pe"] * row["roe"]
         if p is not None and len(p) > 25:
             row["ret_1d"] = p.iloc[-1] / p.iloc[-2] - 1
             row["ret_5d"] = p.iloc[-1] / p.iloc[-6] - 1
@@ -168,7 +192,7 @@ def _fmt(v, kind):
 
 
 # ───────────────────────── 스크리닝 ─────────────────────────
-def screen(df: pd.DataFrame, top_n=5, cap=1) -> dict:
+def screen(df: pd.DataFrame, top_n=5, cap=1, hist: dict | None = None) -> dict:
     out = {}
 
     # 1) 저평가: 3년 흑자 + PER 있음 + ROE 양수
@@ -218,8 +242,10 @@ def screen(df: pd.DataFrame, top_n=5, cap=1) -> dict:
                       + (f", 주가가 200일선보다 {_fmt(r.vs_ma200, 'p')} 위" if pd.notna(r.vs_ma200) and r.vs_ma200 > 0.15 else ""),
         } for r in _diverse(o, top_n, cap).itertuples()]
 
-    out["categories"] = categories(df, out)
+    out["categories"] = categories(df, out, hist or {})
     out["universe_size"] = int(len(df))
+    out["valuation"] = valuation(df)
+    out["leadership"] = (hist or {}).get("_leadership", {})
     return out
 
 
@@ -227,7 +253,7 @@ def _f(v):
     return None if v is None or pd.isna(v) else round(float(v) * 100, 2)
 
 
-def categories(df: pd.DataFrame, lists: dict) -> list:
+def categories(df: pd.DataFrame, lists: dict, hist: dict) -> list:
     """분야별 등락·추세 폭·실적·대표 종목 요약 (20일 수익률 높은 순)."""
     flagged = {k: {r["ticker"] for r in lists.get(k, [])} for k in ("value", "growth", "overvalued")}
     out = []
@@ -254,6 +280,7 @@ def categories(df: pd.DataFrame, lists: dict) -> list:
             r = gr.assign(s=gr.rev_g.rank() + gr.rev_cagr.rank()).sort_values("s").iloc[-1]
             item["growth_pick"] = [r["name"], f"최근 매출 {r.rev_g * 100:+.0f}%"]
         item["risk_names"] = [n for t, n in zip(g.ticker, g.name) if t in flagged["overvalued"]]
+        item.update(hist.get(cat, {}))
         out.append(item)
     out.sort(key=lambda x: (x["ret_20d"] is None, -(x["ret_20d"] or 0)))
     return out
@@ -285,9 +312,105 @@ def run(cfg: dict, demo=False) -> dict:
             t = str(t)
             universe[t] = (n, "kr" if t.endswith((".KS", ".KQ")) else "us", cat)
     fund = load_fundamentals(universe, cfg.get("refresh_days", 7), demo)
-    prices = load_prices(list(universe), demo)
+    prices, values = load_prices(list(universe), demo, cfg.get("price_period", "5y"))
     df = build_table(universe, fund, prices)
-    return screen(df, cfg.get("top_n", 5), cfg.get("max_per_category", 1))
+    try:
+        hist = sector_history(universe, prices, values)
+    except Exception as e:  # noqa: BLE001
+        print(f"    ✗ 분야 장기 비교 실패: {e}")
+        hist = {}
+    return screen(df, cfg.get("top_n", 5), cfg.get("max_per_category", 1), hist)
+
+
+# ───────────────────────── 분야 장기 비교 ─────────────────────────
+def sector_history(universe: dict, prices: dict, values: dict) -> dict:
+    """분야별 동일가중 지수로 60일·1년·3년 수익률, 시장 대비 상대강도와 1년 전 대비 변화,
+    상대강도의 3년 백분위, 거래대금 증감(자금 유입·유출 대용)을 계산."""
+    rets = {}
+    for t, s in prices.items():
+        if len(s) < 260:
+            continue
+        rets[t] = s.pct_change().clip(-0.3, 0.3)
+    if not rets:
+        return {}
+    R = pd.DataFrame(rets).sort_index()
+    mkt = R.mean(axis=1, skipna=True).fillna(0)
+    mkt_idx = (1 + mkt).cumprod()
+    cats: dict[str, list] = {}
+    for t, (_, _, c) in universe.items():
+        if t in R:
+            cats.setdefault(c, []).append(t)
+
+    def ret(idx, n, lag=0):
+        if len(idx) <= n + lag:
+            return None
+        return float(idx.iloc[-1 - lag] / idx.iloc[-1 - lag - n] - 1)
+
+    out, rank_now, rank_ago = {}, {}, {}
+    for c, ts in cats.items():
+        sr = R[ts].mean(axis=1, skipna=True).fillna(0)
+        idx = (1 + sr).cumprod()
+        rel = idx / mkt_idx
+        r60, r60_ago = ret(idx, 60), ret(idx, 60, 252)
+        m60, m60_ago = ret(mkt_idx, 60), ret(mkt_idx, 60, 252)
+        rel3 = rel.tail(756)
+        # 거래대금: 최근 5일 평균 / 60일 평균 (종목별 비율의 중앙값)
+        ratios = []
+        for t in ts:
+            v = values.get(t)
+            if v is not None and len(v) > 70:
+                a, b = v.tail(5).mean(), v.tail(60).mean()
+                if b > 0:
+                    ratios.append(a / b)
+        vr = float(np.median(ratios)) if ratios else None
+        r5 = ret(idx, 5)
+        flow = None
+        if vr is not None and r5 is not None:
+            if r5 > 0.01 and vr >= 1.0:
+                flow = "유입"
+            elif r5 < -0.01 and vr >= 1.0:
+                flow = "유출"
+            elif vr < 0.85:
+                flow = "관심 감소"
+            else:
+                flow = "중립"
+        weekly = idx.resample("W-FRI").last().tail(157)
+        if len(weekly):
+            weekly = weekly / weekly.iloc[0] * 100
+        out[c] = {
+            "ret_60d": _f(r60), "ret_1y": _f(ret(idx, 252)), "ret_3y": _f(ret(idx, 756)),
+            "rs_60d": _f(None if r60 is None or m60 is None else r60 - m60),
+            "rs_60d_1y_ago": _f(None if r60_ago is None or m60_ago is None else r60_ago - m60_ago),
+            "rs_pct_3y": round(float((rel3 < rel3.iloc[-1]).mean() * 100)) if len(rel3) > 100 else None,
+            "turnover_ratio": None if vr is None else round(vr, 2), "flow": flow,
+            "spark": [[d.strftime("%Y-%m-%d"), round(float(v), 1)] for d, v in weekly.items()],
+        }
+        if r60 is not None:
+            rank_now[c] = r60
+        if r60_ago is not None:
+            rank_ago[c] = r60_ago
+    order_now = [c for c, _ in sorted(rank_now.items(), key=lambda x: -x[1])]
+    order_ago = [c for c, _ in sorted(rank_ago.items(), key=lambda x: -x[1])]
+    for c in out:
+        out[c]["rank_60d"] = order_now.index(c) + 1 if c in order_now else None
+        out[c]["rank_60d_1y_ago"] = order_ago.index(c) + 1 if c in order_ago else None
+    out["_leadership"] = {"now": order_now[:3], "year_ago": order_ago[:3],
+                          "laggards_now": order_now[-3:][::-1]}
+    return out
+
+
+def valuation(df: pd.DataFrame) -> dict:
+    """시장별 PER·PBR 중앙값과 이익수익률(1/PER). 매일 history에 쌓아 장기 비교에 사용."""
+    out = {}
+    for m in ("kr", "us"):
+        g = df[df.market == m]
+        pe, pb = g.pe.median(), g.pb.median()
+        out[m] = {"pe_median": None if pd.isna(pe) else round(float(pe), 2),
+                  "pb_median": None if pd.isna(pb) else round(float(pb), 2),
+                  "earnings_yield": None if pd.isna(pe) or pe <= 0 else round(100 / float(pe), 2),
+                  "n": int(g.pe.notna().sum())}
+    return out
+
 
 
 # ───────────────────────── 데모용 가짜 데이터 ─────────────────────────

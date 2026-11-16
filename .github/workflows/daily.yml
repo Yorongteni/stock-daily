@@ -1,31 +1,143 @@
-# 평일 오전 7시(KST)에 자동 실행 → GitHub Pages 주소로 스마트폰에서 확인
+# 모닝(07:00) · 나이트(22:00) 브리핑 자동 실행
+#
+#  KST 06:05 / 21:05  수집 → docs/data/<날짜>_<슬롯>.json + _brief.md 커밋
+#  KST 06:15 / 21:15  claude.ai 루틴이 brief를 읽고 AI 분석 → docs/ai/<날짜>_<슬롯>.json 푸시
+#                     → (push 이벤트) 리포트 생성 → PDF·영상(daily-report.yml)
+#  KST 06:45 / 21:45  안전장치: 그때까지 리포트가 없으면 AI 없이(정량 결론) 리포트·영상 생성.
+#                     나중에 AI 결과가 도착하면 push 이벤트로 AI 반영본을 다시 만듭니다.
+#  cron 은 UTC 기준입니다. 한국 월요일 아침 = UTC 일요일이라 아침 요일이 0-4 입니다.
+#  GitHub 예약 실행은 붐비는 시간에 10~30분 늦어질 수 있습니다.
 name: daily-market-report
 on:
   schedule:
-    - cron: "5 1 * * 1-5"   # 평일 KST 10:05 (미국 마감 + 국내 장 초반)
-    - cron: "5 8 * * 1-5"   # 평일 KST 17:05 (국내 종가 반영)
-  workflow_dispatch: {}     # Actions 탭에서 수동 실행 버튼
+    - cron: "5 21 * * 0-4"    # 모닝 수집   (KST 월~금 06:05)
+    - cron: "45 21 * * 0-4"   # 모닝 안전장치 (KST 06:45)
+    - cron: "5 12 * * 1-5"    # 나이트 수집  (KST 월~금 21:05)
+    - cron: "45 12 * * 1-5"   # 나이트 안전장치 (KST 21:45)
+  push:
+    branches: [main]
+    paths: ["docs/ai/**"]
+  workflow_dispatch:
+    inputs:
+      step:
+        description: "collect = 수집만 / build = 리포트·영상만 / all = 수집 + 리포트·영상"
+        type: choice
+        options: [all, collect, build]
+        default: all
+      slot:
+        description: "am = 모닝 / pm = 나이트 / auto = 지금 시각 기준(12시 전이면 am)"
+        type: choice
+        options: [auto, am, pm]
+        default: auto
+      date:
+        description: "날짜 (예: 2026-11-17, 비우면 오늘)"
+        required: false
+        default: ""
+
 permissions:
   contents: write
+
+concurrency:
+  group: daily-market-report
+  cancel-in-progress: false
 
 jobs:
   report:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+    outputs:
+      built: ${{ steps.build.outputs.built }}
+      date: ${{ steps.plan.outputs.date }}
+      slot: ${{ steps.plan.outputs.slot }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
+
       - run: pip install -r requirements.txt
-      - name: 리포트 생성
+
+      - name: 할 일·날짜·슬롯 정하기
+        id: plan
+        env:
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          IN_STEP: ${{ github.event.inputs.step }}
+          IN_SLOT: ${{ github.event.inputs.slot }}
+          IN_DATE: ${{ github.event.inputs.date }}
+        run: |
+          d="$(TZ=Asia/Seoul date +%F)"; h=$((10#$(TZ=Asia/Seoul date +%H)))
+          slot=""; step=""; force=false
+          case "$EVENT" in
+            schedule)
+              case "$SCHEDULE" in "5 "*) step=collect ;; *) step=build ;; esac ;;
+            push)
+              step=build
+              f="$(ls docs/ai/????-??-??_*.json 2>/dev/null | sort | tail -n 1)"
+              if [ -n "$f" ]; then s="$(basename "$f" .json)"; d="${s%_*}"; slot="${s##*_}"; fi ;;
+            workflow_dispatch)
+              step="${IN_STEP:-all}"; slot="${IN_SLOT}"; [ -n "$IN_DATE" ] && d="$IN_DATE"; force=true ;;
+          esac
+          if [ -z "$slot" ] || [ "$slot" = "auto" ]; then
+            if [ "$h" -lt 12 ]; then slot=am; else slot=pm; fi
+          fi
+          echo "step=$step" >> "$GITHUB_OUTPUT"; echo "date=$d" >> "$GITHUB_OUTPUT"
+          echo "slot=$slot" >> "$GITHUB_OUTPUT"; echo "force=$force" >> "$GITHUB_OUTPUT"
+          echo "### $d ($slot) · $step" >> "$GITHUB_STEP_SUMMARY"
+          echo "할 일: $step / 날짜: $d / 슬롯: $slot"
+
+      - name: 수집 (데이터 묶음 + AI 입력)
+        if: steps.plan.outputs.step == 'collect' || steps.plan.outputs.step == 'all'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: python main.py --out docs
-      - name: 리포트 저장(커밋) → Pages 자동 갱신
+          D: ${{ steps.plan.outputs.date }}
+          S: ${{ steps.plan.outputs.slot }}
         run: |
+          python main.py --slot "$S" --date "$D" --collect --out docs
+          git config user.name  "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add docs/data docs/ai cache/ 2>/dev/null || true
+          git commit -m "데이터 수집: $D ($S)" || echo "변경 없음"
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+
+      - name: 리포트 생성
+        id: build
+        env:
+          D: ${{ steps.plan.outputs.date }}
+          S: ${{ steps.plan.outputs.slot }}
+          STEP: ${{ steps.plan.outputs.step }}
+          FORCE: ${{ steps.plan.outputs.force }}
+        run: |
+          git pull --rebase -q || true
+          stem="${D}_${S}"
+          # 수집만 하는 실행: API 모드로 AI 결과까지 생긴 경우에만 바로 리포트를 만든다
+          if [ "$STEP" = "collect" ] && [ ! -f "docs/ai/$stem.json" ]; then
+            echo "수집만 완료 (AI 결과는 루틴이 올리면 push 이벤트로 이어서 생성)"; echo "built=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # 이미 만든 리포트가 있고, 그 리포트가 AI 반영본이거나 새 AI 결과가 없으면 건너뜀
+          if [ "$FORCE" != "true" ] && [ -f "docs/report_$stem.html" ]; then
+            has_ai=$(python -c "import json,sys;h=json.load(open('docs/history.json',encoding='utf-8'));print(str(h.get('$D',{}).get('slots',{}).get('$S',{}).get('ai',False)).lower())")
+            if [ "$has_ai" = "true" ] || [ ! -f "docs/ai/$stem.json" ]; then
+              echo "이미 생성됨 → 건너뜀"; echo "built=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+          fi
+          python main.py --slot "$S" --date "$D" --build --out docs
           git config user.name  "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
           git add docs/ cache/
-          git commit -m "report $(TZ=Asia/Seoul date +%F)" || echo "변경 없음"
-          git push
+          git commit -m "브리핑 리포트: $D ($S)" || echo "변경 없음"
+          for i in 1 2 3; do git pull --rebase -q && git push && break; sleep 5; done
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+  video:
+    needs: report
+    if: needs.report.outputs.built == 'true'
+    uses: ./.github/workflows/daily-report.yml
+    with:
+      date: ${{ needs.report.outputs.date }}
+      slot: ${{ needs.report.outputs.slot }}
+    secrets: inherit

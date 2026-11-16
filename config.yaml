@@ -1,24 +1,88 @@
 # ─────────────────────────────────────────────
-# 매일 주식 분석 리포트 설정
-# 종목을 추가/삭제하려면 아래 목록만 고치면 됩니다.
+# 매일 시장 브리핑 설정
+# 종목·자산을 추가/삭제하려면 아래 목록만 고치면 됩니다.
 # ─────────────────────────────────────────────
 
-lookback_days: 420        # 지표 계산용으로 가져올 과거 데이터 일수 (120일선 계산에 충분하도록)
-chart_days: 180           # 차트에 표시할 최근 일수
-output_dir: reports       # 리포트 저장 폴더
+lookback_days: 420        # 관심 종목 기술적 지표용 과거 데이터 일수 (120일선 계산에 충분하도록)
+chart_days: 180           # 종목 차트에 표시할 최근 일수
+output_dir: reports       # 리포트 저장 폴더 (GitHub Actions에서는 --out docs)
 
+# 브리핑 이원화 (KST)
+#   am = 모닝 브리핑 07:00 완성 : 밤사이 미국·글로벌 마감 → 오늘 국내장 예측
+#   pm = 나이트 브리핑 22:00 완성 : 국내장 마감 복기 → 오늘 밤 미국장 예측
+slots:
+  am: { name: 모닝 브리핑, ready: "07:00", focus: kr }
+  pm: { name: 나이트 브리핑, ready: "22:00", focus: us }
+
+# AI 분석
+#   mode: routine → claude.ai 예약 작업(루틴)이 docs/data/<날짜>_<슬롯>_brief.md 를 읽고
+#                   docs/ai/<날짜>_<슬롯>.json 을 커밋 (API 키 불필요, 요금제 사용량 사용)
+#   mode: api     → GitHub Actions 안에서 ANTHROPIC_API_KEY 로 직접 호출 (별도 과금)
+#   어느 쪽이든 AI 결과가 없으면 규칙 기반(정량) 결론으로 리포트·영상을 만듭니다.
 claude:
-  enabled: false          # API 키가 생기면 true로 바꾸세요
-  model: claude-sonnet-5-5   # 필요 시 claude-opus-5-5 등으로 변경
-  web_search: true           # 당일 뉴스 검색 후 해설에 반영
-  max_searches: 6
+  enabled: true
+  mode: routine
+  model: claude-sonnet-5-5   # mode: api 일 때만 사용
+  web_search: true
+  max_searches: 15
+
+# 거시경제·다중 자산 (과거 5년 비교)
+#   sources: 앞에서부터 시도하고 실패하면 다음 출처로 (yf=야후, fdr=FinanceDataReader, fred=FRED CSV)
+#   kind: price(%) / rate(금리, 변화를 bp로 표시)
+macro:
+  years: 5
+  assets:
+    # 주식 지수 · 선행 지표
+    - { key: kospi,   name: 코스피,            group: 지수,   sources: [[yf, "^KS11"], [fdr, KS11]] }
+    - { key: kosdaq,  name: 코스닥,            group: 지수,   sources: [[yf, "^KQ11"], [fdr, KQ11]] }
+    - { key: spx,     name: S&P 500,           group: 지수,   sources: [[yf, "^GSPC"], [fdr, US500]] }
+    - { key: ndx,     name: 나스닥 종합,       group: 지수,   sources: [[yf, "^IXIC"], [fdr, IXIC]] }
+    - { key: sox,     name: 필라델피아 반도체, group: 지수,   sources: [[yf, "^SOX"]] }
+    - { key: ewy,     name: 한국 ETF(EWY),     group: 지수,   sources: [[yf, EWY]] }
+    - { key: es,      name: S&P500 선물,       group: 지수,   sources: [[yf, "ES=F"]] }
+    - { key: nq,      name: 나스닥100 선물,    group: 지수,   sources: [[yf, "NQ=F"]] }
+    # 환율 · 금리 · 변동성
+    - { key: usdkrw,  name: 원/달러 환율,      group: 환율·금리, sources: [[yf, "KRW=X"], [fdr, "USD/KRW"], [fred, DEXKOUS]] }
+    - { key: dxy,     name: 달러 인덱스,       group: 환율·금리, sources: [[yf, "DX-Y.NYB"], [fred, DTWEXBGS]] }
+    - { key: us10y,   name: 미국채 10년,       group: 환율·금리, kind: rate, sources: [[yf, "^TNX"], [fred, DGS10]] }
+    - { key: us2y,    name: 미국채 2년,        group: 환율·금리, kind: rate, sources: [[fred, DGS2], [yf, "2YY=F"]] }
+    - { key: curve,   name: 장단기 금리차(10Y-2Y), group: 환율·금리, kind: rate, sources: [[fred, T10Y2Y]] }
+    - { key: vix,     name: 공포지수(VIX),     group: 환율·금리, sources: [[yf, "^VIX"], [fred, VIXCLS]] }
+    # 현물 · 원자재
+    - { key: gold,    name: 금 선물,           group: 현물·원자재, sources: [[yf, "GC=F"]] }
+    - { key: gld,     name: 금 ETF(GLD),       group: 현물·원자재, sources: [[yf, GLD], [fdr, GLD]] }
+    - { key: silver,  name: 은 선물,           group: 현물·원자재, sources: [[yf, "SI=F"]] }
+    - { key: wti,     name: WTI 원유,          group: 현물·원자재, sources: [[yf, "CL=F"], [fred, DCOILWTICO]] }
+    - { key: copper,  name: 구리,              group: 현물·원자재, sources: [[yf, "HG=F"]] }
+    # 가상자산
+    - { key: btc,     name: 비트코인,          group: 가상자산, sources: [[yf, BTC-USD], [fdr, BTC/USD]] }
+
+# 뉴스·사회 흐름 (API 키 없이 RSS 로 수집, 최근 36시간)
+news:
+  enabled: true
+  hours: 36
+  per_feed: 8
+  feeds:
+    - { lang: ko, name: 구글뉴스 경제,   url: "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko" }
+    - { lang: ko, name: 연합뉴스 경제,   url: "https://www.yna.co.kr/rss/economy.xml" }
+    - { lang: ko, name: 한국경제 증권,   url: "https://www.hankyung.com/feed/finance" }
+    - { lang: en, name: Google Business, url: "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=en-US&gl=US&ceid=US:en" }
+    - { lang: en, name: CNBC Markets,    url: "https://www.cnbc.com/id/15839069/device/rss/rss.html" }
+  queries:   # 구글 뉴스 검색 RSS
+    ko: [코스피 증시, 원달러 환율, 한국은행 금리, 반도체 수출, 정부 경제정책, 부동산 대출 규제, 지정학 리스크]
+    en: [stock market, Federal Reserve, Treasury yields, oil prices, tariffs trade, geopolitical risk]
+  sector_queries: true   # 13개 분야마다 국내 뉴스 검색 1회씩
 
 screening:
   enabled: true
-  universe_file: universe.yaml   # 스크리닝 대상 종목 목록
+  universe_file: universe.yaml   # 스크리닝 대상 종목 목록 (13개 분야)
   refresh_days: 7                # 실적 데이터 갱신 주기(일)
+  price_period: 5y               # 분야 지수·과거 비교용 주가 기간
   top_n: 5                       # 항목별 표시 종목 수
   max_per_category: 1            # 한 목록 안에서 같은 분야는 최대 몇 개까지 (편중 방지)
+
+video:
+  ticker_details: false          # true면 관심 종목 상세 차트도 영상에 넣음 (영상이 길어짐)
 
 # code 규칙 (FinanceDataReader 기준)
 #   국내 종목: 6자리 종목코드 (예: 005930)
