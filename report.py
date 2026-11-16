@@ -177,6 +177,25 @@ table.t tr:last-child td{border-bottom:none}
 .plan ol{margin:6px 0 0;padding-left:20px} .plan li{margin:5px 0;font-size:15px}
 .plan li::marker{font-weight:700;color:var(--accent)}
 
+/* 초보자용: 쉬운 요약 · 쉽게 말하면 · 연결고리 · 용어 */
+.easysum{background:var(--acc-soft);border-radius:6px;padding:16px 20px;margin-top:18px}
+.easysum h3{margin:0 0 6px;color:var(--accent)}
+.easysum ol{margin:0;padding-left:20px;font-size:16px} .easysum li{margin:4px 0}
+.easy{background:var(--warn-soft);border-left:4px solid var(--warn);border-radius:4px;padding:10px 14px;margin:12px 0;font-size:14.5px;max-width:90ch}
+.easy b{color:var(--warn);margin-right:6px}
+.chains{display:grid;gap:10px}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;font-size:14px}
+.chain span.node{background:var(--bg);border-radius:4px;padding:4px 10px}
+.chain span.node.first{background:var(--down-soft);font-weight:700}
+.chain span.node.last{background:var(--up-soft);font-weight:700}
+.chain span.arr{color:var(--sub);font-weight:700}
+.chain .now{flex-basis:100%;font-size:12.5px;color:var(--sub);margin-top:2px}
+.gloss{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,330px),1fr));gap:10px}
+.gloss>div{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 14px;font-size:14px}
+.gloss b{display:block;font-size:15px}
+.gloss .why{color:var(--sub);font-size:13px;margin-top:2px}
+details.more{margin-top:12px} details.more summary{cursor:pointer;color:var(--accent);font-weight:500}
+
 /* 부록 (기존) */
 .thermo{display:grid;grid-template-columns:72px 1fr;gap:10px 14px;align-items:stretch;margin-top:12px}
 .thermo .mk{font-weight:700;font-size:14px;align-self:center;color:var(--sub)}
@@ -257,6 +276,30 @@ const ALLOC = [["kr_equity","국내 주식","--c2"],["us_equity","미국 주식"
                ["usd_cash","달러 현금성","--c1"],["krw_cash_bonds","원화 현금·채권","--c5"],["alternatives","대체자산(비트코인 등)","--c6"]];
 const rbNote = what => RB ? `<p class="note">AI 분석이 없어 ${what}은(는) 정량 지표만으로 표시합니다.</p>` : "";
 const sparks = [];
+const EZ = RB ? {} : (V.easy || {});
+const easyBox = t => t ? `<div class="easy"><b>쉽게 말하면</b>${esc(t)}</div>` : "";
+const BASIC_TERMS = [
+  ["백분위 (5년)", "최근 5년 동안의 값을 낮은 순으로 줄 세웠을 때 지금이 어디쯤인지. 0이면 5년 중 최저, 100이면 최고, 50이면 중간."],
+  ["작년 동기 대비 (YoY)", "1년 전 같은 날과 비교해 얼마나 올랐거나 내렸는지."],
+  ["bp (베이시스포인트)", "금리 변화 단위. 1bp = 0.01%포인트. 금리가 4.00%에서 4.25%가 되면 25bp 상승."],
+  ["미국채 10년 금리", "미국 정부가 10년 동안 돈을 빌릴 때 내는 이자율. 전 세계 대출·주식 가치의 기준이 되어, 오르면 주식(특히 성장주)에 부담."],
+  ["장단기 금리차 (10Y−2Y)", "10년 금리 − 2년 금리. 보통은 플러스인데 마이너스(역전)가 되면 시장이 경기 둔화를 걱정한다는 신호."],
+  ["달러 인덱스", "유로·엔 등 주요 통화 대비 달러 가치. 오르면 달러가 강해져 신흥국(한국) 주식에서 외국인 돈이 빠지기 쉬움."],
+  ["원/달러 환율", "1달러를 사는 데 필요한 원화. 오르면(원화 약세) 수출 기업엔 유리하지만 외국인 투자자에겐 손실 요인."],
+  ["VIX (공포지수)", "앞으로 한 달간 미국 주식시장이 얼마나 출렁일지에 대한 예상치. 20 아래면 평온, 30 위면 공포."],
+  ["구리/금 비율", "구리는 공장·건설에 쓰여 경기가 좋을 때, 금은 불안할 때 오름. 구리가 금보다 강하면 경기 기대, 약하면 경기 걱정."],
+  ["PER (주가수익비율)", "주가가 1년 이익의 몇 배인지. 높을수록 비싸거나 성장 기대가 큰 것. 같은 업종끼리 비교해야 의미가 있음."],
+  ["PBR (주가순자산비율)", "주가가 회사 순자산(장부상 가치)의 몇 배인지. 1 미만이면 장부 가치보다 싸게 거래되는 것."],
+  ["이동평균선 (20·60·120일)", "최근 N일 종가의 평균. 주가가 평균선 위에 있으면 상승 흐름, 아래면 하락 흐름으로 봄."],
+  ["RSI", "최근 오른 힘과 내린 힘의 비율(0~100). 70 이상이면 너무 많이 올라 과열, 30 이하면 너무 많이 내려 과매도."],
+  ["MACD · TSI", "주가 흐름의 '힘(모멘텀)'을 재는 지표. 신호선을 위로 뚫으면 오름세가 강해지는 신호, 아래로 뚫으면 약해지는 신호."],
+  ["추세 점수 (−6~+6)", "이동평균·RSI·MACD·TSI 6가지를 각각 +1/−1로 더한 점수. +3 이상 강세, −3 이하 약세."],
+  ["상대강도 (시장 대비)", "그 분야 수익률에서 전체 시장 수익률을 뺀 값. 플러스면 시장보다 잘 오른(덜 내린) 분야."],
+  ["거래대금 비율", "최근 5일 평균 거래대금 ÷ 60일 평균. 1보다 크면 평소보다 돈이 많이 오가는 중(관심 증가)."],
+  ["유동성 장세 · 실적 장세", "유동성 장세는 금리 인하 등으로 풀린 돈이 주가를 올리는 시기, 실적 장세는 기업 이익이 늘어 주가가 오르는 시기."],
+  ["예상 밴드 (1σ)", "오늘 지수가 움직일 것으로 예상되는 범위. 대략 3번 중 2번은 이 안에서 끝난다는 뜻."],
+  ["EWY", "미국 시장에 상장된 한국 주식 ETF. 한국 장이 닫힌 밤사이 외국인이 한국을 어떻게 보는지 알려 주는 선행 지표."],
+];
 const items = Object.entries(DATA.results || {});
 const ok = items.filter(([, r]) => !r.error), failed = items.filter(([, r]) => r.error);
 let h = "";
@@ -267,6 +310,10 @@ h += `<header><div><span class="kicker">${esc(DATA.slot_name)} · ${esc(DATA.tod
 <div class="meta">데이터 수집 ${esc(DATA.collected_at)} KST · ${RB ? "정량 판단(AI 없음)" : "AI 분석 반영"}
   <nav class="nav">${DATA.prev ? `<a href="report_${esc(DATA.prev)}.html">← 이전 브리핑</a>` : ""}
   <a href="#sec-conclusion">결론 바로 보기</a><a href="archive.html">지난 리포트 전체</a></nav></div></header>`;
+
+// ── 오늘의 쉬운 요약 ──
+if (list(EZ.summary).length) h += `<div class="easysum" id="easy-sum"><h3>오늘 시장, 이것만 알면 됩니다</h3><ol>${EZ.summary.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
+  <p class="k" style="margin:8px 0 0">처음 보는 용어는 아래 <a href="#glossary">용어 풀이</a>에서 확인하세요.</p></div>`;
 
 // ── 오늘의 결론 요약 ──
 const st = V.stance || {}, fc = V.forecast || {}, al = V.allocation || {};
@@ -291,6 +338,7 @@ if (!RB && HC.summary) {
    <div class="grid2"><div><h3>과거와 같은 점</h3><ul class="clean">${list(HC.same).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
    <div><h3>결정적으로 달라진 점</h3><ul class="clean">${list(HC.different).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div></div>`;
 } else h += rbNote("과거 대비 해설");
+h += easyBox(EZ.history);
 const PK = ["kospi","kosdaq","spx","ndx","sox","usdkrw","dxy","us10y","us2y","curve","vix","gold","wti","copper","btc"];
 const span = a => (a.max_5y - a.min_5y) || 1;
 const posOf = (a, v) => Math.max(0, Math.min(100, (v - a.min_5y) / span(a) * 100));
@@ -314,6 +362,7 @@ h += `<h2 id="sec-macro"><span class="no">2</span>매크로 · 환율 · 금리 
 if ((M.regimes || []).length) h += `<div class="regime regimes">${M.regimes.map(r => `<div><b>${esc(r.label)}</b><span class="pill ${stanceCls(r.value)}">${esc(r.value)}</span><div class="k">${esc(r.evidence)}</div></div>`).join("")}</div>`;
 const MV = V.macro || {};
 if (!RB && MV.summary) h += `<div class="panel macro-ai"><p class="txt" style="margin:0">${esc(MV.summary)}</p></div>`;
+h += easyBox(EZ.macro);
 const aiAsset = Object.fromEntries(list(MV.assets).map(x => [x.name, x]));
 const groups = [...new Set((M.assets || []).map(a => a.group))];
 for (const g of groups) {
@@ -335,6 +384,8 @@ for (const g of groups) {
 const SO = V.social || {};
 h += `<h2 id="sec-forecast"><span class="no">3</span>사회적 흐름과 ${DATA.slot === "am" ? "오늘 국내 증시" : "오늘 밤 미국 증시"} 예측</h2>
 <p class="lead">최근 36시간 국내외 경제·사회 뉴스 ${NW.count || 0}건에서 뽑은 흐름과, 정량 기준선 위에 뉴스를 반영한 예측입니다.</p>
+${list(V.chains).length ? `<h3>오늘 시장의 연결고리 — 무엇이 무엇을 움직이나</h3><div class="chains" id="chains">${V.chains.map(c =>
+  `<div class="chain"><span class="node first">${esc(c.from)}</span>${list(c.steps).map(s => `<span class="arr">→</span><span class="node">${esc(s)}</span>`).join("")}<span class="arr">→</span><span class="node last">${esc(c.so)}</span>${c.now ? `<span class="now">지금: ${esc(c.now)}</span>` : ""}</div>`).join("")}</div><div class="mt"></div>` : ""}
 <div class="grid2 social"><div class="panel"><h3>뉴스 키워드</h3>
   <div class="kw">${list((NW.keywords || {}).ko).slice(0, 12).map(([w, n]) => `<span>${esc(w)} ${n}</span>`).join("")}</div>
   <div class="kw">${list((NW.keywords || {}).en).slice(0, 10).map(([w, n]) => `<span>${esc(w)} ${n}</span>`).join("")}</div>
@@ -361,6 +412,7 @@ h += `<div class="panel fc mt"><h3>${esc(fc.market || Q.target || "지수")} ${D
  ${list(fc.scenarios).length ? `<div class="scen">${fc.scenarios.map(s => `<div class="${esc(s.name)}"><b><span>${esc(s.name)} 시나리오</span><span>${s.prob != null ? s.prob + "%" : ""}</span></b>${esc(s.trigger)}<div class="k">${esc(s.path)}</div></div>`).join("")}</div>` : ""}
  ${list(fc.focus_sectors).length ? `<p class="mt" style="margin-bottom:0"><b>오늘 집중할 분야</b> ${fc.focus_sectors.map(s => `<span class="pill acc">${esc(s)}</span>`).join(" ")}</p>` : ""}
  ${fc.adjustment ? `<p class="k" style="margin:8px 0 0">기준선 대비 조정: ${esc(fc.adjustment)}</p>` : ""}</div>`;
+h += easyBox(EZ.forecast);
 
 // ── ④ 13개 분야 ──
 const CATS = SC.categories || [];
@@ -376,7 +428,9 @@ if (CATS.length) {
     CATS.map((c, i) => { const s = aiSec[c.name] || {};
       return `<tr><td class="nm"><a href="#c-${i}">${esc(c.name)}</a></td><td>${s.stance ? `<span class="pill ${stanceCls(s.stance)}">${esc(s.stance)}</span>` : "–"}</td>
       ${cell(c.ret_1d, 3)}${cell(c.ret_5d, 6)}${cell(c.ret_20d, 12)}${cell(c.ret_60d, 20)}${cell(c.ret_1y, 50)}${cell(c.rs_60d, 12)}${cell(c.rs_60d_1y_ago, 12)}
-      <td>${c.rs_pct_3y ?? "–"}</td><td>${c.breadth ?? "–"}%</td><td>${c.turnover_ratio != null ? c.turnover_ratio.toFixed(2) + "배" : "–"}</td><td>${esc(c.flow || "–")}</td></tr>`; }).join("") + `</tbody></table></div>`;
+      <td>${c.rs_pct_3y ?? "–"}</td><td>${c.breadth ?? "–"}%</td><td>${c.turnover_ratio != null ? c.turnover_ratio.toFixed(2) + "배" : "–"}</td><td>${esc(c.flow || "–")}</td></tr>`; }).join("") + `</tbody></table></div>
+  <p class="k" style="margin:6px 0 0">표 읽는 법: 빨간 칸은 오른 것, 파란 칸은 내린 것(진할수록 큼). "시장대비"가 플러스면 시장 평균보다 잘 오른 분야, "1년 전 시장대비"와 비교하면 주도 분야가 바뀌었는지 알 수 있어요.</p>`;
+  h += easyBox(EZ.sectors);
   h += `<div class="cats">`;
   CATS.forEach((c, i) => { const s = aiSec[c.name] || {};
     const scol = /확대/.test(s.stance) ? "var(--up)" : /축소/.test(s.stance) ? "var(--down)" : "var(--line)";
@@ -409,11 +463,14 @@ else {
    <div class="panel risk"><h3>지표상 조심할 곳</h3><div class="item">${hot.length ? "과열(RSI 70 초과): " + hot.map(esc).join(", ") : "과열 종목 없음"}<div class="sig">고평가 위험 목록: ${list(SC.overvalued).map(r => esc(r.name)).join(", ") || "–"}</div></div></div></div>`;
 }
 
+h += easyBox(EZ.opps_risks);
+
 // ── ⑥ 총론 ──
 const NE = al.neutral || {};
 h += `<h2 id="sec-conclusion"><span class="no">6</span>종합 투자 전략 및 총론</h2>
 <div class="panel conc"><div class="stance"><span class="big">${esc(st.label || "–")}</span><span class="k">자세 점수 ${st.score != null ? (st.score > 0 ? "+" : "") + st.score : "–"} (−2 ~ +2)</span></div>
  <p class="txt" style="margin-top:6px">${esc(st.one_liner || "")}</p>
+ ${easyBox(EZ.conclusion)}
  <div class="alloc"><div class="dn"><canvas id="alloc"></canvas></div>
   <div><table class="t"><thead><tr><th>자산</th><th>권장 비중</th><th>평소 기준</th><th>조정</th></tr></thead><tbody>` +
   ALLOC.map(([k, n, c]) => { const d = (al[k] || 0) - (NE[k] || 0);
@@ -425,6 +482,11 @@ h += `<h2 id="sec-conclusion"><span class="no">6</span>종합 투자 전략 및 
    <div><h3>주요 일정</h3><ul class="clean">${list(V.watch_events).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div></div>` : ""}
  ${!RB && V.quant_reference ? `<p class="k mt" style="margin-bottom:0">참고 — 정량 모델 판단: ${esc(V.quant_reference.stance.label)} (${esc(V.quant_reference.stance.one_liner)})</p>` : ""}
  ${RB ? `<p class="note mt" style="margin-bottom:0">AI 분석이 없어 정량 모델의 결론을 표시합니다. 액션 플랜과 무효화 조건은 AI 브리핑이 있을 때 제공됩니다.</p>` : ""}</div>`;
+
+// ── 용어 풀이 ──
+h += `<h2 id="glossary"><span class="no">?</span>용어 풀이</h2><p class="lead">리포트에 나오는 말을 쉬운 말로 풀었습니다.</p>`;
+if (list(V.glossary).length) h += `<h3>오늘 나온 용어</h3><div class="gloss">${V.glossary.map(g => `<div><b>${esc(g.term)}</b>${esc(g.meaning)}${g.why ? `<div class="why">오늘 왜 중요한가: ${esc(g.why)}</div>` : ""}</div>`).join("")}</div>`;
+h += `<details class="more" ${list(V.glossary).length ? "" : "open"}><summary>기본 용어 ${BASIC_TERMS.length}개 보기</summary><div class="gloss mt">${BASIC_TERMS.map(([t, m]) => `<div><b>${esc(t)}</b>${esc(m)}</div>`).join("")}</div></details>`;
 
 // ── 부록 ──
 h += `<h2 class="appx" id="appendix">부록 · 근거 데이터</h2><h3>관심 종목 온도계</h3><div class="thermo">`;

@@ -131,11 +131,13 @@ def _cap(text: str, limit: int) -> str:
 
 
 # ───────────────────────────── 장면 구성: 핵심 요약(약 5분) ─────────────────────────────
-SHORT_CAP = {"intro": 130, "sum": 200, "history": 330, "macro": 330, "fc": 420, "heat": 420, "or": 330, "conc": 420}
+SHORT_CAP = {"intro": 220, "easy": 300, "gloss": 380, "sum": 220, "history": 560, "macro": 560, "chains": 620,
+             "fc": 700, "heat": 700, "or": 520, "conc": 620}
 
 
 def plan_short(job: Job, shots: dict[str, list[str]]) -> None:
-    """핵심만 9장면: 오프닝 → 결론 → 과거 대비 → 매크로 → 당일 예측 → 13개 분야 → 기회·리스크 → 총론 → 마무리."""
+    """초보자용 핵심판(약 10분): 오프닝 → 쉬운 요약 → 용어 미리 보기 → 결론 → 과거 대비 → 매크로 → 연결고리
+    → 당일 예측 → 13개 분야 → 기회·리스크 → 총론 → 마무리."""
     d = job.data
     V = d.get("view") or {}
     RB = bool(V.get("rule_based"))
@@ -149,8 +151,20 @@ def plan_short(job: Job, shots: dict[str, list[str]]) -> None:
     one = lambda *ks: next(((shots.get(k) or [])[:1] for k in ks if shots.get(k)), [])  # noqa: E731
     S: list[Scene] = []
 
-    intro = sc_.get("intro") or f"{md} {sname}입니다. 핵심만 5분 안에 정리합니다."
+    ez = {} if RB else (V.get("easy") or {})
+    intro = sc_.get("intro") or f"{md} {sname}입니다. 경제를 잘 몰라도 이해할 수 있게 오늘 시장을 정리합니다."
     S.append(Scene(V.get("headline") or f"{md} {sname}", "오프닝", _cap(intro, SHORT_CAP["intro"]), center=True))
+
+    summ = [x for x in (ez.get("summary") or []) if x]
+    if summ and shots.get("easy_sum"):
+        nums = ["첫째", "둘째", "셋째", "넷째"]
+        t = "오늘 시장, 이것만 기억하세요. " + " ".join(f"{nums[i]}, {s}" for i, s in enumerate(summ[:4]))
+        S.append(Scene("오늘 이것만 알면 됩니다", "쉬운 요약", _cap(t, SHORT_CAP["easy"]), one("easy_sum")))
+    gl = [g for g in (V.get("glossary") or []) if isinstance(g, dict) and g.get("term")] if not RB else []
+    if gl and shots.get("gloss"):
+        t = "본론에 앞서 오늘 자주 나올 말을 먼저 풀어 드리겠습니다. " + " ".join(
+            f"{g['term']}{josa(g['term'])} {g.get('meaning', '')}" for g in gl[:4])
+        S.append(Scene("오늘 나올 용어 미리 보기", "쉬운 요약", _cap(t, SHORT_CAP["gloss"]), one("gloss")))
 
     t = f"결론부터 말씀드립니다. 오늘의 투자 자세는 {st.get('label', '중립')}입니다."
     if fc.get("band_low"):
@@ -170,6 +184,17 @@ def plan_short(job: Job, shots: dict[str, list[str]]) -> None:
 
     t = sc_.get("macro") or ("매크로 환경입니다. " + " ".join(f"{r['label']}는 {r['value']}." for r in (M.get("regimes") or [])))
     S.append(Scene("매크로·환율·금리", "② 매크로", _cap(t, SHORT_CAP["macro"]), one("regimes", "macro_ai")))
+
+    ch = [c for c in (V.get("chains") or []) if isinstance(c, dict) and c.get("from")] if not RB else []
+    if ch and shots.get("chains"):
+        nums = ["첫째", "둘째", "셋째", "넷째", "다섯째"]
+        parts = []
+        for i, c in enumerate(ch[:5]):
+            steps = ", 그러면 ".join(s for s in (c.get("steps") or []) if s)
+            parts.append(f"{nums[i]}, {c['from']}." + (f" 그러면 {steps}." if steps else "") + f" 결국 {c.get('so', '')}." +
+                         (f" 지금은 {c['now']}." if c.get("now") else ""))
+        S.append(Scene("오늘 시장의 연결고리", "③ 당일 예측", _cap("오늘 시장이 왜 이렇게 움직이는지, 연결고리로 보겠습니다. " + " ".join(parts),
+                                                       SHORT_CAP["chains"]), one("chains")))
 
     if sc_.get("social_forecast"):
         t = sc_["social_forecast"]
@@ -389,6 +414,7 @@ def open_report(browser, path: Path, dpr: int = 2):
 
 
 SHOTS = {  # 키: (선택자, 여러 개)
+    "easy_sum": ("#easy-sum", False), "chains": ("#chains", False), "gloss": ("h3 + .gloss", False),
     "sum": ("#sum", False), "hist_ai": (".hist-ai", False), "pctl": (".pctl", False), "analog": (".analog", False),
     "regimes": (".regimes", False), "macro_ai": (".macro-ai", False), "mgrp": (".mgrp", True),
     "social": (".social", False), "fc": (".fc", False), "heat": (".heat", False), "cats": ("section.cat", True),
@@ -418,7 +444,8 @@ def take_shots(browser, path: Path, work: Path) -> dict[str, list[str]]:
 def make_pdf(browser, path: Path, out_pdf: Path, title: str) -> None:
     ctx, page = open_report(browser, path, dpr=1)
     page.emulate_media(media="print", color_scheme="light")
-    page.add_style_tag(content=(".card,.cat,.box,.tbl,.thermo,.mc,.panel,.regime div,.sum{break-inside:avoid}"
+    page.evaluate("document.querySelectorAll('details').forEach(d => d.open = true)")   # 용어 풀이 펼치기
+    page.add_style_tag(content=(".card,.cat,.box,.tbl,.thermo,.mc,.panel,.regime div,.sum,.easy,.chain,.gloss div,.easysum{break-inside:avoid}"
                                 "h2{break-after:avoid} #sec-conclusion{break-before:page}"))
     style = f"font-family:'{FONT}';font-size:8px;color:#7a8494;width:100%;padding:0 12mm;"
     page.pdf(path=str(out_pdf), format="A4", print_background=True, scale=0.62,

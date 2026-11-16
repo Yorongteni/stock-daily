@@ -57,9 +57,14 @@ SCHEMA = """{
   "invalidation": ["이 뷰가 틀렸다고 판단할 조건 (수치)"],
   "watch_events": ["오늘·이번 주 주요 일정 (KST 시각)"],
   "tickers": {"관심 종목 code": "한 줄 코멘트 (60자 이내)"},
+  "easy": {"summary": ["경제를 모르는 사람도 이해하는 오늘의 핵심 3줄 (각 60자 안팎)"],
+           "history": "①을 쉬운 말로 2~4문장", "macro": "②를 쉬운 말로", "forecast": "③을 쉬운 말로",
+           "sectors": "④를 쉬운 말로", "opps_risks": "⑤를 쉬운 말로", "conclusion": "⑥을 쉬운 말로 (그래서 나는 무엇을 하면 되는지)"},
+  "chains": [{"from": "출발 사건 (예: 미국 금리 상승)", "steps": ["중간 연결 1 (예: 돈 빌리는 비용 증가)", "중간 연결 2"], "so": "결과 (예: 반도체·성장주 주가 부담)", "now": "지금 이 고리가 어디까지 진행됐는지 (수치)"}],
+  "glossary": [{"term": "오늘 리포트에 나온 용어", "meaning": "중학생도 알아듣는 뜻 (1문장)", "why": "오늘 이 용어가 왜 중요한지 (1문장)"}],
   "script": {"intro": "", "history": "", "macro": "", "social_forecast": "", "sectors": "", "opps_risks": "", "conclusion": ""}
 }
-분량: opportunities 3~4개, risks 3~4개, sectors 13개 전부, macro.assets 9개 이상(환율·달러·미국 10년·장단기 금리차·VIX·금·원유·구리·비트코인),
+분량: easy.summary 3개, chains 3~5개, glossary 8~12개, opportunities 3~4개, risks 3~4개, sectors 13개 전부, macro.assets 9개 이상(환율·달러·미국 10년·장단기 금리차·VIX·금·원유·구리·비트코인),
 social.themes 3~6개, history_context.analogs 1~2개, action_plan 3~5개, invalidation 2~3개.
 allocation 6개 비중의 합은 100. neutral 은 평소 기준 비중(위 예시값 그대로 써도 됨)."""
 

@@ -16,7 +16,8 @@ ALLOC_KEYS = ["kr_equity", "us_equity", "gold_commodities", "usd_cash", "krw_cas
 ALLOC_NAMES = {"kr_equity": "국내 주식", "us_equity": "미국 주식", "gold_commodities": "금·원자재(현물)",
                "usd_cash": "달러 현금성", "krw_cash_bonds": "원화 현금·채권", "alternatives": "대체자산(비트코인 등)"}
 REQUIRED = ["headline", "stance", "history_context", "macro", "social", "forecast",
-            "opportunities", "risks", "sectors", "allocation", "action_plan", "script"]
+            "opportunities", "risks", "sectors", "allocation", "action_plan", "script",
+            "easy", "chains", "glossary"]
 SCRIPT_KEYS = ["intro", "history", "macro", "social_forecast", "sectors", "opps_risks", "conclusion"]
 STANCES = ["공격적 비중확대", "선별적 매수", "중립·관망", "방어적 비중축소"]
 
