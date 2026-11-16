@@ -117,7 +117,98 @@ def _sentences(text: str, n: int) -> str:
     return " ".join(parts[:n])
 
 
-# ───────────────────────────── 장면 구성 ─────────────────────────────
+def _cap(text: str, limit: int) -> str:
+    """문장 단위로 잘라 limit 글자 안쪽으로 (영상 길이 상한)."""
+    text = re.sub(r"\s+", " ", (text or "").strip())
+    if len(text) <= limit:
+        return text
+    out = ""
+    for s in re.split(r"(?<=[.?!])\s+", text):
+        if len(out) + len(s) + 1 > limit:
+            break
+        out = f"{out} {s}".strip()
+    return out or text[:limit]
+
+
+# ───────────────────────────── 장면 구성: 핵심 요약(약 5분) ─────────────────────────────
+SHORT_CAP = {"intro": 130, "sum": 200, "history": 330, "macro": 330, "fc": 420, "heat": 420, "or": 330, "conc": 420}
+
+
+def plan_short(job: Job, shots: dict[str, list[str]]) -> None:
+    """핵심만 9장면: 오프닝 → 결론 → 과거 대비 → 매크로 → 당일 예측 → 13개 분야 → 기회·리스크 → 총론 → 마무리."""
+    d = job.data
+    V = d.get("view") or {}
+    RB = bool(V.get("rule_based"))
+    sc_ = {} if RB else (V.get("script") or {})
+    M = d.get("macro") or {}
+    A = {a["key"]: a for a in M.get("assets", []) if "error" not in a}
+    cats = (d.get("screens") or {}).get("categories") or []
+    md = f"{int(job.date[5:7])}월 {int(job.date[8:10])}일"
+    sname = SLOT_NAME.get(job.slot, "시장 브리핑")
+    st, fc, al = V.get("stance") or {}, V.get("forecast") or {}, V.get("allocation") or {}
+    one = lambda *ks: next(((shots.get(k) or [])[:1] for k in ks if shots.get(k)), [])  # noqa: E731
+    S: list[Scene] = []
+
+    intro = sc_.get("intro") or f"{md} {sname}입니다. 핵심만 5분 안에 정리합니다."
+    S.append(Scene(V.get("headline") or f"{md} {sname}", "오프닝", _cap(intro, SHORT_CAP["intro"]), center=True))
+
+    t = f"결론부터 말씀드립니다. 오늘의 투자 자세는 {st.get('label', '중립')}입니다."
+    if fc.get("band_low"):
+        t += f" {fc.get('market', '지수')} 예상 범위는 {fc['band_low']:,.0f}에서 {fc['band_high']:,.0f}입니다."
+    if al:
+        t += (f" 주식 {(al.get('kr_equity') or 0) + (al.get('us_equity') or 0)}%, 금과 원자재 {al.get('gold_commodities', 0)}%, "
+              f"달러 {al.get('usd_cash', 0)}%를 제안합니다.")
+    S.append(Scene("오늘의 결론", "오늘의 결론", _cap(t, SHORT_CAP["sum"]), one("sum")))
+
+    if sc_.get("history"):
+        t = sc_["history"]
+    else:
+        t = "작년과 비교해 보겠습니다. " + " ".join(
+            f"{a['name']}{josa(a['name'])} 1년 전보다 {say_asset_chg(a, 'yoy')}, 5년 중 {a.get('pct_5y', 0):.0f} 백분위입니다."
+            for k in ("kospi", "us10y", "usdkrw") if (a := A.get(k)))
+    S.append(Scene("과거 대비 지금의 위치", "① 과거 대비", _cap(t, SHORT_CAP["history"]), one("pctl", "hist_ai")))
+
+    t = sc_.get("macro") or ("매크로 환경입니다. " + " ".join(f"{r['label']}는 {r['value']}." for r in (M.get("regimes") or [])))
+    S.append(Scene("매크로·환율·금리", "② 매크로", _cap(t, SHORT_CAP["macro"]), one("regimes", "macro_ai")))
+
+    if sc_.get("social_forecast"):
+        t = sc_["social_forecast"]
+    else:
+        q = M.get("quant") or {}
+        t = (f"{fc.get('market', '지수')} 예상입니다. {q.get('driver', '')} 기준으로 범위는 "
+             f"{fc.get('band_low', 0):,.0f}에서 {fc.get('band_high', 0):,.0f}입니다.") if fc.get("band_low") else "오늘 시장 예상입니다."
+    S.append(Scene(("오늘 국내 증시 예상" if job.slot == "am" else "오늘 밤 미국 증시 예상"), "③ 당일 예측",
+                   _cap(t, SHORT_CAP["fc"]), one("fc")))
+
+    if sc_.get("sectors"):
+        t = sc_["sectors"]
+    else:
+        by60 = sorted([c for c in cats if c.get("ret_60d") is not None], key=lambda c: -c["ret_60d"])
+        t = (f"{len(cats)}개 분야입니다. 최근 60일 강한 분야는 {', '.join(c['name'] for c in by60[:3])}, "
+             f"약한 분야는 {', '.join(c['name'] for c in by60[-3:])}입니다.") if by60 else "분야별 흐름입니다."
+    S.append(Scene(f"{len(cats)}개 분야 한눈에", "④ 13개 분야", _cap(t, SHORT_CAP["heat"]), one("heat")))
+
+    if sc_.get("opps_risks"):
+        t = sc_["opps_risks"]
+    else:
+        ops, rks = V.get("opportunities") or [], V.get("risks") or []
+        t = ("기회는 " + ", ".join(o["title"] for o in ops[:3]) + ". 리스크는 " + ", ".join(r["title"] for r in rks[:3]) + "입니다.") \
+            if ops or rks else "과열 종목과 고평가 위험 목록을 함께 확인하세요."
+    S.append(Scene("기회 & 리스크", "⑤ 기회·리스크", _cap(t, SHORT_CAP["or"]), one("or")))
+
+    if sc_.get("conclusion"):
+        t = sc_["conclusion"]
+    else:
+        t = (f"종합하면 {st.get('label', '중립')}입니다. 국내 주식 {al.get('kr_equity', 0)}%, 미국 주식 {al.get('us_equity', 0)}%, "
+             f"금과 원자재 {al.get('gold_commodities', 0)}%, 달러 {al.get('usd_cash', 0)}%, 원화 현금과 채권 {al.get('krw_cash_bonds', 0)}%입니다.")
+    S.append(Scene("종합 투자 전략", "⑥ 종합 총론", _cap(t, SHORT_CAP["conc"]), one("conc")))
+
+    S.append(Scene("오늘 브리핑은 여기까지입니다", "마무리", center=True,
+                   narration="자세한 분석은 설명란의 리포트와 PDF에서 확인하세요. 이 영상은 투자 권유가 아닌 정보 제공 목적입니다."))
+    job.scenes = [s for s in S if s.narration.strip()]
+
+
+# ───────────────────────────── 장면 구성: 전체판 (--full) ─────────────────────────────
 def plan_scenes(job: Job, shots: dict[str, list[str]], ticker_details: bool = False) -> None:
     d = job.data
     V = d.get("view") or {}
@@ -438,7 +529,8 @@ def main() -> None:
     ap.add_argument("--silent", action="store_true", help="음성 대신 무음 (시험용)")
     ap.add_argument("--pdf-only", action="store_true")
     ap.add_argument("--slot", choices=["am", "pm", ""], default="", help="am=모닝, pm=나이트")
-    ap.add_argument("--ticker-details", action="store_true", help="관심 종목 상세 차트도 영상에 넣기")
+    ap.add_argument("--ticker-details", action="store_true", help="관심 종목 상세 차트도 영상에 넣기 (--full 일 때)")
+    ap.add_argument("--full", action="store_true", help="전체판 영상(15분 안팎). 기본은 핵심 요약(약 5분)")
     a = ap.parse_args()
 
     path, date, slot = find_report(a.date, a.slot)
@@ -460,7 +552,10 @@ def main() -> None:
             print(f"DATE={date}")
             return
         shots = take_shots(browser, path, work)
-        plan_scenes(job, shots, a.ticker_details or os.environ.get("TICKER_DETAILS") == "true")
+        if a.full or os.environ.get("VIDEO_MODE") == "full":
+            plan_scenes(job, shots, a.ticker_details or os.environ.get("TICKER_DETAILS") == "true")
+        else:
+            plan_short(job, shots)
         print(f"영상 화면 {len(job.scenes)}장")
         slides = render_slides(job, browser, work)
         browser.close()

@@ -21,6 +21,14 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 
 
+def env(name: str) -> str:
+    """Secrets 에 'YT_CLIENT_ID = 값' 처럼 이름까지 붙여넣었거나 공백·따옴표가 섞여도 값만 꺼낸다."""
+    v = os.environ.get(name, "").strip()
+    if "=" in v and v.split("=", 1)[0].strip().upper().startswith("YT_"):
+        v = v.split("=", 1)[1].strip()
+    return v.strip().strip("'\"").strip()
+
+
 def main() -> None:
     out = Path(sys.argv[1])
     meta = json.loads((out / "youtube.json").read_text(encoding="utf-8"))
@@ -28,9 +36,9 @@ def main() -> None:
 
     creds = Credentials(
         None,
-        refresh_token=os.environ["YT_REFRESH_TOKEN"],
-        client_id=os.environ["YT_CLIENT_ID"],
-        client_secret=os.environ["YT_CLIENT_SECRET"],
+        refresh_token=env("YT_REFRESH_TOKEN"),
+        client_id=env("YT_CLIENT_ID"),
+        client_secret=env("YT_CLIENT_SECRET"),
         token_uri="https://oauth2.googleapis.com/token",
         scopes=["https://www.googleapis.com/auth/youtube.upload"],
     )

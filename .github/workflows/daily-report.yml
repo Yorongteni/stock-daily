@@ -54,6 +54,8 @@ jobs:
           fi
           td=$(python3 -c "import yaml;print(str((yaml.safe_load(open('config.yaml',encoding='utf-8')).get('video') or {}).get('ticker_details',False)).lower())" 2>/dev/null || echo false)
           echo "TICKER_DETAILS=$td" >> "$GITHUB_ENV"
+          vm=$(python3 -c "import yaml;print((yaml.safe_load(open('config.yaml',encoding='utf-8')).get('video') or {}).get('mode','short'))" 2>/dev/null || echo short)
+          echo "VIDEO_MODE=$vm" >> "$GITHUB_ENV"
           echo "처리: $DATE ($SLOT)"
 
       - uses: actions/setup-python@v6

@@ -82,7 +82,8 @@ screening:
   max_per_category: 1            # 한 목록 안에서 같은 분야는 최대 몇 개까지 (편중 방지)
 
 video:
-  ticker_details: false          # true면 관심 종목 상세 차트도 영상에 넣음 (영상이 길어짐)
+  mode: short                    # short = 핵심 요약 약 5분 / full = 전체판 15분 안팎 (PDF·리포트는 항상 전체)
+  ticker_details: false          # full 일 때 관심 종목 상세 차트도 영상에 넣음
 
 # code 규칙 (FinanceDataReader 기준)
 #   국내 종목: 6자리 종목코드 (예: 005930)
