@@ -15,6 +15,15 @@ main.py --build     → docs/report_<날짜>_<슬롯>.html (+ report_<날짜>.ht
 tools/build_from_report.py → PDF, 영상(mp4), youtube.json          (tools/build_daily.py: TTS·자막·ffmpeg)
 ```
 
+미국 단타 연습 (18:00, AI 없음):
+```
+swing.py --date D   → data/us_swing_portfolio.json·trade_history.json 갱신, docs/swing/data/D.json, docs/swing/swing_D.html
+tools/build_swing.py --date D → swing_D.pdf, swing_D.mp4 (video_slides.render + build_daily TTS 재사용)
+swing.py --manual 매수추가|수량·단가수정|매도완료|미체결삭제 --ticker T --price P --qty Q   (update_portfolio.yml)
+```
+- 판정은 오늘 밤 세션 날짜보다 앞선 완성 일봉만 사용, 포지션별 `last_bar` 로 중복 판정 방지. 같은 날 재실행 시 오늘 자동 예약은 다시 계산.
+- 시험은 `SWING_DATA_DIR=<임시폴더>` 와 `--out <임시폴더>` 로 실제 상태 파일을 건드리지 않게 합니다.
+
 ## 로컬 시험
 
 ```bash
