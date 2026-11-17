@@ -248,7 +248,7 @@ GLOSSARY = [
 
 # ───────────────────────── 2부: 바이낸스 선물 ─────────────────────────
 def fpx(v) -> str:
-    from futures import fmt_px
+    from pricefmt import fmt_px
     return fmt_px(v)
 
 
@@ -266,7 +266,7 @@ def coin_event_html(e: dict) -> str:
     nm = f"<b>{esc(e.get('name') or e['symbol'])}</b> <span class='tk'>{esc(e['symbol'])}</span> {side_html(e.get('direction'))}"
     t = e["type"]
     if t == "fill":
-        from futures import kst
+        from pricefmt import kst
         return f"<div class='ev good'><span class='tag'>✅ 진입 체결</span>{nm} — {fpx(e['price'])} ({esc(kst(e['time']))} 봉)</div>"
     if t == "missed":
         return f"<div class='ev'><span class='tag'>⏸ {esc(e['result_ko'])}</span>{nm} — {esc(e['reason'])}</div>"
@@ -282,7 +282,7 @@ def coin_event_html(e: dict) -> str:
 
 
 def coin_holding_html(h: dict) -> str:
-    from futures import kst
+    from pricefmt import kst
     pl = h.get("plan") or {}
     k = pl.get("kind", "wait")
     st = "진입 대기(예약)" if h["status"] == "PENDING" else "보유 중"
@@ -353,7 +353,7 @@ def futures_part(fu: dict) -> str:
 
 def coin_record_html(rec: dict) -> str:
     wr = f"{rec['winrate']:.0f}%" if rec.get("winrate") is not None else "–"
-    from futures import kst
+    from pricefmt import kst
     rows = "".join(
         f"<tr><td>{esc(kst(h['exit_time'], '%m/%d %H시'))}</td><td>{esc(h['name'])} {side_html(h['direction'])}</td><td>{esc(h['result_ko'])}</td>"
         f"<td>{fpx(h['entry'])} → {fpx(h['exit'])}</td><td class='{cls(h['roe'])}'>{h['roe']:+.2f}%</td>"
@@ -374,7 +374,7 @@ def write(d: dict, out: Path) -> Path:
     fu = d.get("futures") or {}
     frec = fu.get("record") or {}
     if fu.get("pick"):
-        from futures import kst
+        from pricefmt import kst
         fu["pick"]["valid_until_kst"] = kst(fu["pick"]["valid_until"]) + " (한국 시간)"
     S = out / "swing"
     S.mkdir(parents=True, exist_ok=True)

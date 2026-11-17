@@ -120,7 +120,7 @@ def speak(text: str) -> str:
 
 
 def fpx(v) -> str:
-    from futures import fmt_px
+    from pricefmt import fmt_px
     return fmt_px(v)
 
 
@@ -178,7 +178,7 @@ def coin_slides(fu: dict) -> list:
     S.append(vs.Slide("2부 · 바이낸스 3배 선물 원픽", f"{'🟢' if L else '🔴'} {nm} ({p['symbol']}) {p['side']}", narr,
                       [vs.first(x) for x in p["story"]], ("good" if L else "risk", f"{sd} · 격리 3배"),
                       chart=coin_chart(p["spark"], [("진입", o["entry"], "#1F5FBF"), ("목표", o["tp"], "#1E8E3E"), ("손절", o["sl"], "#C5221F")])))
-    from futures import kst
+    from pricefmt import kst
     body = (EXTRA_CSS + f"<div class='ord'><div class='oh'><div class='on'>{p['symbol']} <span>{'🟢 LONG' if L else '🔴 SHORT'} · 격리 {o['leverage']}배</span></div>"
             f"<div class='oq'>{o['margin']:,.0f} USDT<small>수량 {o['qty']} · 포지션 {o['notional']:,.0f} USDT</small></div></div>"
             f"<div class='or b'><span>① 진입 지정가<em>현재가보다 {o['off_pct']}% {'아래' if L else '위'}</em></span><b>{fpx(o['entry'])}</b></div>"
