@@ -1,8 +1,79 @@
-<!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>미국 단타 연습</title>
-<style>body{font-family:system-ui,"Noto Sans KR",sans-serif;background:#f6f7fb;color:#1c2333;margin:0;padding:48px 16px;text-align:center}
-.box{max-width:520px;margin:auto;background:#fff;border-radius:16px;padding:32px 24px;box-shadow:0 2px 12px #0001}
-h1{font-size:22px;margin:0 0 12px}p{line-height:1.7;color:#4a5368}</style></head>
-<body><div class="box"><h1>📈 미국 주식 실전 단타 연습</h1>
-<p>첫 브리핑은 <b>평일 18:00(한국 시간)</b>에 만들어져요.<br>만들어지면 이 페이지가 자동으로 최신 리포트로 바뀝니다.<br>(반영까지 1~2분 걸릴 수 있어요)</p></div></body></html>
+<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>미국 단타 연습 2026-11-17</title>
+<link rel='preconnect' href='https://fonts.googleapis.com'><link href='https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap' rel='stylesheet'>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'></script><style>
+:root{--ink:#16202A;--sub:#5C6875;--line:#DDE3E9;--bg:#F5F7F9;--card:#fff;--teal:#0D5C6B;--good:#1E8E3E;--risk:#C5221F;--wait:#B06000;--blue:#1F5FBF}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR','Noto Sans CJK KR','Malgun Gothic',sans-serif;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 60px}
+header{background:var(--ink);color:#fff;border-radius:18px;padding:24px 26px}
+header h1{margin:0 0 6px;font-size:26px}header p{margin:2px 0;color:#C3CCD6;font-size:14px}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+.strip div{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(22,32,42,.06)}
+.strip span{display:block;font-size:13px;color:var(--sub)}.strip b{font-size:20px}
+h2{font-size:21px;margin:34px 0 12px;padding-left:12px;border-left:6px solid var(--teal)}
+h2 small{font-size:13px;color:var(--sub);font-weight:500;margin-left:8px}
+.ev{background:var(--card);border-radius:12px;padding:12px 16px;margin:8px 0;border-left:6px solid var(--line);font-size:15px}
+.ev.good{border-left-color:var(--good)}.ev.risk{border-left-color:var(--risk)}
+.tag{display:inline-block;font-weight:700;margin-right:8px}.why{color:var(--sub);font-size:14px;margin-top:4px}
+.tk{color:var(--sub);font-size:13px;font-weight:600}
+.hold,.pick,.order,.box{background:var(--card);border-radius:16px;padding:18px 20px;margin:12px 0;box-shadow:0 2px 10px rgba(22,32,42,.07)}
+.hold{border-top:8px solid var(--wait)}.hold.good{border-top-color:var(--good)}.hold.risk{border-top-color:var(--risk)}
+.hh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.nm{font-size:20px}.pill{display:inline-block;background:#F0F3F6;border-radius:20px;padding:2px 10px;font-size:13px;font-weight:700;margin-left:6px}
+.pill.good{background:#E6F4EA;color:var(--good)}.src{font-size:12px;color:var(--sub);margin-left:6px}
+.pnl{font-size:24px;font-weight:900;text-align:right}.pnl small{display:block;font-size:13px;font-weight:600}
+.up{color:var(--good)}.dn{color:var(--risk)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.grid4 div{background:#F5F7F9;border-radius:10px;padding:8px 10px}.grid4 span{display:block;font-size:12px;color:var(--sub)}.grid4 b{font-size:15px}
+.act{font-size:20px;font-weight:800;background:#E6F4EA;border-radius:12px;padding:12px 16px;margin-top:6px}
+.hold.risk .act{background:#FCE8E6}.hold .act2{font-size:14px;color:var(--sub);margin:6px 2px}
+.chartbox{height:230px;margin-top:10px;position:relative}.chartbox.small{height:180px}
+.rank{display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;align-items:center;justify-content:center;font-weight:800;margin-right:8px}
+.meta{font-size:13px;color:var(--sub);width:100%}
+.story{margin:12px 0 4px;padding-left:22px;font-size:15.5px}.story li{margin:5px 0}
+.checks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.ck{font-size:12px;background:#F0F3F6;border-radius:8px;padding:3px 8px;color:#8793A0}
+.ck.on{background:#E6F4EA;color:var(--good);font-weight:700}
+.news{font-size:14px;margin-top:10px}.news ul{margin:4px 0;padding-left:18px}.news a{color:var(--ink)}.news span{color:var(--sub);font-size:12px}
+.order{border:3px solid var(--ink);padding:0;overflow:hidden}
+.oh{background:var(--ink);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:16px 20px;flex-wrap:wrap;gap:8px}
+.onm{font-size:24px;font-weight:900}.onm span{font-size:18px;color:#C3CCD6}
+.oq{font-size:30px;font-weight:900}.oq small{display:block;font-size:13px;font-weight:500;color:#C3CCD6;text-align:right}
+.orow{display:grid;grid-template-columns:230px 1fr;gap:2px 16px;padding:14px 20px;border-bottom:1px solid var(--line);align-items:center}
+.orow span{font-weight:700;font-size:15px}.orow b{font-size:28px;font-family:'Roboto Mono',Consolas,monospace}.orow em{grid-column:2;font-style:normal;font-size:13px;color:var(--sub)}
+.orow.buy b{color:var(--blue)}.orow.tgt b{color:var(--good)}.orow.stp b{color:var(--risk)}.orow.ddl b{font-size:19px;font-family:inherit}
+.ohint{padding:12px 20px;font-size:13px;color:var(--sub);background:#FAFBFC}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stats div{background:var(--card);border-radius:14px;padding:14px;text-align:center;box-shadow:0 2px 8px rgba(22,32,42,.06)}
+.stats span{display:block;font-size:13px;color:var(--sub)}.stats b{font-size:24px}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);border-radius:12px;overflow:hidden}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}th{background:#F0F3F6;font-size:13px}
+.empty{background:var(--card);border-radius:14px;padding:18px 20px;font-size:16px;border-left:6px solid var(--wait)}
+.box h3{margin:0 0 8px;font-size:17px}.box ul{margin:4px 0;padding-left:20px;font-size:14.5px}.box li{margin:4px 0}
+.gl{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:14px}.gl b{display:block}
+.disc{font-size:12.5px;color:var(--sub);margin-top:30px;text-align:center}
+@media (max-width:700px){.strip,.stats{grid-template-columns:1fr 1fr}.grid4{grid-template-columns:1fr 1fr}.orow{grid-template-columns:1fr}.orow em{grid-column:1}.gl{grid-template-columns:1fr}}
+@media print{body{background:#fff}.hold,.pick,.order,.box,.ev,.stats,table{break-inside:avoid}h2{break-after:avoid}}
+</style></head><body><div class='wrap'>
+<header><h1>📈 미국 주식 실전 단타 연습 · 11월 17일 (화) 18:00</h1>
+<p>오늘 밤 미국장 개장 23:30 (한국 시간) · 마감 06:00</p>
+<p>수치 기준: 미국 11/16 종가 · 원/달러 1,336.1 · 나스닥100(QQQ) -2.67% · VIX 22.91</p></header>
+<div class='strip'><div><span>보유 중</span><b>0종목</b></div><div><span>오늘 밤 신규 예약</span><b>0종목</b></div>
+<div><span>누적 성적</span><b class=''>0회 · 승률 – · 0원</b></div></div>
+<h2 id='p1'>Part 1. 어제 산 종목 성적표 & 보유 종목 관리 작전<small>간밤 미국장 11/16 실제 시세 기준</small></h2><div class='ev'>간밤에 판정할 예약·보유 종목이 없었어요.</div><div class='empty'>지금 들고 있는 종목이 없어요. 오늘 밤은 신규 타점에 집중합니다.</div><h2 id='p2'>Part 2. 오늘 밤의 50만 원 단타 타점<small>0종목</small></h2><div class='empty'>⏸ 오늘은 조건(하루 변동폭 3.5% 이상 + 눌림목 반등/거래량 돌파)을 모두 만족한 종목이 없어요. 억지로 사지 않고 쉬어 갑니다.</div><div class='box'><h3>아깝게 빠진 후보</h3><ul><li><b>AST 스페이스모바일 (ASTS)</b> 변동폭 14.4% · RSI 33 · 충족: 2~3일 급락·RSI 30~45, 아래꼬리 양봉/거래량 유입</li><li><b>엔비디아 (NVDA)</b> 변동폭 7.3% · RSI 23 · 충족: 아래꼬리 양봉/거래량 유입, 거래량 1.5배</li><li><b>네비우스 (NBIS)</b> 변동폭 17.1% · RSI 34 · 충족: 2~3일 급락·RSI 30~45</li></ul></div><h2 id='p3'>Part 3. 증권사 앱에 바로 입력할 예약 주문표</h2><div class='empty'>오늘은 새로 넣을 예약 주문이 없어요. 보유 종목의 매도 주문만 확인하세요.</div><h2 id='p4'>Part 4. 누적 실전 연습 트랙레코드</h2><div class='stats'><div><span>총 매매</span><b>0회</b></div><div><span>승률</span><b>–</b></div><div><span>누적 가상 수익</span><b class=''>0원</b></div><div><span>평균 수익률</span><b>–</b></div></div><div class='why' style='margin:8px 2px'>시작일 2026-11-17 · 목표가 달성 0회 · 미체결 0회(성적 제외)</div><div class='empty'>아직 끝난 매매가 없어요. 첫 매매가 끝나면 여기에 쌓입니다.</div><h2>규칙과 용어</h2>
+<div class='box'><h3>고정 규칙</h3><ul>
+<li>1회 최대 500,000원 · 목표 +5.0% · 손절 -3.5% · 최대 2거래일 보유</li>
+<li>동시 보유 최대 3종목(예약 포함). 슬롯이 다 차면 신규 매수 보류</li>
+<li>마지막 날: 수익 +2% 이상이면 목표가 유지 후 마감 정리, 5일선 지지면 +2% 약익절, 약하면 본전 탈출, 20일선까지 깨지면 시초가 정리</li>
+<li>예외적 1일 연장: 수익 +2% 이상 + 5일·20일선 위 + 거래량 유지 + RSI 70 미만일 때만, 손절가를 본전으로 올리고 하루 더</li>
+<li>자동 판정: 같은 날 목표가와 손절가에 모두 닿으면 순서를 알 수 없어 손절로 계산(보수적)</li></ul></div>
+<div class='box'><h3>용어 풀이</h3><div class='gl'><div><b>예약 지정가 매수</b>내가 정한 가격 이하로 내려와야만 사지는 주문. 장 시작 전에 미리 넣어 둘 수 있어요.</div><div><b>목표 익절가</b>이 가격에 닿으면 자동으로 팔리도록 걸어 두는 매도 주문 (+5%).</div><div><b>손절가·감시(스톱) 주문</b>이 가격 아래로 떨어지면 자동으로 파는 주문. 손실이 커지는 걸 막는 안전벨트예요.</div><div><b>LOC (장 마감 지정가)</b>장 마감 가격으로 팔겠다는 주문. 기한이 끝난 종목을 정리할 때 씁니다.</div><div><b>하루 평균 변동폭 (ATR%)</b>최근 14일 동안 하루에 평균 몇 % 오르내렸는지. 3.5% 이상이어야 +5%를 노릴 수 있어요.</div><div><b>RSI</b>최근 오름·내림의 힘을 0~100으로 표시. 30 근처면 많이 눌림, 70 이상이면 과열.</div><div><b>20일 평균선</b>최근 20거래일 종가의 평균. 주가가 이 선 위에 있으면 큰 흐름이 오름세예요.</div><div><b>아래꼬리 양봉</b>장중에 크게 밀렸다가 다시 올라와 시가보다 높게 끝난 날. 저가에 사려는 힘이 있다는 신호.</div></div></div>
+<div class='box'><h3>실제로 다르게 샀거나 팔았다면 (스마트폰)</h3><ul>
+<li>GitHub 앱 → stock-daily → Actions → <b>보유 종목 수동 입력</b> → Run workflow</li>
+<li>action(매수추가 / 수량·단가수정 / 매도완료 / 미체결삭제), ticker, price, qty 를 넣고 실행 → 다음 18시 브리핑부터 내 평단가로 작전을 짭니다</li></ul></div>
+<p class='disc'>연습용 가상 매매 기록입니다. 투자 권유가 아니며, 실제 매매 판단과 책임은 본인에게 있습니다. 수수료·세금·환전 비용은 계산에 넣지 않았습니다.</p>
+</div><script>
+const DATA_DATE="2026-11-17";
+function mk(id,labels,ds){const el=document.getElementById(id);if(!el||!window.Chart)return;new Chart(el,{type:'line',data:{labels,datasets:ds},
+options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},scales:{x:{ticks:{maxTicksLimit:8}}}}})}
+
+</script></body></html>

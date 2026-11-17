@@ -1,1 +1,21 @@
-{"start_date": "2026-11-17", "positions": []}
+{
+ "start_date": "2026-11-17",
+ "positions": [],
+ "last_events": {
+  "date": "2026-11-17",
+  "events": []
+ },
+ "updated_at": "2026-11-17 19:01",
+ "last_run": "2026-11-17",
+ "rules": {
+  "budget_krw": 500000,
+  "target_pct": 5.0,
+  "stop_pct": 3.5,
+  "max_hold": 2,
+  "max_slots": 3,
+  "max_new": 2,
+  "atr_min": 3.5,
+  "min_price": 3.0,
+  "min_dollar_vol": 100000000
+ }
+}
