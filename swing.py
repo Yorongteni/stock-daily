@@ -1,4 +1,4 @@
-"""미국 주식 실전 단타 연습 (1~2거래일 보유) — 매일 18:00 KST.
+"""오후 6시 실전 단타 통합 브리핑 — 1부 미국 주식(1~2거래일 보유) + 2부 바이낸스 3배 선물(futures.py). 매일 18:00 KST.
 
 하는 일 (순서대로):
   1) data/us_swing_portfolio.json 을 읽고, 간밤(들) 미국장 일봉으로 보유·예약 종목을 판정
@@ -575,6 +575,14 @@ def run(today: str, cfg_all: dict, out: Path) -> dict:
         "slots": {"max": cfg["max_slots"], "used_before": used, "after": len(port["positions"])},
         "record": rec,
     }
+    # 2부: 바이낸스 선물 3배 원픽 (실패해도 1부 미국 주식 브리핑은 그대로 만든다)
+    print("[B] 바이낸스 선물 3배 원픽")
+    try:
+        import futures
+        payload["futures"] = futures.run(today, cfg_all, fx)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ✗ 코인 파트 실패: {type(e).__name__}: {e}")
+        payload["futures"] = {"error": f"{type(e).__name__}: {str(e)[:200]}"}
     (out / "swing" / "data").mkdir(parents=True, exist_ok=True)
     save_json(out / "swing" / "data" / f"{today}.json", payload)
     import swing_report

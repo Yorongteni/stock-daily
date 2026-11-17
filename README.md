@@ -43,33 +43,43 @@
 | `tools/build_from_report.py` | PDF·영상·유튜브 정보 |
 | `.claude/skills/` | 루틴용 분석 절차, 앵커 대본 규칙, 개발 가이드 |
 | `.github/workflows/daily.yml` | 수집·리포트 자동 실행 / `daily-report.yml` PDF·영상 |
-| `swing.py`, `swing_report.py` | 미국 단타 연습: 보유 판정·작전·타점·주문표·성적, 수동 입력(`--manual`) |
-| `tools/build_swing.py` | 단타 연습 PDF·영상 |
-| `data/us_swing_portfolio.json`, `data/trade_history.json` | 단타 보유 목록(상태) / 매매 이력 |
-| `.github/workflows/us-swing.yml`, `update_portfolio.yml` | 18:00 자동 실행 / 스마트폰 수동 입력 |
+| `swing.py`, `swing_report.py` | 18시 통합 브리핑 1부 미국 단타(판정·작전·타점·주문표·성적) + 통합 리포트 |
+| `futures.py` | 18시 통합 브리핑 2부 바이낸스 3배 선물 원픽(방향·타점·TP/SL·24시간 판정) |
+| `positions.py` | 스마트폰 수동 입력 처리 (미국 주식·바이낸스 공통) |
+| `tools/build_swing.py` | 18시 통합 브리핑 PDF·영상 |
+| `data/us_swing_portfolio.json`, `data/trade_history.json`, `data/binance_futures_log.json` | 미국 보유·이력 / 코인 포지션·이력 |
+| `.github/workflows/us-swing.yml`, `update_positions.yml` | 18:00 자동 실행 / 스마트폰 수동 입력 |
 
-## 미국 주식 실전 단타 연습 (18:00 KST)
+## 오후 6시 실전 단타 통합 브리핑 (18:00 KST, 개인 연습용)
 
-매일 18시(월~금)에 그날 밤 미국장을 대상으로 **1~2거래일 단타를 연습하고, 산 종목을 끝까지 추적**합니다. AI 루틴 없이 GitHub Actions 만으로 돌아갑니다 (Claude 사용량 0).
+매일 18시에 **1부 미국 주식 50만 원 단타 + 2부 바이낸스 3배 선물 롱/숏 원픽**을 하나의 PDF·영상으로 만듭니다.
+AI 루틴 없이 GitHub Actions 만으로 돌아가며(Claude 사용량 0), **유튜브 업로드·외부 배포 없이 이 저장소에만 저장**합니다.
+아침·밤 시황 브리핑과는 별개입니다.
 
 ```
-18:00 (18:20·18:45 누락 방지)  us-swing.yml
-  ① data/us_swing_portfolio.json 읽기 → 간밤 미국장 일봉으로 판정
-       예약 매수: 장중 저가 ≤ 예약가 → 체결 / 아니면 미체결 취소
-       보유: 고가 ≥ 매도가 → 익절, 저가 ≤ 손절가 → 손절, 기한 끝 → 종가 정리 (같은 날 둘 다 닿으면 손절로 보수 계산)
-  ② 남은 보유 종목 오늘 밤 작전: 목표가 유지 / +2% 약익절 / 본전 탈출 / 시초가 정리 / 예외적 1일 연장
-  ③ 빈 슬롯(최대 3종목)만큼 신규 타점 1~2개: 하루 변동폭(ATR) 3.5% 이상 + 눌림목 반등형 또는 거래량 돌파형
-  ④ 50만 원 ÷ (예약가 × 환율) = 정수 주식 수, 예약가·목표가(+5%)·손절가(-3.5%)·보유 기한
-  ⑤ data/*.json, docs/swing/ 커밋 → PDF·영상(3~5분) → docs/swing/pdf, 릴리스 swing-<날짜>, 유튜브(비공개)
+18:00 (18:20·18:45 누락 방지, 매일)  us-swing.yml
+  공통 인트로  어제 매매 성적표(미국·코인) + 보유 포지션 긴급 점검(오늘 밤 탈출·대응 지정가 $)
+  1부 미국 주식 (swing.py)
+    간밤 일봉으로 판정: 예약가 체결/미체결, 익절(+5%)·손절(-3.5%)·기한 정리
+    보유 작전: 목표가 유지 / +2% 약익절 / 본전 탈출 / 시초가 정리 / 예외적 1일 연장
+    신규 타점 1~2개: ATR 3.5% 이상 + 눌림목 반등형 또는 거래량 돌파형 → 정수 주식 수·예약가·목표가·손절가
+  2부 바이낸스 선물 (futures.py)
+    방향: 비트코인 4시간봉 추세·24시간 등락 + 나스닥100 선물 → 롱 우위 / 숏 우위 / 중립
+    원픽 1개: 거래대금 상위 30개 코인, 4시간봉 추세 + 1시간봉 눌림/반등 + 거래량·미결제약정·펀딩비
+    격리 3배 · 증거금 360 USDT · TP ±2.45%(+7%) · SL ∓1.50%(-4.5%) · 24시간
+    판정: 추천 이후 1시간봉 → WIN / LOSS / TIME_EXIT / NO_FILL
+  저장: data/*.json, docs/swing/ 커밋 → PDF·16:9 영상 → docs/swing/pdf, 릴리스 swing-<날짜>(PDF·MP4·JSON)
 ```
 
-- 리포트: `https://yorongteni.github.io/stock-daily/swing/` (최신), `swing/swing_<날짜>.html`
-- 규칙 숫자(예산·목표·손절·슬롯·종목 목록)는 `config.yaml` 의 `swing:` 에서 바꿉니다.
-- **실제 계좌가 다르면 (스마트폰)**: GitHub 앱 → Actions → `보유 종목 수동 입력` → Run workflow
-  - `매수추가` (ticker, price=내 매수가, qty) · `수량·단가수정` · `매도완료` (qty 비우면 전량) · `미체결삭제`
-  - `오늘 18시 브리핑 다시 만들기` 를 켜면 바로 내 평단가 기준으로 리포트·PDF를 다시 만듭니다 (영상은 다시 안 만듦).
+- 코인 데이터는 바이낸스 공개 선물 API(`fapi.binance.com`)를 먼저 씁니다. GitHub 서버(미국)에서 바이낸스가 접속을 막으면
+  OKX 무기한 선물 공개 API → 바이낸스 현물 공개 미러 순으로 대신 쓰고, 리포트에 실제 출처를 적습니다.
+- 규칙 숫자: 미국은 `config.yaml` 의 `swing:`, 코인은 `futures:` (없으면 `futures.py` 의 `DEFAULTS`).
+- **실제 계좌가 다르면 (스마트폰)**: GitHub 앱 → Actions → `보유 포지션 수동 입력` → Run workflow
+  - market `US_STOCK`/`BINANCE`, action `BUY`(신규·단가수정) / `CLOSE`(매도·청산) / `CANCEL`(미체결 취소), ticker(`NVDA`, `SOLUSDT`), direction, price, qty
+  - 코인 qty: 숫자만 → 투입 증거금 USDT(예: `360`), 코인 수량 → `7.6개`. 비우면 360 USDT
+  - `오늘 18시 브리핑 다시 만들기` 를 켜면 바로 리포트·PDF를 다시 만듭니다 (영상은 다시 안 만듦).
   - 입력이 없으면 추천 예약가대로 체결됐다고 보고 자동 추적합니다.
-- 연습용 가상 매매입니다. 수수료·세금·환전 비용은 계산에 넣지 않습니다.
+- 연습용 가상 매매입니다. 주식 수수료·세금·환전 비용은 계산에 넣지 않습니다.
 
 ## 1. 처음 실행해 보기 (개인 PC)
 
