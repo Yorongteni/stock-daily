@@ -1204,16 +1204,16 @@
   }
  },
  "2026-11-17": {
-  "kospi": -3.59,
+  "kospi": -2.75,
   "sp500": -1.92,
-  "headline": "반도체 급락 여파, 코스피 5,000선 시험",
+  "headline": "5,000선 붕괴, 엔비디아 앞두고 관망",
   "stance": "현금 확보·관망 (주식 비중 줄이기)",
   "allocation": {
    "kr_equity": 20,
-   "us_equity": 25,
+   "us_equity": 30,
    "gold_commodities": 10,
    "usd_cash": 20,
-   "krw_cash_bonds": 20,
+   "krw_cash_bonds": 15,
    "alternatives": 5
   },
   "lists": {
@@ -1282,6 +1282,12 @@
     "stance": "현금 확보·관망 (주식 비중 줄이기)",
     "headline": "반도체 급락 여파, 코스피 5,000선 시험",
     "built_at": "2026-11-17 08:51"
+   },
+   "pm": {
+    "ai": true,
+    "stance": "현금 확보·관망 (주식 비중 줄이기)",
+    "headline": "5,000선 붕괴, 엔비디아 앞두고 관망",
+    "built_at": "2026-11-17 21:13"
    }
   }
  }
