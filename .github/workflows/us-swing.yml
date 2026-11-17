@@ -1,18 +1,22 @@
-# 미국 주식 실전 단타 연습 (매일 18:00 KST)
+# 오후 6시 실전 단타 통합 브리핑 (매일 18:00 KST) — 1부 미국 주식 50만 원 단타 + 2부 바이낸스 3배 선물 원픽
 #
-#  1) state : 보유 목록(data/us_swing_portfolio.json)을 간밤 미국장 시세로 판정 → 오늘 밤 작전·신규 타점 → 리포트
-#             data/*.json, docs/swing/ 을 바로 커밋·푸시 (다음 날 이어서 추적)
-#  2) video : PDF·영상(3~5분) → docs/swing/pdf, 릴리스(swing-<날짜>), 유튜브(비공개)
+#  개인 연습용입니다. 유튜브 업로드·외부 배포를 하지 않고 이 저장소에만 저장합니다.
+#    data/us_swing_portfolio.json · data/trade_history.json · data/binance_futures_log.json  (추적용 JSON)
+#    docs/swing/ (리포트 HTML·데이터 JSON) · docs/swing/pdf/ (PDF) · 릴리스 swing-<날짜> (PDF·MP4)
+#  아침·밤 시황 브리핑(daily.yml, daily-report.yml)과는 완전히 별개입니다.
+#
+#  1) state : 간밤 미국장·추천 이후 코인 1시간봉으로 판정 → 보유 대응 → 오늘 타점 → 리포트 → 커밋·푸시
+#  2) video : PDF·16:9 영상(하단 자막 + 큰 글씨 카드) → docs/swing/pdf, 릴리스
 #
 #  GitHub 예약 실행은 늦거나 빠질 수 있어 18:20·18:45 에 한 번씩 더 확인합니다 (이미 만들었으면 건너뜀).
-#  미국장은 23:30(서머타임 22:30)에 열리므로 다소 늦어도 주문 넣을 시간은 충분합니다.
-#  cron 은 UTC 기준: 09:00 UTC = 18:00 KST, 월~금(한국 날짜 기준 그날 밤 미국장이 열리는 요일).
-name: us-swing-daily
+#  코인은 주말에도 거래되므로 매일 실행합니다 (미국 휴장일에는 1부가 '휴장'으로 나옵니다).
+#  cron 은 UTC 기준: 09:00 UTC = 18:00 KST.
+name: 오후 6시 실전 단타 통합 브리핑
 on:
   schedule:
-    - cron: "0 9 * * 1-5"     # KST 18:00
-    - cron: "20 9 * * 1-5"    # KST 18:20 누락 방지
-    - cron: "45 9 * * 1-5"    # KST 18:45 누락 방지
+    - cron: "0 9 * * *"       # KST 18:00
+    - cron: "20 9 * * *"      # KST 18:20 누락 방지
+    - cron: "45 9 * * *"      # KST 18:45 누락 방지
   workflow_dispatch:
     inputs:
       date:
@@ -31,12 +35,15 @@ on:
 permissions:
   contents: write
 
+env:
+  BR: ${{ github.ref_name }}
+
 jobs:
   state:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     concurrency:
-      group: us-swing-state
+      group: swing18-state-${{ github.ref_name }}
       cancel-in-progress: false
     outputs:
       run: ${{ steps.plan.outputs.run }}
@@ -45,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ github.ref_name }}
           fetch-depth: 0
 
       - name: 오늘 할 일 정하기
@@ -80,47 +87,71 @@ jobs:
         if: steps.plan.outputs.run == 'true'
         run: for i in 1 2 3; do pip install --retries 5 -r requirements.txt && break; sleep $((i*15)); done
 
-      - name: 판정·작전·리포트 → 커밋·푸시
+      - name: 판정·대응·타점·리포트 → 커밋·푸시
         if: steps.plan.outputs.run == 'true'
         env:
           DATE: ${{ steps.plan.outputs.date }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          # 그 사이 스마트폰 수동 입력이 먼저 올라오면, 최신 상태에서 다시 계산해 올린다 (같은 날 다시 돌려도 결과가 겹치지 않음)
-          for i in 1 2 3 4; do
-            git fetch -q origin main && git reset -q --hard origin/main
-            python swing.py --date "$DATE"
-            git add data/us_swing_portfolio.json data/trade_history.json docs/swing
-            git diff --cached --quiet && { echo "변경 없음"; break; }
-            git commit -q -m "미국 단타 연습: $DATE"
-            git push -q origin HEAD:main && break
-            echo "푸시 재시도 $i"; sleep $((i*10))
-          done
-          echo "### 미국 단타 연습 $DATE" >> "$GITHUB_STEP_SUMMARY"
-          echo "- 리포트: https://yorongteni.github.io/stock-daily/swing/swing_${DATE}.html" >> "$GITHUB_STEP_SUMMARY"
+          FILES="data/us_swing_portfolio.json data/trade_history.json data/binance_futures_log.json docs/swing"
+          build_brief() {   # 데이터 수집이 네트워크 오류로 실패하면 3번까지 다시
+            for t in 1 2 3; do python swing.py --date "$DATE" && return 0; echo "수집 재시도 $t"; sleep $((t*20)); done
+            return 1
+          }
+          build_brief
+          git add $FILES
+          if ! git diff --cached --quiet; then
+            git commit -q -m "오후 6시 단타 통합 브리핑: $DATE"
+            for i in 1 2 3 4; do
+              if git pull -q --rebase --autostash origin "$BR"; then
+                git push -q origin "HEAD:$BR" && break
+              else
+                # 그 사이 수동 입력이 같은 파일을 바꿨으면, 최신 상태에서 다시 계산해 올린다
+                git rebase --abort 2>/dev/null || true
+                git fetch -q origin "$BR" && git reset -q --hard "origin/$BR"
+                build_brief && git add $FILES && { git diff --cached --quiet || git commit -q -m "오후 6시 단타 통합 브리핑: $DATE"; }
+              fi
+              echo "푸시 재시도 $i"; sleep $((i*10))
+            done
+          fi
+          {
+            echo "### 오후 6시 단타 통합 브리핑 $DATE"
+            echo "- 리포트: https://yorongteni.github.io/stock-daily/swing/swing_${DATE}.html (main 기준)"
+            python - <<'PY'
+          import json, os
+          d = json.load(open(f"docs/swing/data/{os.environ['DATE']}.json", encoding="utf-8"))
+          print(f"- 1부 미국: 신규 {len(d['picks'])}종목 · 보유 {len(d['holdings'])}종목" + (f" · {d['block']}" if d.get('block') else ""))
+          fu = d.get("futures") or {}
+          if fu.get("error"):
+              print(f"- 2부 코인: ⚠ {fu['error']}")
+          else:
+              p = fu.get("pick")
+              print(f"- 2부 코인: {fu['bias']['label']} · " + (f"{p['symbol']} {p['side']} 진입 {p['order']['entry']} / TP {p['order']['tp']} / SL {p['order']['sl']}" if p else fu.get("block", "")))
+              print(f"- 코인 데이터: {fu.get('source_label')}" + (f" (실패: {'; '.join(fu['source_errors'])})" if fu.get('source_errors') else ""))
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
 
   video:
     needs: state
     if: needs.state.outputs.run == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     concurrency:
-      group: us-swing-video
+      group: swing18-video-${{ github.ref_name }}
       cancel-in-progress: false
     env:
       DATE: ${{ needs.state.outputs.date }}
       VIDEO: ${{ needs.state.outputs.video }}
       TTS_VOICE: ko-KR-SunHiNeural
       TTS_RATE: "+8%"
-      YT_PRIVACY: private
-      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
-      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
-      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: main
+          ref: ${{ github.ref_name }}
+
+      - name: 최신 브리핑 받기
+        run: git pull -q --rebase --autostash origin "$BR" || true
 
       - uses: actions/setup-python@v6
         with:
@@ -136,10 +167,13 @@ jobs:
           for i in 1 2 3; do pip install --retries 5 -r requirements-video.txt pyyaml && break; sleep $((i*15)); done
           for i in 1 2 3; do python -m playwright install --with-deps chromium && break; sleep $((i*15)); done
 
-      - name: PDF·영상 만들기
+      - name: PDF·영상 만들기 (음성 합성 재시도 포함)
         run: |
           extra=""; [ "$VIDEO" = "true" ] || extra="--pdf-only"
-          python tools/build_swing.py --date "$DATE" --out "out/swing-$DATE" $extra
+          for i in 1 2 3; do
+            python tools/build_swing.py --date "$DATE" --out "out/swing-$DATE" $extra && break
+            [ $i = 3 ] && exit 1; echo "PDF·영상 재시도 $i"; sleep $((i*20))
+          done
 
       - name: PDF 저장 (docs/swing/pdf)
         run: |
@@ -149,29 +183,28 @@ jobs:
           cp "out/swing-$DATE/swing_${DATE}.pdf" docs/swing/pdf/
           git add docs/swing/pdf
           if ! git diff --cached --quiet; then
-            git commit -q -m "미국 단타 연습 PDF: $DATE"
-            for i in 1 2 3 4; do git pull -q --rebase --autostash origin main && git push -q origin HEAD:main && break; echo "푸시 재시도 $i"; sleep $((i*10)); done
+            git commit -q -m "오후 6시 단타 통합 브리핑 PDF: $DATE"
+            for i in 1 2 3 4; do git pull -q --rebase --autostash origin "$BR" && git push -q origin "HEAD:$BR" && break; echo "푸시 재시도 $i"; sleep $((i*10)); done
           fi
 
-      - name: 릴리스에 올리기 (휴대폰 다운로드용)
+      - name: 릴리스에 저장 (PDF·MP4·추적 JSON, 휴대폰 다운로드용)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="swing-$DATE"
-          files=("out/swing-$DATE/swing_${DATE}.pdf")
+          files=("out/swing-$DATE/swing_${DATE}.pdf" "docs/swing/data/${DATE}.json")
           [ -f "out/swing-$DATE/swing_${DATE}.mp4" ] && files+=("out/swing-$DATE/swing_${DATE}.mp4")
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${files[@]}" --clobber
-          else
-            notes="out/swing-$DATE/description.txt"; [ -f "$notes" ] || echo "$DATE 미국 단타 연습" > "$notes"
-            gh release create "$tag" "${files[@]}" --title "$DATE 미국 단타 연습" --notes-file "$notes"
-          fi
+          notes="out/swing-$DATE/description.txt"; [ -f "$notes" ] || echo "$DATE 오후 6시 단타 통합 브리핑 (개인 연습용)" > "$notes"
+          for i in 1 2 3; do
+            if gh release view "$tag" >/dev/null 2>&1; then
+              gh release upload "$tag" "${files[@]}" --clobber && break
+            else
+              gh release create "$tag" "${files[@]}" --target "$BR" --title "$DATE 오후 6시 단타 통합 브리핑" --notes-file "$notes" && break
+            fi
+            echo "릴리스 재시도 $i"; sleep $((i*10))
+          done
           {
-            echo "### $DATE 미국 단타 연습 결과물"
-            echo "- PDF: https://yorongteni.github.io/stock-daily/swing/pdf/swing_${DATE}.pdf (반영까지 1~2분)"
-            echo "- 다운로드: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
+            echo "### $DATE 오후 6시 단타 통합 브리핑 결과물 (외부 업로드 없음)"
+            echo "- PDF: docs/swing/pdf/swing_${DATE}.pdf"
+            echo "- PDF·영상·JSON 다운로드: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: 유튜브 업로드 (비공개)
-        if: ${{ env.VIDEO == 'true' && env.YT_REFRESH_TOKEN != '' }}
-        run: for i in 1 2 3; do python tools/upload_youtube.py "out/swing-$DATE" && break; echo "업로드 재시도 $i"; sleep $((i*30)); done

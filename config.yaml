@@ -110,6 +110,16 @@ watchlist:
 
 # ── 미국 주식 실전 단타 연습 (매일 18:00 KST, swing.py) ──
 #   연습용 가상 매매. 상태 파일: data/us_swing_portfolio.json, 성적: data/trade_history.json
+futures:                  # 18시 통합 브리핑 2부: 바이낸스 USDT 무기한 선물 원픽 (개인 연습용)
+  leverage: 3             # 격리(Isolated) 배수
+  margin_usdt: 360        # 1회 투입 증거금 (약 50만 원)
+  tp_pct: 2.45            # 목표 익절: 진입가 대비 ±% (레버리지 포함 수수료 감안 +7%)
+  sl_pct: 1.50            # 자동 손절: 진입가 대비 ∓% (레버리지 포함 -4.5%)
+  hold_hours: 24          # 최대 보유 시간 (지나면 TIME_EXIT)
+  top_n: 30               # 거래대금 상위 몇 개 코인에서 고를지
+  max_open: 2             # 동시에 들고 있을 최대 포지션 (대기 포함)
+  min_range24: 3.0        # 최근 24시간 고저 폭 하한(%) — +2.45%를 노릴 만큼 움직이는 코인만
+
 swing:
   budget_krw: 500000      # 1회 최대 투자금 (원)
   target_pct: 5.0         # 목표 익절 (+%)

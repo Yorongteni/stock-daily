@@ -1,0 +1,124 @@
+# 보유 포지션 수동 입력 (스마트폰 GitHub 앱 → Actions → 이 워크플로우 → Run workflow)
+#
+# 아무것도 입력하지 않아도 18시 브리핑이 추천가 체결을 가정해 자동으로 추적합니다.
+# 실제 내 체결가가 다르거나, 다른 종목을 샀거나, 이미 팔았을 때만 10초 입력하세요.
+#   market    US_STOCK(미국주식) / BINANCE(바이낸스선물)
+#   action    BUY(신규매수·단가수정) / CLOSE(매도·청산완료) / CANCEL(미체결취소)
+#   ticker    NVDA 또는 SOLUSDT
+#   direction LONG / SHORT (주식은 LONG)
+#   price     내 실제 진입가 또는 청산가($)
+#   qty       주식은 주수 / 코인은 투입 USDT(예: 360) 또는 수량(예: 7.6개). 코인 BUY 에서 비우면 360 USDT
+# 입력 즉시 data/us_swing_portfolio.json · data/trade_history.json · data/binance_futures_log.json 이 바뀌어 커밋됩니다.
+name: 보유 포지션 수동 입력
+run-name: "수동 입력: ${{ inputs.market }} ${{ inputs.action }} ${{ inputs.ticker }}"
+on:
+  workflow_dispatch:
+    inputs:
+      market:
+        description: "시장"
+        type: choice
+        options: ["US_STOCK (미국주식)", "BINANCE (바이낸스선물)"]
+        default: "US_STOCK (미국주식)"
+      action:
+        description: "작업"
+        type: choice
+        options: ["BUY (신규매수/단가수정)", "CLOSE (매도·청산완료)", "CANCEL (미체결취소)"]
+        default: "BUY (신규매수/단가수정)"
+      ticker:
+        description: "종목코드 (예: NVDA 또는 SOLUSDT)"
+        required: true
+      direction:
+        description: "방향 (주식은 LONG)"
+        type: choice
+        options: [LONG, SHORT]
+        default: LONG
+      price:
+        description: "내 실제 진입가 또는 청산가 $ (CANCEL 은 비워도 됨)"
+        required: false
+        default: ""
+      qty:
+        description: "수량: 주식=주수 / 코인=투입 USDT(예: 360) 또는 수량(예: 7.6개)"
+        required: false
+        default: ""
+      rebrief:
+        description: "오늘 18시 브리핑(리포트·PDF)을 이 내용으로 바로 다시 만들기"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: positions-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      MARKET: ${{ inputs.market }}
+      ACTION: ${{ inputs.action }}
+      TICKER: ${{ inputs.ticker }}
+      DIRECTION: ${{ inputs.direction }}
+      PRICE: ${{ inputs.price }}
+      QTY: ${{ inputs.qty }}
+      BR: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - name: 입력 확인
+        run: |
+          TICKER=$(echo "$TICKER" | tr -d ' ' | tr '[:lower:]' '[:upper:]')
+          [[ "$TICKER" =~ ^[A-Z0-9][A-Z0-9.\-]{0,19}$ ]] || { echo "::error::종목코드 형식 오류: $TICKER"; exit 1; }
+          PRICE=$(echo "$PRICE" | tr -d ' $,')
+          QTY=$(echo "$QTY" | tr -d ' ,')
+          [ -z "$PRICE" ] || [[ "$PRICE" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "::error::가격은 숫자로 (예: 25.40)"; exit 1; }
+          [ -z "$QTY" ] || [[ "$QTY" =~ ^[0-9]+(\.[0-9]+)?(개|주|USDT|usdt)?$ ]] || { echo "::error::수량 형식 오류 (예: 4 / 360 / 7.6개)"; exit 1; }
+          case "$ACTION" in BUY*|CLOSE*) [ -n "$PRICE" ] || { echo "::error::BUY·CLOSE 는 price 가 필요해요"; exit 1; };; esac
+          { echo "TICKER=$TICKER"; echo "PRICE=$PRICE"; echo "QTY=$QTY"; } >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 패키지 설치
+        run: for i in 1 2 3; do pip install --retries 5 -r requirements.txt && break; sleep $((i*15)); done
+
+      - name: 포지션 반영 → 커밋·푸시
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # 18시 작업과 동시에 올라가 충돌하면, 최신 상태를 받아 다시 반영
+          for i in 1 2 3 4; do
+            git fetch -q origin "$BR" && git reset -q --hard "origin/$BR"
+            msg=$(python positions.py --market "$MARKET" --action "$ACTION" --ticker "$TICKER" --direction "$DIRECTION" \
+                    --price "$PRICE" --qty "$QTY" 2>&1) || { echo "::error::${msg##*$'\n'}"; exit 1; }
+            msg="${msg##*$'\n'}"
+            echo "$msg"
+            git add data/us_swing_portfolio.json data/trade_history.json data/binance_futures_log.json 2>/dev/null || true
+            git diff --cached --quiet && { echo "변경 없음"; break; }
+            git commit -q -m "수동 입력: ${MARKET%% *} ${ACTION%% *} $TICKER"
+            git push -q origin "HEAD:$BR" && break
+            echo "푸시 재시도 $i"; sleep $((i*5))
+          done
+          {
+            echo "### ✅ $msg"
+            echo ""
+            echo "미국 주식 보유·예약:"
+            python -c "import json;[print(f\"- {p['ticker']} {p['status']} {p['qty']}주 @ \${p.get('entry') or p.get('limit')} (목표 \${p['target']} / 손절 \${p['stop']})\") for p in json.load(open('data/us_swing_portfolio.json',encoding='utf-8'))['positions']]" || true
+            echo ""
+            echo "바이낸스 선물 대기·보유:"
+            python -c "import json;[print(f\"- {p['symbol']} {p['direction']} {p['status']} 진입 {p.get('entry') or p.get('limit')} (TP {p['tp']} / SL {p['sl']}) 증거금 {p.get('margin')} USDT\") for p in json.load(open('data/binance_futures_log.json',encoding='utf-8'))['positions']]" 2>/dev/null || echo "- 없음"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 오늘 브리핑 다시 만들기 (선택)
+        if: ${{ inputs.rebrief }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run us-swing.yml --ref "$BR" -f date="$(TZ=Asia/Seoul date +%F)" -f force=true -f video=false

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""미국 단타 연습 PDF + 16:9 영상 (3~5분).
+"""오후 6시 실전 단타 통합 브리핑 PDF + 16:9 영상 (1부 미국 주식 + 2부 바이낸스 3배 선물). 개인 연습용 — 업로드하지 않음.
 
   python tools/build_swing.py --date 2026-11-17 --out out/swing-2026-11-17 [--silent] [--pdf-only]
 
 입력: docs/swing/data/<날짜>.json, docs/swing/swing_<날짜>.html (swing.py 가 만든 것)
-출력: swing_<날짜>.pdf, swing_<날짜>.mp4, youtube.json, description.txt
+출력: swing_<날짜>.pdf, swing_<날짜>.mp4, description.txt (GitHub 릴리스 설명용)
 """
 from __future__ import annotations
 
@@ -21,9 +21,10 @@ import video_slides as vs  # noqa: E402
 from build_daily import FONT, build_video, duration, make_audio, mmss, write_srt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
 PAGES = os.environ.get("PAGES_URL", "https://yorongteni.github.io/stock-daily")
-DISCLAIMER = "연습용 가상 매매입니다. 투자 권유가 아니며 판단과 책임은 본인에게 있습니다."
-vs.SLOT_NAME["swing"] = "미국 단타 연습"
+DISCLAIMER = "개인 연습용 가상 매매입니다. 투자 권유가 아니며 판단과 책임은 본인에게 있습니다."
+vs.SLOT_NAME["swing"] = "오후 6시 단타 통합"
 
 
 @dataclass
@@ -118,18 +119,95 @@ def speak(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def fpx(v) -> str:
+    from futures import fmt_px
+    return fmt_px(v)
+
+
+def speak_px(text: str) -> str:
+    """'목표가 0.1560' 같은 코인 가격 표기를 읽기 쉽게 (숫자는 그대로, 기호만 정리)."""
+    return text.replace("TP", "목표가").replace("SL", "손절가")
+
+
+def coin_rec_say(fu: dict) -> str:
+    fr = (fu or {}).get("record") or {}
+    if not fr:
+        return ""
+    if not fr.get("trades"):
+        return " 바이낸스 선물도 아직 끝난 매매가 없습니다."
+    return (f" 바이낸스 선물은 {fr['trades']}번 매매해 {fr['wins']}번 이겼고, 누적 {abs(fr['pnl_usdt']):,.1f} 테더 "
+            f"{'이익' if fr['pnl_usdt'] >= 0 else '손실'}입니다.")
+
+
+def coin_chart(sp: dict, lines: list) -> dict:
+    ds = [{"label": "1시간봉 종가", "data": sp["close"], "borderColor": "#16202A", "borderWidth": 5, "pointRadius": 0, "tension": .15},
+          {"label": "20봉 평균선", "data": sp["ema20"], "borderColor": "#8793A0", "borderDash": [10, 6], "borderWidth": 3, "pointRadius": 0}]
+    for lab, v, col in lines:
+        ds.append({"label": f"{lab} {fpx(v)}", "data": [v] * len(sp["close"]), "borderColor": col, "borderWidth": 4,
+                   "pointRadius": 0, "borderDash": [4, 5]})
+    return {"type": "line", "data": {"labels": sp["t"], "datasets": ds},
+            "options": {"plugins": {"legend": {"labels": {"font": {"size": 24}, "boxWidth": 26}}},
+                        "scales": {"x": {"ticks": {"font": {"size": 22}, "maxTicksLimit": 6}}, "y": {"ticks": {"font": {"size": 24}}}}}}
+
+
+def coin_slides(fu: dict) -> list:
+    S = []
+    if not fu or fu.get("error"):
+        S.append(vs.Slide("2부 · 바이낸스 3배 선물 원픽", "오늘은 코인 데이터를 받지 못했어요",
+                          "2부 바이낸스 선물입니다. 오늘은 코인 시세 데이터를 받지 못해 원픽을 건너뜁니다. 보유 포지션이 있다면 처음 정한 목표가와 손절가를 그대로 지켜 주세요.",
+                          ["코인 데이터 수신 실패 → 원픽 건너뜀", "보유 포지션은 기존 TP·SL 유지"], ("risk", "데이터 없음")))
+        return S
+    b, p = fu["bias"], fu.get("pick")
+    side_ko = {"LONG": "롱 우위", "SHORT": "숏 우위", "NEUTRAL": "중립"}[b["side"]]
+    narr = (f"2부, 바이낸스 3배 레버리지 롱 숏 원픽입니다. 먼저 오늘의 방향은 {side_ko}입니다. " + " ".join(w + "." for w in b["why"])
+            + (" 그래서 오늘은 롱 쪽 코인만 봅니다." if b["side"] == "LONG" else " 그래서 오늘은 숏 쪽 코인만 봅니다." if b["side"] == "SHORT"
+               else " 방향이 뚜렷하지 않아 롱과 숏 모두 조건을 더 엄격하게 봅니다."))
+    S.append(vs.Slide("2부 · 바이낸스 3배 선물 원픽", f"오늘의 방향: {b['label']}", narr,
+                      b["why"] + [f"데이터: {fu['source_label'].split(' (')[0]} · {fu['data_time']} 기준"],
+                      ("good" if b["side"] == "LONG" else "risk" if b["side"] == "SHORT" else "wait", side_ko)))
+    if not p:
+        near = fu.get("near") or []
+        S.append(vs.Slide("2부 · 바이낸스 3배 선물 원픽", "오늘 코인은 쉬어 갑니다",
+                          "오늘의 코인 원픽입니다. " + fu["block"] + " 레버리지 거래에서는 조건이 안 맞는 날 들어가지 않는 것이 가장 큰 수익입니다.",
+                          [fu["block"]] + ([f"아깝게 빠진 후보: {', '.join(n['name'] + (' 롱' if n['side'] == 'LONG' else ' 숏') for n in near[:3])}"] if near else []),
+                          ("wait", "관망")))
+        return S
+    o, nm, L = p["order"], p["name"], p["side"] == "LONG"
+    sd = "롱" if L else "숏"
+    narr = f"오늘의 원픽은 {nm} {sd}입니다. " + " ".join(p["story"])
+    S.append(vs.Slide("2부 · 바이낸스 3배 선물 원픽", f"{'🟢' if L else '🔴'} {nm} ({p['symbol']}) {p['side']}", narr,
+                      [vs.first(x) for x in p["story"]], ("good" if L else "risk", f"{sd} · 격리 3배"),
+                      chart=coin_chart(p["spark"], [("진입", o["entry"], "#1F5FBF"), ("목표", o["tp"], "#1E8E3E"), ("손절", o["sl"], "#C5221F")])))
+    from futures import kst
+    body = (EXTRA_CSS + f"<div class='ord'><div class='oh'><div class='on'>{p['symbol']} <span>{'🟢 LONG' if L else '🔴 SHORT'} · 격리 {o['leverage']}배</span></div>"
+            f"<div class='oq'>{o['margin']:,.0f} USDT<small>수량 {o['qty']} · 포지션 {o['notional']:,.0f} USDT</small></div></div>"
+            f"<div class='or b'><span>① 진입 지정가<em>현재가보다 {o['off_pct']}% {'아래' if L else '위'}</em></span><b>{fpx(o['entry'])}</b></div>"
+            f"<div class='or t'><span>② 목표 익절가 ({'+' if L else '-'}2.45%)<em>순수익 약 +7% · {o['win_usdt']:+.1f} USDT</em></span><b>{fpx(o['tp'])}</b></div>"
+            f"<div class='or s'><span>③ 자동 손절가 ({'-' if L else '+'}1.50%)<em>약 -4.5% · {o['loss_usdt']:+.1f} USDT</em></span><b>{fpx(o['sl'])}</b></div>"
+            f"<div class='or d'><span>④ 시간 정리</span><b>{kst(p['valid_until'])}</b></div></div>")
+    narr = (f"{nm} {sd} 주문표입니다. 바이낸스 선물에서 격리, 3배로 설정하고 증거금 360 테더를 넣습니다. "
+            f"첫째, 진입 지정가는 {fpx(o['entry'])}달러입니다. 둘째, 목표 익절가는 {fpx(o['tp'])}달러, 레버리지 포함 약 7% 수익입니다. "
+            f"셋째, 손절가는 {fpx(o['sl'])}달러, 약 4.5% 손실에서 끊습니다. 진입과 동시에 목표가와 손절가를 함께 걸어 두세요. "
+            f"넷째, 24시간 안에 둘 다 안 닿으면 {kst(p['valid_until'], '%d일 %H시')}에 정리합니다.")
+    S.append(vs.Slide("2부 · 바이낸스 선물 주문표", "바이낸스 앱에 이대로 입력하세요", narr, [], ("good" if L else "risk", f"{sd} · 360 USDT"), body_html=body))
+    return S
+
+
 def build(d: dict) -> list:
     S = []
     sess, rec = d["session"], d["record"]
     m, day = int(d["date"][5:7]), int(d["date"][8:10])
     picks, holds = d["picks"], d["holdings"]
     open_say = say_time(sess["open_kst"])
-    sub = (f"{m}월 {day}일 18시 · 미국장 {sess['open_kst']} 개장 · 50만 원 연습" if sess["trading"]
-           else f"{m}월 {day}일 18시 · 오늘 밤 미국 증시 휴장")
-    intro = (f"안녕하세요, {m}월 {day}일 오후 6시, 미국 주식 실전 단타 연습 브리핑입니다. "
+    fu = d.get("futures") or {}
+    sub = (f"{m}월 {day}일 18시 · 미국장 {sess['open_kst']} 개장 · 바이낸스 3배 원픽" if sess["trading"]
+           else f"{m}월 {day}일 18시 · 미국 증시 휴장 · 바이낸스 3배 원픽")
+    intro = (f"안녕하세요, {m}월 {day}일 오후 6시, 실전 단타 통합 브리핑입니다. "
              + (f"오늘 밤 미국 증시는 한국 시간 {open_say}에 열립니다. " if sess["trading"] else "오늘 밤 미국 증시는 쉬는 날입니다. ")
-             + "어제 산 종목 성적표, 오늘 밤 타점, 바로 입력할 예약 주문표, 누적 성적 순서로 보겠습니다.")
-    S.append(vs.Slide("오프닝", "오늘 밤 미국 단타 작전", intro, [sub], ("info", "연습용 가상 매매"), center=True))
+             + "먼저 어제 매매 성적표와 보유 포지션을 점검하고, 1부에서 미국 주식 50만 원 타점, "
+             "2부에서 바이낸스 3배 선물 롱 숏 원픽을 보겠습니다.")
+    S.append(vs.Slide("오프닝", "오후 6시 실전 단타 통합 브리핑", intro, [sub, "공통 인트로 → 1부 미국 주식 → 2부 바이낸스 선물"],
+                      ("info", "개인 연습용"), center=True))
 
     # Part 1. 성적표
     evs = [e for e in d["events"] if e["type"] in ("fill", "missed", "close")]
@@ -151,16 +229,30 @@ def build(d: dict) -> list:
             move = f"{abs(e['ret_pct']):.1f}% {'수익' if e['ret_pct'] > 0 else '손실'}"
             says.append(f"{nm}{'은' if vs._jong(nm[-1]) else '는'} {e['result_ko']}로 마무리했습니다. {say_usd(e['entry'])}에 사서 "
                         f"{say_usd(e['exit'])}에 팔아 {move}, {say_won(e['pnl_krw'], True)}입니다.")
+    for e in [x for x in fu.get("events") or [] if x["type"] in ("close", "missed")][:2]:
+        nm = e.get("name") or e["symbol"]
+        sd = "롱" if e.get("direction") == "LONG" else "숏"
+        if e["type"] == "missed":
+            rows.append(f"<div class='e'>⏸ <b>{html.escape(nm)} {sd}</b> 미체결<small>24시간 안에 진입가에 닿지 않았어요</small></div>")
+            says.append(f"코인 원픽 {nm} {sd}은 진입가에 닿지 않아 체결되지 않았습니다.")
+        else:
+            k = "good" if e["pnl_usdt"] > 0 else "risk" if e["pnl_usdt"] < 0 else ""
+            c = "up" if e["pnl_usdt"] > 0 else "dn" if e["pnl_usdt"] < 0 else ""
+            ico = {"WIN": "🎯", "LOSS": "🛑", "TIME_EXIT": "⏱"}.get(e["result"], "↩")
+            rows.append(f"<div class='e {k}'>{ico} <b>{html.escape(nm)} {sd}</b> {html.escape(e['result_ko'])} "
+                        f"<b class='{c}'>{e['roe']:+.2f}% · {e['pnl_usdt']:+,.2f} USDT</b><small>{fpx(e['entry'])} → {fpx(e['exit'])} · 격리 3배</small></div>")
+            says.append(f"코인 원픽 {nm} {sd}은 {e['result_ko'].split(' (')[0]}로 끝났습니다. 수익률 {e['roe']:+.1f}%, "
+                        f"{abs(e['pnl_usdt']):,.1f} 테더 {'이익' if e['pnl_usdt'] > 0 else '손실'}입니다.")
     if rows:
         wins = sum(1 for e in evs if e["type"] == "close" and e["pnl_krw"] > 0)
         loss = sum(1 for e in evs if e["type"] == "close" and e["pnl_krw"] < 0)
         badge = ("good", "익절") if wins and not loss else ("risk", "손실 정리") if loss and not wins else ("info", "판정 결과")
-        S.append(vs.Slide("Part 1 · 어제 산 종목 성적표", "간밤 미국장 성적표", "먼저 간밤 성적표입니다. " + " ".join(says), [],
+        S.append(vs.Slide("공통 인트로 · 어제 매매 성적표", "어제 추천 결과", "먼저 어제 매매 성적표입니다. " + " ".join(says), [],
                           badge, body_html=EXTRA_CSS + f"<div class='ev3'>{''.join(rows)}</div>"))
     else:
-        S.append(vs.Slide("Part 1 · 어제 산 종목 성적표", "간밤에 판정할 종목 없음",
-                          "먼저 간밤 성적표입니다. 어제는 예약하거나 들고 있던 종목이 없어서 판정할 결과가 없습니다.",
-                          ["어제는 예약·보유 종목이 없었어요", "오늘 밤 신규 타점부터 보겠습니다"], ("info", "판정 없음")))
+        S.append(vs.Slide("공통 인트로 · 어제 매매 성적표", "어제 판정할 추천 없음",
+                          "먼저 어제 매매 성적표입니다. 미국 주식도 코인도 어제 추천하거나 들고 있던 포지션이 없어서 판정할 결과가 없습니다.",
+                          ["어제는 예약·보유 포지션이 없었어요", "오늘 타점부터 보겠습니다"], ("info", "판정 없음")))
 
     for h in holds[:3]:
         pl = h.get("plan") or {}
@@ -188,10 +280,25 @@ def build(d: dict) -> list:
         narr = (f"{nm}{'은' if vs._jong(nm[-1]) else '는'} {say_usd(h['entry'])}에 {h['qty']}주를 들고 있고, 어제 종가는 {say_usd(h['now'])}로 "
                 f"{abs(ret):.1f}% {'수익' if ret >= 0 else '손실'} 중입니다. 오늘 밤이 {pl.get('day', 2)}일째입니다. {act_say}{loc} "
                 f"이유는 이렇습니다. {pl.get('reason', '')}")
-        S.append(vs.Slide("Part 1 · 보유 종목 관리 작전", f"{nm} ({h['ticker']}) 오늘 밤 대응", narr, [],
+        S.append(vs.Slide("공통 인트로 · 보유 포지션 긴급 점검", f"{nm} ({h['ticker']}) 오늘 밤 대응", narr, [],
                           (k, "수익 중" if ret > 0 else "물림 관리"), body_html=body))
 
-    # Part 2 · 3
+    for h in (fu.get("holdings") or [])[:2]:
+        pl = h.get("plan") or {}
+        nm, sd = h.get("name") or h["symbol"], "롱" if h["direction"] == "LONG" else "숏"
+        k = pl.get("kind", "wait")
+        roe = h.get("roe_now")
+        body = (EXTRA_CSS + "<div class='hd'><div class='cards3' style='height:230px'>"
+                + card("진입가 · 격리 3배", fpx(h.get("entry") or h.get("limit")), "미진입(예약)" if h["status"] == "PENDING" else "")
+                + card("현재가", fpx(h.get("now")), f"남은 시간 {pl.get('left', 0)}시간")
+                + card("지금 수익률", "–" if roe is None else f"<span class='{'up' if roe > 0 else 'dn'}'>{roe:+.2f}%</span>", "", k)
+                + f"</div><div class='big {'r' if k == 'risk' else ''}'>👉 {html.escape(pl.get('action', ''))}</div>"
+                f"<div class='rsn'>{html.escape(vs.first(pl.get('reason', '')))}</div></div>")
+        narr = (f"코인 {nm} {sd} 포지션 점검입니다. " + (f"지금 수익률은 {roe:+.1f}%입니다. " if roe is not None else "아직 진입가에 닿지 않았습니다. ")
+                + f"{speak_px(pl.get('action', ''))}. {pl.get('reason', '')}")
+        S.append(vs.Slide("공통 인트로 · 보유 포지션 긴급 점검", f"🪙 {nm} {h['direction']} 대응", narr, [], (k, "코인 포지션"), body_html=body))
+
+    # 1부 미국 주식
     if picks:
         for i, p in enumerate(picks):
             o, nm = p["order"], p["name"]
@@ -199,7 +306,7 @@ def build(d: dict) -> list:
             lines = [vs.first(s) for s in p["story"]]
             narr = (f"오늘 밤 {'첫 번째' if i == 0 else '두 번째'} 타점은 {nm}, {kind}입니다. " + " ".join(p["story"][:3]))
             narr = narr.replace("“", "").replace("”", "")
-            S.append(vs.Slide("Part 2 · 오늘 밤의 50만 원 타점", f"{i + 1}. {nm} ({p['ticker']}) · {kind}", narr,
+            S.append(vs.Slide("1부 · 미국 주식 50만 원 타점", f"{i + 1}. {nm} ({p['ticker']}) · {kind}", narr,
                               [x.split(" 관련 뉴스")[0] for x in lines], ("good", "+5% 노림"),
                               chart=line_chart(p["spark"], [("예약 매수", o["limit"], "#1F5FBF"), ("목표", o["target"], "#1E8E3E"),
                                                             ("손절", o["stop"], "#C5221F")])))
@@ -215,7 +322,7 @@ def build(d: dict) -> list:
                     f"첫째, 예약 매수 지정가는 {say_usd(o['limit'])}입니다. 둘째, 체결되면 바로 목표 익절가 {say_usd(o['target'])}에 매도를 걸어 두세요. "
                     f"셋째, 손절 기준가는 {say_usd(o['stop'])}입니다. 이 가격 아래로 밀리면 미련 없이 정리합니다. "
                     f"넷째, 최대 보유 기한은 내일 밤 미국장 마감까지입니다. 그때까지 목표가에 안 닿으면 장 마감에 정리합니다.")
-            S.append(vs.Slide("Part 3 · 예약 주문표", "증권사 앱에 이대로 입력하세요", narr, [], ("info", f"{o['qty']}주 · 50만 원 이내"), body_html=body))
+            S.append(vs.Slide("1부 · 미국 주식 예약 주문표", "증권사 앱에 이대로 입력하세요", narr, [], ("info", f"{o['qty']}주 · 50만 원 이내"), body_html=body))
     else:
         near = d.get("near") or []
         lines = [d["block"]] + ([f"아깝게 빠진 후보: {', '.join(n['name'] for n in near)}"] if near else [])
@@ -223,15 +330,18 @@ def build(d: dict) -> list:
         if q and not q.get("above20"):
             weather = "시장 전체도 약합니다. 나스닥100이 20일 평균선 아래에 있어 오르던 주식도 쉽게 밀리는 구간입니다. "
             lines.append(f"시장 날씨: 나스닥100 20일선 아래" + (f" · VIX {d['vix']:.0f}" if d.get("vix") else ""))
-        narr = ("오늘 밤 신규 타점입니다. " + d["block"] + " " + weather + "단타 연습에서 가장 중요한 건 조건이 안 맞는 날 쉬는 겁니다. "
+        narr = ("1부, 오늘 밤 미국 주식 타점입니다. " + d["block"] + " " + weather + "단타 연습에서 가장 중요한 건 조건이 안 맞는 날 쉬는 겁니다. "
                 "보유 종목이 있다면 앞에서 말씀드린 매도 주문만 확인하세요.")
-        S.append(vs.Slide("Part 2 · 오늘 밤의 50만 원 타점", "오늘 밤은 신규 매수 쉬어 갑니다", narr, lines[:3], ("wait", "관망")))
+        S.append(vs.Slide("1부 · 미국 주식 50만 원 타점", "오늘 밤 미국 주식은 쉬어 갑니다", narr, lines[:3], ("wait", "관망")))
 
-    # Part 4
+    # 2부 바이낸스 선물
+    S.extend(coin_slides(fu))
+
+    # 누적 성적
     wr = f"{rec['winrate']:.0f}%" if rec["winrate"] is not None else "–"
     c = "up" if rec["pnl_krw"] > 0 else "dn" if rec["pnl_krw"] < 0 else ""
     if rec["trades"]:
-        narr = (f"마지막으로 누적 성적입니다. {rec['since'][5:7].lstrip('0')}월 {rec['since'][8:].lstrip('0')}일부터 지금까지 {rec['trades']}번 매매해 "
+        narr = (f"마지막으로 누적 성적입니다. 미국 주식은 {rec['since'][5:7].lstrip('0')}월 {rec['since'][8:].lstrip('0')}일부터 지금까지 {rec['trades']}번 매매해 "
                 f"{rec['wins']}번 이겼습니다. 승률은 {wr}, 누적 가상 손익은 {say_won(rec['pnl_krw'], True)}입니다. "
                 f"목표가 5%를 채운 건 {rec['targets']}번입니다. 이기는 날보다 지는 날을 짧게 끊는 연습이 핵심입니다.")
         chart = {"type": "line", "data": {"labels": [x["date"][5:] for x in rec["curve"]],
@@ -240,18 +350,22 @@ def build(d: dict) -> list:
                                                         "borderWidth": 5, "pointRadius": 5}]},
                  "options": {"plugins": {"legend": {"display": False}},
                              "scales": {"x": {"ticks": {"font": {"size": 22}}}, "y": {"ticks": {"font": {"size": 24}}}}}}
-        S.append(vs.Slide("Part 4 · 누적 실전 연습 트랙레코드", "누적 연습 성적", narr,
+        S.append(vs.Slide("누적 트랙레코드", "누적 연습 성적", narr + coin_rec_say(fu),
                           [f"총 {rec['trades']}회 · 승률 {wr}", f"누적 {rec['pnl_krw']:+,}원", f"목표가 달성 {rec['targets']}회 · 평균 {rec['avg_ret']:+.2f}%"],
                           ("good" if rec["pnl_krw"] > 0 else "risk" if rec["pnl_krw"] < 0 else "info", f"승률 {wr}"), chart=chart))
     else:
-        S.append(vs.Slide("Part 4 · 누적 실전 연습 트랙레코드", "누적 연습 성적",
-                          "마지막으로 누적 성적입니다. 아직 끝난 매매가 없습니다. 첫 매매가 끝나면 매매 횟수, 승률, 누적 손익을 여기서 보여드리겠습니다.",
-                          ["아직 끝난 매매가 없어요", f"시작일 {rec['since']}"], ("info", "기록 시작")))
+        fr = (fu.get("record") or {})
+        S.append(vs.Slide("누적 트랙레코드", "누적 연습 성적",
+                          "마지막으로 누적 성적입니다. 미국 주식은 아직 끝난 매매가 없습니다." + coin_rec_say(fu),
+                          ["미국 주식: 아직 끝난 매매 없음",
+                           f"바이낸스 선물: {fr.get('trades', 0)}회 · {fr.get('pnl_usdt', 0):+,.2f} USDT" if fr else "바이낸스 선물: 기록 없음"],
+                          ("info", "기록 중")))
 
     S.append(vs.Slide("마무리", "오늘 밤 작전은 여기까지입니다",
-                      "실제로 다른 가격에 샀거나 팔았다면, 스마트폰 깃허브 앱의 보유 종목 수동 입력에서 고쳐 주세요. "
-                      "다음 브리핑부터 내 실제 평단가로 작전을 짭니다. 연습용 가상 매매이며 투자 권유가 아닙니다. 감사합니다.",
-                      ["다르게 샀다면: GitHub 앱 → Actions → 보유 종목 수동 입력"], ("info", "내일 18시에 만나요"), center=True))
+                      "실제로 다른 가격에 샀거나 팔았다면, 스마트폰 깃허브 앱의 보유 포지션 수동 입력에서 미국 주식인지 바이낸스인지 고르고 가격을 넣어 주세요. "
+                      "다음 브리핑부터 내 실제 진입가로 작전을 짭니다. 개인 연습용 가상 매매이며 투자 권유가 아닙니다. 감사합니다.",
+                      ["다르게 샀다면: GitHub 앱 → Actions → 보유 포지션 수동 입력", "market · action · ticker · direction · price · qty"],
+                      ("info", "내일 18시에 만나요"), center=True))
     for s in S:
         s.narration = speak(s.narration)
     return S
@@ -273,8 +387,11 @@ def make_pdf(browser, html_path: Path, out_pdf: Path, title: str) -> None:
 def write_meta(d: dict, job: Job, starts: list, out: Path) -> None:
     m, day = int(d["date"][5:7]), int(d["date"][8:10])
     picks = d["picks"]
-    what = " · ".join(f"{p['name']} {p['order']['qty']}주" for p in picks) or "신규 쉬어가기"
-    title = f"[{m}/{day} 18시] 미국 단타 연습 | {what}"[:100]
+    fu = d.get("futures") or {}
+    what = " · ".join(f"{p['name']} {p['order']['qty']}주" for p in picks) or "미국 쉬어가기"
+    cp = fu.get("pick")
+    what += " | " + (f"{cp['symbol']} {cp['side']}" if cp else "코인 쉬어가기")
+    title = f"[{m}/{day} 18시] 단타 통합 | {what}"[:100]
     chap, last = [], None
     for s, sc in zip(starts, job.scenes):
         sec = sc.section.split(" · ")[0]
@@ -283,16 +400,14 @@ def write_meta(d: dict, job: Job, starts: list, out: Path) -> None:
             last = sec
     rec = d["record"]
     desc = "\n\n".join([
-        f"{m}월 {day}일 18시 미국 주식 실전 단타 연습 — 보유 종목 성적표·탈출 작전, 오늘 밤 50만 원 타점, 예약 주문표, 누적 성적.",
-        f"누적: {rec['trades']}회 · 승률 {rec['winrate'] if rec['winrate'] is not None else '–'}% · {rec['pnl_krw']:+,}원",
+        f"{m}월 {day}일 18시 실전 단타 통합 브리핑 (개인 연습용) — 어제 성적표·보유 점검, 1부 미국 주식 50만 원 타점, 2부 바이낸스 3배 선물 원픽.",
+        f"미국 누적: {rec['trades']}회 · 승률 {rec['winrate'] if rec['winrate'] is not None else '–'}% · {rec['pnl_krw']:+,}원",
+        f"코인 누적: {(fu.get('record') or {}).get('trades', 0)}회 · {(fu.get('record') or {}).get('pnl_usdt', 0):+,.2f} USDT",
         f"📊 리포트: {PAGES}/swing/swing_{d['date']}.html\n📄 PDF: {PAGES}/swing/pdf/swing_{d['date']}.pdf",
         "⏱ 목차\n" + "\n".join(chap),
-        f"※ {DISCLAIMER}", "#미국주식 #단타 #스윙 #주식공부",
+        f"※ {DISCLAIMER}",
     ])
     (out / "description.txt").write_text(desc, encoding="utf-8")
-    (out / "youtube.json").write_text(json.dumps({"date": d["date"], "video": f"swing_{d['date']}.mp4", "title": title,
-                                                  "description": desc[:4900], "tags": ["미국주식", "단타", "스윙매매", "주식공부", "예약주문"]},
-                                                 ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def main() -> None:
@@ -311,7 +426,7 @@ def main() -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         pdf = out / f"swing_{a.date}.pdf"
-        make_pdf(browser, a.docs / "swing" / f"swing_{a.date}.html", pdf, f"미국 단타 연습 · {a.date}")
+        make_pdf(browser, a.docs / "swing" / f"swing_{a.date}.html", pdf, f"오후 6시 단타 통합 브리핑 · {a.date}")
         print(f"PDF 완료: {pdf}")
         if a.pdf_only:
             browser.close()
