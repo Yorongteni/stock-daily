@@ -45,6 +45,8 @@ DEFAULTS = {
     "leverage": 3, "margin_usdt": 360.0, "tp_pct": 2.45, "sl_pct": 1.50, "win_roe": 7.0, "loss_roe": 4.5,
     "fee_roe": 0.3, "hold_hours": 24, "top_n": 30, "max_open": 2, "min_range24": 3.0, "mmr": 0.5,
 }
+# 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
+NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
 STABLE = {"USDC", "FDUSD", "TUSD", "BUSD", "DAI", "USDE", "USDP", "PYUSD", "USD1", "EUR", "XUSD", "BFUSD", "RLUSD"}
 MAJORS = ["BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "SUI", "AVAX", "LINK", "ADA", "TRX", "LTC", "DOT", "TON", "BCH"]
 NAMES = {"BTC": "비트코인", "ETH": "이더리움", "SOL": "솔라나", "BNB": "BNB", "XRP": "리플", "DOGE": "도지코인",
@@ -164,7 +166,8 @@ class Binance:
             info = retry(_get, f"{self.B}/fapi/v1/exchangeInfo", tries=2, label="바이낸스 종목 정보")
             ok = set()
             for s in info.get("symbols", []):
-                if s.get("contractType") == "PERPETUAL" and s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING":
+                if (s.get("contractType") == "PERPETUAL" and s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING"
+                        and s.get("underlyingType", "COIN") == "COIN"):
                     ok.add(s["symbol"])
                     for f in s.get("filters", []):
                         if f.get("filterType") == "PRICE_FILTER":
@@ -219,9 +222,16 @@ class OKX:
                 self._tick[s["instId"].replace("-USDT-SWAP", "USDT")] = float(s["tickSz"])
         except Exception:  # noqa: BLE001
             pass
+        spot = None
+        try:      # 현물(USDT)에도 있는 것만 코인으로 본다 (주식·금속 무기한 선물 제외)
+            spot = {r["instId"][:-5] for r in self._data("/api/v5/market/tickers", {"instType": "SPOT"}) if r["instId"].endswith("-USDT")}
+        except Exception:  # noqa: BLE001
+            pass
         out = []
         for r in self._data("/api/v5/market/tickers", {"instType": "SWAP"}):
             if not r["instId"].endswith("-USDT-SWAP"):
+                continue
+            if spot is not None and r["instId"][:-10] not in spot:
                 continue
             last, o24 = float(r["last"] or 0), float(r.get("open24h") or 0)
             out.append({"symbol": r["instId"].replace("-USDT-SWAP", "USDT"), "last": last,
@@ -571,7 +581,8 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         print(f"  · {e['type']}: {e.get('symbol')} {e.get('result_ko', '')} {e.get('roe', '')}")
 
     print("[B3] 시장 방향 (비트코인 + 나스닥 선물)")
-    cand = [t for t in tk if coin(t["symbol"]) not in STABLE and t["qv"] > 0]
+    stocks = {str(k).upper() for k in ((cfg_all.get("swing") or {}).get("universe") or {})}
+    cand = [t for t in tk if coin(t["symbol"]) not in STABLE | NON_CRYPTO | stocks and t["qv"] > 0]
     cand.sort(key=lambda t: -t["qv"])
     syms = [t["symbol"] for t in cand[:cfg["top_n"]]]
     have = {t["symbol"] for t in cand}
