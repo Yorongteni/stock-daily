@@ -2,22 +2,22 @@
  "start_date": "2026-11-17",
  "positions": [
   {
-   "id": "2026-11-17-XAGUSDT",
-   "symbol": "XAGUSDT",
-   "name": "XAG",
+   "id": "2026-11-17-PUMPUSDT",
+   "symbol": "PUMPUSDT",
+   "name": "PUMP",
    "direction": "SHORT",
    "source": "auto",
    "status": "PENDING",
    "pick_date": "2026-11-17",
-   "pick_time": "2026-11-17T14:37:54Z",
-   "limit": 47.55,
-   "tp": 46.39,
-   "sl": 48.26,
-   "qty": 22.7,
+   "pick_time": "2026-11-17T14:39:42Z",
+   "limit": 0.002813,
+   "tp": 0.002744,
+   "sl": 0.002855,
+   "qty": 383931.0,
    "margin": 360,
    "leverage": 3,
    "hold_hours": 24,
-   "liq": 63.16
+   "liq": 0.003737
   }
  ],
  "history": [],
@@ -25,7 +25,7 @@
   "date": "2026-11-17",
   "events": []
  },
- "updated_at": "2026-11-17 23:38",
+ "updated_at": "2026-11-17 23:40",
  "last_run": "2026-11-17",
  "rules": {
   "leverage": 3,
