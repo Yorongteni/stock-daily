@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 WEEK = "월화수목금토일"
+RULE_HALF = 2.5     # 미국 주식 본절 방어 발동 (+5% 목표의 절반)
 
 
 def esc(s) -> str:
@@ -53,6 +54,9 @@ def event_html(e: dict) -> str:
         ico = {"WIN": "🎯", "STOP": "🛑"}.get(e["result"], "↩")
         return (f"<div class='ev {k}'><span class='tag'>{ico} {esc(e['result_ko'])}</span>{nm} — {usd(e['entry'])} → {usd(e['exit'])} × {e['qty']}주 = "
                 f"<b class='{cls(e['pnl_krw'])}'>{pct(e['ret_pct'])} · {krw(e['pnl_krw'], True)}</b><div class='why'>{esc(e['reason'])}</div></div>")
+    if t == "be":
+        return (f"<div class='ev good'><span class='tag'>🛡 본절 방어 발동</span>{nm} — 장중 {usd(e['trigger'])}(+2.5%)에 닿아 "
+                f"로스값(감시가)을 본전 {usd(e['price'])}로 올렸어요.</div>")
     if t == "nodata":
         return f"<div class='ev risk'><span class='tag'>⚠ 시세 없음</span>{nm} — 시세를 못 받아 판정을 미뤘어요. 내일 다시 확인합니다.</div>"
     return ""
@@ -80,7 +84,7 @@ def holding_html(h: dict, i: int, sess: dict) -> str:
   <div><span>매수가 × 수량</span><b>{usd(h['entry'])} × {h['qty']}주</b></div>
   <div><span>간밤 고가 / 종가</span><b>{usd(last.get('high'))} / {usd(last.get('close'))}</b></div>
   <div><span>목표가 (+5%)</span><b>{usd(h['target'])}</b></div>
-  <div><span>손절가</span><b>{usd(h['stop'])}</b></div>
+  <div><span>로스값 (SL){' · 본절 이동' if h.get('be_moved') else ''}</span><b>{usd(h['stop'])}</b></div>
  </div>
  <div class='act'>👉 {big}</div>
  <div class='act2'>{esc(pl.get('action'))}</div>
@@ -107,16 +111,30 @@ def pick_html(p: dict, i: int) -> str:
 </div>"""
 
 
+def tri_html(entry_lbl, entry_v, entry_note, tp_lbl, tp_v, tp_amt, sl_lbl, sl_v, sl_amt) -> str:
+    """주문표 핵심 3칸: ① 진입 ② 처리값(TP) ③ 비상 로스값(SL) — 큰 글씨, 금액 함께."""
+    return (f"<div class='tri'><div class='tile en'><span>① {entry_lbl}</span><b>{entry_v}</b><em>{entry_note}</em></div>"
+            f"<div class='tile tp'><span>② {tp_lbl}</span><b>{tp_v}</b><em>{tp_amt}</em></div>"
+            f"<div class='tile sl'><span>③ {sl_lbl}</span><b>{sl_v}</b><em>{sl_amt}</em></div></div>")
+
+
 def order_html(p: dict, sess: dict) -> str:
     o = p["order"]
+    tri = tri_html("예약 매수 지정가 (Entry)", usd(o["limit"]), esc(o["limit_why"]),
+                   "목표 처리값 (TP · +5.0%)", usd(o["target"]),
+                   f"예상 수익 <b>+약 {o['gain_krw']:,}원</b> · {usd(o['gain_usd'], True)}",
+                   f"비상 로스값 (SL · -{o['stop_pct']}%)", usd(o["stop"]),
+                   f"최대 허용 손실 <b>-약 {abs(o['loss_krw']):,}원</b> · {usd(o['loss_usd'], True)}")
     return f"""
 <div class='order'>
  <div class='oh'><div class='onm'>{esc(p['name'])} <span>({esc(p['ticker'])})</span></div>
   <div class='oq'>{o['qty']}주 <small>예상 {usd(o['cost_usd'])} / 약 {o['cost_krw']:,}원</small></div></div>
- <div class='orow buy'><span>① 예약 매수 지정가</span><b>{usd(o['limit'])}</b><em>{esc(o['limit_why'])}</em></div>
- <div class='orow tgt'><span>② 1차 목표 익절가 (+5.0%)</span><b>{usd(o['target'])}</b><em>체결되면 바로 걸어 둘 자동 매도가 · 성공 시 약 {krw(o['gain_krw'], True)}</em></div>
- <div class='orow stp'><span>③ 손절·비상 탈출 기준가 (-3.5%)</span><b>{usd(o['stop'])}</b><em>감시(스톱) 주문으로 걸어 두기 · 실패 시 약 {krw(o['loss_krw'], True)}</em></div>
- <div class='orow ddl'><span>④ 최대 보유 기한</span><b>{esc(o['deadline'])}</b><em>그때까지 ②·③에 안 닿으면 장 마감(LOC)에 전량 정리</em></div>
+ {tri}
+ <div class='orow'><span>로스값 근거</span><b class='sm'>{esc(o['stop_basis'])}</b></div>
+ <div class='orow'><span>자동감시 주문 (스탑로스)</span><b class='sm'>감시가 {usd(o['stop'])} 이하 → 시장가 전량 매도</b>
+  <em>증권사 앱 › 해외주식 › 자동감시(조건) 주문 › 손절 감시가에 {usd(o['stop'])} 입력 · 매수 체결 직후 바로 등록</em></div>
+ <div class='orow ddl'><span>최대 보유 기한</span><b class='sm'>{esc(o['deadline'])}</b><em>그때까지 TP·SL에 안 닿으면 장 마감(LOC)에 전량 정리</em></div>
+ <div class='be'>🛡 <b>본절 방어 기준가</b> 주가가 <b>{usd(o['be_trigger'])}</b>(+{RULE_HALF}%, 목표의 절반)에 닿으면 감시가를 본전 <b>{usd(o['be_price'])}</b>로 올려 손실 없이 잠그세요.</div>
  <div class='ohint'>주문 시간: 오늘 18시 이후 ~ 미국장 개장({esc(sess['open_kst'])}) 전에 '예약 지정가'로 넣으면 개장과 동시에 체결을 기다립니다.</div>
 </div>"""
 
@@ -206,6 +224,15 @@ h2 small{font-size:13px;color:var(--sub);font-weight:500;margin-left:8px}
 .orow{display:grid;grid-template-columns:230px 1fr;gap:2px 16px;padding:14px 20px;border-bottom:1px solid var(--line);align-items:center}
 .orow span{font-weight:700;font-size:15px}.orow b{font-size:28px;font-family:'Roboto Mono',Consolas,monospace}.orow em{grid-column:2;font-style:normal;font-size:13px;color:var(--sub)}
 .orow.buy b{color:var(--blue)}.orow.tgt b{color:var(--good)}.orow.stp b{color:var(--risk)}.orow.ddl b{font-size:19px;font-family:inherit}
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 16px;background:#FAFBFC}
+.tile{border-radius:14px;padding:12px 14px;background:#fff;border:3px solid var(--line)}
+.tile span{display:block;font-size:13px;font-weight:800;color:var(--sub)}.tile b{display:block;font-size:30px;font-weight:900;font-family:'Roboto Mono',Consolas,monospace;margin:2px 0}
+.tile em{display:block;font-style:normal;font-size:12.5px;color:var(--sub)}.tile em b{display:inline;font-size:13.5px;font-family:inherit}
+.tile.en{border-color:#16202A}.tile.en b{color:#16202A}
+.tile.tp{border-color:var(--good);background:#F3FAF5}.tile.tp b,.tile.tp em b{color:var(--good)}
+.tile.sl{border-color:#E8710A;background:#FFF6EE}.tile.sl b,.tile.sl em b{color:#E8710A}
+.orow b.sm{font-size:16px;font-family:inherit}
+.be{margin:0;padding:12px 20px;background:#EEF4FF;border-top:1px solid var(--line);font-size:14.5px}.be b{color:#1F5FBF}
 .ohint{padding:12px 20px;font-size:13px;color:var(--sub);background:#FAFBFC}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .stats div{background:var(--card);border-radius:14px;padding:14px;text-align:center;box-shadow:0 2px 8px rgba(22,32,42,.06)}
@@ -223,7 +250,7 @@ th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}th{ba
 .bias{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.bias .side{font-size:22px}
 .src{font-size:12px;color:var(--sub)}
 .disc{font-size:12.5px;color:var(--sub);margin-top:30px;text-align:center}
-@media (max-width:700px){.sum2{grid-template-columns:1fr}.strip,.stats{grid-template-columns:1fr 1fr}.grid4{grid-template-columns:1fr 1fr}.orow{grid-template-columns:1fr}.orow em{grid-column:1}.gl{grid-template-columns:1fr}}
+@media (max-width:700px){.tri{grid-template-columns:1fr}.sum2{grid-template-columns:1fr}.strip,.stats{grid-template-columns:1fr 1fr}.grid4{grid-template-columns:1fr 1fr}.orow{grid-template-columns:1fr}.orow em{grid-column:1}.gl{grid-template-columns:1fr}}
 @media print{body{background:#fff}.hold,.pick,.order,.box,.ev,.stats,table{break-inside:avoid}h2{break-after:avoid}}
 """
 
@@ -276,6 +303,9 @@ def coin_event_html(e: dict) -> str:
         return (f"<div class='ev {k}'><span class='tag'>{ico} {esc(e['result_ko'])}</span>{nm} — {fpx(e['entry'])} → {fpx(e['exit'])} · "
                 f"<b class='{cls(e['pnl_usdt'])}'>수익률 {e['roe']:+.2f}% · {usdt(e['pnl_usdt'], True)} ≈ {krw(e['pnl_krw'], True)}</b>"
                 f"<div class='why'>{esc(e['reason'])}</div></div>")
+    if t == "be":
+        return (f"<div class='ev good'><span class='tag'>🛡 본절 방어 발동</span>{nm} — {fpx(e['trigger'])}에 닿아 "
+                f"로스값을 본전 {fpx(e['price'])}로 옮겼어요. 이제 손실 없이 목표를 노립니다.</div>")
     if t == "nodata":
         return f"<div class='ev risk'><span class='tag'>⚠ 시세 없음</span>{nm} — {esc(e.get('reason'))}</div>"
     return ""
@@ -297,7 +327,7 @@ def coin_holding_html(h: dict) -> str:
   <div><span>진입가 · 격리 {h.get('leverage', 3)}배</span><b>{fpx(h.get('entry') or h.get('limit'))}</b></div>
   <div><span>현재가</span><b>{fpx(h.get('now'))}</b></div>
   <div><span>목표가 (TP)</span><b>{fpx(h['tp'])}</b></div>
-  <div><span>손절가 (SL)</span><b>{fpx(h['sl'])}</b></div>
+  <div><span>로스값 (SL){' · 본절 이동' if h.get('be_moved') else ''}</span><b>{fpx(h['sl'])}</b></div>
  </div>
  <div class='act'>👉 {esc(pl.get('action'))}</div>
  <div class='why'><b>근거</b> {esc(pl.get('reason'))}</div>
@@ -321,11 +351,18 @@ def coin_pick_html(p: dict, bias: dict) -> str:
 <div class='order'>
  <div class='oh'><div class='onm'>{esc(p['symbol'])} <span>{'🟢 LONG (오르면 수익)' if L else '🔴 SHORT (내리면 수익)'}</span></div>
   <div class='oq'>격리 {o['leverage']}배<small>증거금 {o['margin']:,.0f} USDT · 포지션 {o['notional']:,.0f} USDT · 수량 {o['qty']}</small></div></div>
- <div class='orow buy'><span>① 진입 지정가</span><b>{fpx(o['entry'])}</b><em>현재가보다 {o['off_pct']}% {'아래' if L else '위'} (1시간 평균 변동폭의 약 30%) · 24시간 안에 안 닿으면 취소</em></div>
- <div class='orow tgt'><span>② 목표 익절가 TP ({'+' if L else '-'}2.45%)</span><b>{fpx(o['tp'])}</b><em>레버리지 포함 순수익 약 +7% ≈ {usdt(o['win_usdt'], True)}</em></div>
- <div class='orow stp'><span>③ 자동 손절가 SL ({'-' if L else '+'}1.50%)</span><b>{fpx(o['sl'])}</b><em>레버리지 포함 약 -4.5% ≈ {usdt(o['loss_usdt'], True)} · 진입과 동시에 TP/SL 함께 설정</em></div>
- <div class='orow ddl'><span>④ 시간 정리</span><b>{esc(p['valid_until_kst'])}</b><em>그때까지 ②·③에 안 닿으면 시장가로 정리 (TIME_EXIT)</em></div>
- <div class='ohint'>참고 청산가(격리 {o['leverage']}배): 약 {fpx(o['liq'])} — 손절가가 훨씬 먼저 오므로 손절 주문만 지키면 청산까지 가지 않아요.</div>
+ {tri_html("진입 지정가 (Entry)", fpx(o['entry']), f"현재가보다 {o['off_pct']}% {'아래' if L else '위'} · 24시간 안에 안 닿으면 취소",
+           f"목표 처리값 (TP · {'+' if L else '-'}{o['tp_pct'] if 'tp_pct' in o else 2.45}%)", fpx(o['tp']),
+           f"예상 수익 <b>+약 {o.get('win_krw', 0):,}원</b> · {usdt(o['win_usdt'], True)} (+{o.get('win_roe', 7.0)}%)",
+           f"비상 로스값 (SL · {'-' if L else '+'}{o.get('sl_dist', 1.5):.2f}%)", fpx(o['sl']),
+           f"최대 허용 손실 <b>-약 {abs(o.get('loss_krw', 0)):,}원</b> · {usdt(o['loss_usdt'], True)} (-{o.get('loss_roe', 4.5)}%)")}
+ <div class='orow'><span>로스값 근거</span><b class='sm'>{esc(o.get('sl_basis', ''))}</b>
+  <em>꼬리에 걸려 억울하게 손절되지 않도록 직전 1시간봉 {'저점 아래' if L else '고점 위'}에 두고, 진입가 대비 1.2~1.8% · 3배 손실 -5.5% 이내로 제한</em></div>
+ <div class='orow'><span>바이낸스 입력</span><b class='sm'>격리 · 3x · 지정가 {fpx(o['entry'])} · TP/SL 체크 후 TP {fpx(o['tp'])} / SL {fpx(o['sl'])}</b>
+  <em>SL 트리거는 '마크 가격(Mark)' 기준 권장 · 진입과 동시에 TP/SL을 함께 걸어 두기</em></div>
+ <div class='orow ddl'><span>시간 정리</span><b class='sm'>{esc(p['valid_until_kst'])}</b><em>그때까지 TP·SL에 안 닿으면 시장가로 정리 (TIME_EXIT)</em></div>
+ <div class='be'>🛡 <b>본절 방어 기준가</b> 가격이 <b>{fpx(o.get('be_trigger'))}</b>({'+' if L else '-'}1.2%, 레버리지 수익 +{o.get('be_trigger_roe', 3.6)}%)에 닿으면 SL을 본전 <b>{fpx(o.get('be_price'))}</b>(수수료 포함 본전)로 옮겨 손실 없이 잠그세요.</div>
+ <div class='ohint'>참고 청산가(격리 {o['leverage']}배): 약 {fpx(o['liq'])} — 로스값이 훨씬 먼저 오므로 SL만 지키면 청산까지 가지 않아요.</div>
 </div>"""
 
 
@@ -413,11 +450,11 @@ def write(d: dict, out: Path) -> Path:
     else:
         p3 = "<div class='empty'>오늘은 새로 넣을 예약 주문이 없어요. 보유 종목의 매도 주문만 확인하세요.</div>"
     q = d.get("qqq") or {}
-    parts.append(f"<div class='part'>1부 · 오늘 밤 미국 주식 50만 원 단타 타점<small>1~2거래일 보유 · 목표 +5.0% · 손절 -3.5% · "
+    parts.append(f"<div class='part'>1부 · 오늘 밤 미국 주식 50만 원 단타 타점<small>1~2거래일 보유 · 목표 +5.0% · 로스값 -3.5% 또는 이평선 이탈 · 본절 방어 +2.5% · "
                  f"{esc(open_note)}</small></div><h2>오늘 밤 타점<small>{pick_n}종목 · 나스닥100(QQQ) {pct(q.get('chg1'))}"
                  f"{' · VIX ' + str(d['vix']) if d.get('vix') else ''}</small></h2>{p2}<h2>증권사 앱 예약 주문표</h2>{p3}")
     # ── 2부 바이낸스
-    parts.append(f"<div class='part b'>2부 · 오늘의 바이낸스 3배 레버리지 롱/숏 원픽<small>격리 3배 · 증거금 360 USDT · 24시간 이내 · 목표 +7% / 손절 -4.5% (레버리지 포함)</small></div>"
+    parts.append(f"<div class='part b'>2부 · 오늘의 바이낸스 3배 레버리지 롱/숏 원픽<small>격리 3배 · 증거금 360 USDT · 24시간 이내 · 목표 +7% / 차트 기반 로스값 -3.9~-5.5% (레버리지 포함) · 본절 방어 +3.6%</small></div>"
                  f"{futures_part(fu)}")
     # ── 누적 성적
     rows = "".join(
@@ -440,14 +477,16 @@ def write(d: dict, out: Path) -> Path:
     FR = fu.get("rules") or {}
     parts.append(f"""<h2>규칙과 용어</h2>
 <div class='box'><h3>1부 미국 주식 고정 규칙</h3><ul>
-<li>1회 최대 {R['budget_krw']:,}원 · 목표 +{R['target_pct']}% · 손절 -{R['stop_pct']}% · 최대 {R['max_hold']}거래일 보유</li>
+<li>1회 최대 {R['budget_krw']:,}원 · 목표 +{R['target_pct']}% · 로스값: -{R['stop_pct']}% 또는 5일/20일선 이탈가 중 진입가와 1.5~3.5% 사이의 가까운 값 · 최대 {R['max_hold']}거래일 보유</li>
+<li>본절 방어: 장중 +{R['target_pct'] / 2}%(목표의 절반)에 닿으면 다음 날부터 감시가를 본전(+0.2%)으로 올림 — 자동 판정에도 적용</li>
 <li>동시 보유 최대 {R['max_slots']}종목(예약 포함). 슬롯이 다 차면 신규 매수 보류</li>
 <li>마지막 날: 수익 +2% 이상이면 목표가 유지 후 마감 정리, 5일선 지지면 +2% 약익절, 약하면 본전 탈출, 20일선까지 깨지면 시초가 정리</li>
 <li>예외적 1일 연장: 수익 +2% 이상 + 5일·20일선 위 + 거래량 유지 + RSI 70 미만일 때만, 손절가를 본전으로 올리고 하루 더</li>
 <li>자동 판정: 같은 날 목표가와 손절가에 모두 닿으면 순서를 알 수 없어 손절로 계산(보수적)</li></ul></div>
 <div class='box'><h3>2부 바이낸스 선물 고정 규칙</h3><ul>
 <li>격리(Isolated) {FR.get('leverage', 3)}배 고정 · 1회 증거금 {FR.get('margin_usdt', 360):,.0f} USDT(약 50만 원) · 하루 원픽 1개 · 최대 24시간</li>
-<li>목표 익절 TP: 진입가 대비 ±{FR.get('tp_pct', 2.45)}% (레버리지 포함 수수료 감안 순수익 +{FR.get('win_roe', 7.0)}%) · 손절 SL: ∓{FR.get('sl_pct', 1.5)}% (-{FR.get('loss_roe', 4.5)}%)</li>
+<li>목표 익절 TP: 진입가 대비 ±{FR.get('tp_pct', 2.45)}% (레버리지 포함 수수료 감안 순수익 +{FR.get('win_roe', 7.0)}%) · 로스값 SL: 직전 1시간봉 저점(롱)/고점(숏) 바깥, 진입가 대비 {FR.get('sl_min', 1.2)}~{FR.get('sl_max', 1.8)}% · 3배 손실 최대 -{FR.get('max_loss_roe', 5.5)}%</li>
+<li>본절 방어: 가격이 유리하게 {FR.get('be_trigger_pct', 1.2)}%(레버리지 +3.6%) 움직이면 SL을 본전(수수료 포함)으로 이동 — 자동 판정에도 적용</li>
 <li>방향: 비트코인 4시간봉 추세·24시간 등락 + 나스닥100 선물로 롱 우위/숏 우위를 먼저 정하고, 그 방향 코인만 고릅니다(중립이면 양방향)</li>
 <li>코인 조건 7가지(4시간봉 추세·1시간봉 눌림/반등·캔들·거래량·미결제약정·펀딩비·변동폭) 중 5개 이상 + 추세·변동폭 필수</li>
 <li>자동 판정: 추천 이후 1시간봉으로 진입 → TP/SL 중 먼저 닿은 쪽(같은 봉에서 둘 다면 손절), 24시간 지나면 TIME_EXIT, 예약가 미도달은 NO_FILL</li></ul></div>

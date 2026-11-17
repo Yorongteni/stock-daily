@@ -44,7 +44,8 @@ UA = {"User-Agent": "stock-daily-practice/1.0"}
 
 DEFAULTS = {
     "leverage": 3, "margin_usdt": 360.0, "tp_pct": 2.45, "sl_pct": 1.50, "win_roe": 7.0, "loss_roe": 4.5,
-    "fee_roe": 0.3, "hold_hours": 24, "top_n": 30, "max_open": 2, "min_range24": 3.0, "mmr": 0.5,
+    "fee_roe": 0.3, "hold_hours": 24,
+    "sl_min": 1.2, "sl_max": 1.8, "max_loss_roe": 5.5, "sl_buffer": 0.2, "be_trigger_pct": 1.2, "top_n": 30, "max_open": 2, "min_range24": 3.0, "mmr": 0.5,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
@@ -58,7 +59,7 @@ NAMES = {"BTC": "비트코인", "ETH": "이더리움", "SOL": "솔라나", "BNB"
          "UNI": "유니스왑", "ETC": "이더리움클래식", "HBAR": "헤데라", "WLD": "월드코인", "ONDO": "온도", "HYPE": "하이퍼리퀴드",
          "TAO": "비텐서", "XLM": "스텔라루멘", "BONK": "봉크", "1000BONK": "봉크", "FET": "페치에이아이", "RENDER": "렌더",
          "TRUMP": "트럼프", "VIRTUAL": "버추얼", "PENGU": "펏지펭귄", "KAITO": "카이토", "ZEC": "지캐시", "ASTER": "애스터"}
-RESULT_KO = {"WIN": "목표 달성 익절 (+7%)", "LOSS": "손절 (-4.5%)", "TIME_EXIT": "24시간 경과 정리", "NO_FILL": "미체결 취소",
+RESULT_KO = {"WIN": "목표 달성 익절 (+7%)", "LOSS": "로스값 손절", "BE": "본절 방어 정리 (손실 없음)", "TIME_EXIT": "24시간 경과 정리", "NO_FILL": "미체결 취소",
              "CLOSE": "직접 청산", "CANCEL": "주문 삭제"}
 
 
@@ -284,6 +285,61 @@ def atr_pct(df: pd.DataFrame, n: int = 14) -> float:
     return float(tr.rolling(n).mean().iloc[-1] / c.iloc[-1] * 100)
 
 
+def pivots(df: pd.DataFrame, col: str, bars: int = 36, k: int = 2) -> list:
+    """최근 bars개 1시간봉의 스윙 저점(Low)/고점(High): 양옆 k개 봉보다 낮은(높은) 봉. 최신 것부터."""
+    t = df.tail(bars + k)
+    v = t[col].tolist()
+    out = []
+    for i in range(k, len(v) - k):
+        win = v[i - k:i] + v[i + 1:i + k + 1]
+        if (col == "Low" and v[i] < min(win)) or (col == "High" and v[i] > max(win)):
+            out.append({"price": float(v[i]), "time": iso(t.index[i].to_pydatetime())})
+    # 마지막 k개 봉 안의 극값도 '진행 중 저점/고점'으로 포함
+    tail = v[-k:]
+    j = (tail.index(min(tail)) if col == "Low" else tail.index(max(tail))) + len(v) - k
+    out.append({"price": float(v[j]), "time": iso(t.index[j].to_pydatetime())})
+    return list(reversed(out))
+
+
+def smart_sl(entry: float, side: str, f: dict, cfg: dict, tick: float | None) -> dict:
+    """차트 기반 로스값: 직전 1시간봉 스윙 저점(롱)/고점(숏) 바로 바깥 + 버퍼.
+    진입가 대비 sl_min~sl_max(%) 안으로, 3배 손실(수수료 포함)이 max_loss_roe 를 넘지 않게 자른다."""
+    L = side == "LONG"
+    lev, fee = cfg["leverage"], cfg["fee_roe"]
+    cap = min(cfg["sl_max"], (cfg["max_loss_roe"] - fee) / lev)
+    lo, hi = cfg["sl_min"], cap
+    buf = max(cfg["sl_buffer"], 0.1 * f.get("atr1h", 0))          # 꼬리 여유: 0.2% 또는 1시간 변동폭의 10%
+    pts = f.get("piv_lows" if L else "piv_highs") or []
+    pts = [p for p in pts if (p["price"] < entry if L else p["price"] > entry)]
+    pts.sort(key=lambda p: abs(entry - p["price"]))                  # 진입가에서 가까운 순
+    best, far = None, None
+    for p in pts:
+        lvl = p["price"] * (1 - buf / 100) if L else p["price"] * (1 + buf / 100)
+        d = abs(entry - lvl) / entry * 100
+        if d < lo:
+            continue                                                  # 너무 가까운 지지·저항은 건너뛰고 다음 것
+        if d <= hi:
+            best = (d, f"직전 1시간봉 {'저점' if L else '고점'} {fmt_px(p['price'])}({kst(p['time'], '%d일 %H시')}) "
+                       f"{'아래' if L else '위'} {buf:.2f}% 여유")
+        else:
+            far = p
+        break
+    if best is None:
+        word = "저점" if L else "고점"
+        if far is not None:
+            best = (hi, f"다음 {word} {fmt_px(far['price'])}이 멀어 최대 손실 제한(-{cfg['max_loss_roe']}%)에 맞춘 {hi:.2f}%")
+        elif pts:
+            best = (lo, f"가까운 {word} {fmt_px(pts[-1]['price'])}보다 바깥인 최소 거리 {lo:.2f}%")
+        else:
+            d = min(max(lo, cfg.get("sl_pct", 1.5)), hi)
+            best = (d, f"근처에 뚜렷한 {word}이 없어 기본 거리 {d:.2f}%")
+    d, why = best
+    d = round(min(max(d, lo), hi), 3)
+    sl = rp(entry * (1 - d / 100) if L else entry * (1 + d / 100), tick)
+    d = abs(entry - sl) / entry * 100
+    return {"sl": sl, "dist": round(d, 2), "loss_roe": round(d * lev + fee, 2), "basis": why}
+
+
 def closed(df: pd.DataFrame, hours: int, now: datetime) -> pd.DataFrame:
     """지금 시각 기준 이미 끝난 봉만."""
     return df[df.index + pd.Timedelta(hours=hours) <= pd.Timestamp(now)]
@@ -316,6 +372,8 @@ def coin_feats(src, sym: str, now: datetime) -> dict | None:
         "bull": bool(last.Close > last.Open), "bear": bool(last.Close < last.Open),
         "lower_wick": float((body_lo - last.Low) / rng), "upper_wick": float((last.High - body_hi) / rng),
         "hi24": float(t24["High"].max()), "lo24": float(t24["Low"].min()),
+        "atr1h_abs": float(atr_pct(h1) * c / 100),
+        "piv_lows": pivots(h1, "Low"), "piv_highs": pivots(h1, "High"),
     }
     try:
         f["funding"] = src.funding(sym)
@@ -397,15 +455,17 @@ def _finish(pos: dict, kind: str, price: float | None, at: datetime, reason: str
     if kind == "WIN":
         roe = cfg["win_roe"]
     elif kind == "LOSS":
-        roe = -cfg["loss_roe"]
+        roe = -pos.get("loss_roe", cfg["loss_roe"])
     elif kind in ("NO_FILL", "CANCEL"):
         roe = 0.0
     else:
         roe = roe_of(pos, price, cfg)
+    if abs(roe) < 0.05:
+        roe = 0.0                 # 본절 정리 등 사실상 0 (-0.00% 표시 방지)
     margin = pos.get("margin", cfg["margin_usdt"])
-    pnl = round(margin * roe / 100, 2)
+    pnl = round(margin * roe / 100, 2) + 0.0
     rec = {k: pos.get(k) for k in ("id", "symbol", "name", "direction", "source", "pick_time", "limit", "entry", "entry_time",
-                                   "tp", "sl", "qty", "margin", "leverage")}
+                                   "tp", "sl", "sl0", "qty", "margin", "leverage", "be_moved")}
     rec.update(exit=price, exit_time=iso(at), result=kind, result_ko=RESULT_KO[kind], roe=roe, pnl_usdt=pnl,
                pnl_krw=int(round(pnl * fx)), fx=round(fx, 1), reason=reason)
     log["history"].append(rec)
@@ -451,12 +511,22 @@ def evaluate(src, log: dict, now: datetime, cfg: dict, fx: float) -> list:
             hit_tp = (h >= pos["tp"]) if L else (l <= pos["tp"])
             if hit_sl:
                 both = " (같은 1시간 안에 목표가에도 닿았지만 순서를 알 수 없어 보수적으로 손절로 계산)" if hit_tp else ""
-                _finish(pos, "LOSS", pos["sl"], t1, f"{kst(t0)} 봉에서 손절가 {fmt_px(pos['sl'])}에 닿았어요.{both}", cfg, fx, log, events)
+                if pos.get("be_moved"):
+                    _finish(pos, "BE", pos["sl"], t1, f"본절로 올려 둔 로스값 {fmt_px(pos['sl'])}에 닿아 손실 없이 정리했어요.{both}",
+                            cfg, fx, log, events)
+                else:
+                    _finish(pos, "LOSS", pos["sl"], t1, f"{kst(t0)} 봉에서 로스값 {fmt_px(pos['sl'])}에 닿았어요.{both}", cfg, fx, log, events)
                 break
             if hit_tp and not first:
                 _finish(pos, "WIN", pos["tp"], t1, f"{kst(t0)} 봉에서 목표가 {fmt_px(pos['tp'])}에 닿아 익절했어요.", cfg, fx, log, events)
                 break
             pos["last"] = {"time": iso(t1), "close": c}
+            # 본절 방어: 유리한 쪽으로 be_trigger 에 닿으면 다음 봉부터 로스값을 본전가로 (같은 봉 안 순서는 모르므로)
+            bt = pos.get("be_trigger")
+            if bt and not pos.get("be_moved") and ((h >= bt) if L else (l <= bt)):
+                pos.update(sl0=pos.get("sl0") or pos["sl"], sl=pos["be_price"], be_moved=True)
+                events.append({"type": "be", "symbol": pos["symbol"], "name": pos.get("name"), "direction": pos["direction"],
+                               "price": pos["be_price"], "trigger": bt, "time": iso(t0)})
         if pos["status"] == "CLOSED":
             continue
         if now >= end:
@@ -481,9 +551,9 @@ def plan_open(pos: dict, price: float, now: datetime, cfg: dict) -> dict:
         return {"action": f"예약 {'매수' if L else '매도'} {fmt_px(pos['limit'])} 유지 · {kst(end)}까지 안 닿으면 취소",
                 "price": pos["limit"], "kind": "wait", "left": left, "move": round(mv, 2),
                 "reason": "아직 진입가에 닿지 않았어요. 추격 진입은 하지 않습니다."}
-    if mv >= 1.2:
-        be = rp(pos["entry"] * (1 + 0.1 / 100 * sign))
-        pos["sl"] = be
+    if pos.get("be_moved") or mv >= cfg["be_trigger_pct"]:
+        be = pos.get("be_price") or rp(pos["entry"] * (1 + 0.1 / 100 * sign))
+        pos.update(sl0=pos.get("sl0") or pos["sl"], sl=be, be_moved=True)
         return {"action": f"손절가를 본전 {fmt_px(be)}로 옮기고 목표가 {fmt_px(pos['tp'])} 유지", "price": pos["tp"], "kind": "good",
                 "left": left, "move": round(mv, 2),
                 "reason": f"가격 기준 {mv:+.2f}%(수익률 {mv * pos['leverage']:+.1f}%) 앞서 있어 이익을 지키는 쪽으로 손절선을 올립니다."}
@@ -497,18 +567,30 @@ def plan_open(pos: dict, price: float, now: datetime, cfg: dict) -> dict:
 
 
 # ───────────────────────── 3) 원픽 ─────────────────────────
-def make_order(f: dict, side: str, cfg: dict, tick: float | None) -> dict:
+def be_levels(entry: float, side: str, cfg: dict, tick: float | None = None) -> tuple[float, float]:
+    """(본절 방어 발동가, 본전 로스값). 본전가는 왕복 수수료(가격 0.1%)만큼 유리한 쪽 → 닿아도 손익 0."""
+    L = side == "LONG"
+    t = cfg["be_trigger_pct"] / 100
+    fee_px = cfg["fee_roe"] / cfg["leverage"] / 100
+    return (rp(entry * (1 + t) if L else entry * (1 - t), tick), rp(entry * (1 + fee_px) if L else entry * (1 - fee_px), tick))
+
+
+def make_order(f: dict, side: str, cfg: dict, tick: float | None, fx: float = 1400.0) -> dict:
     L = side == "LONG"
     c = f["close"]
     off = min(0.8, max(0.15, 0.3 * f["atr1h"]))          # 1시간 평균 변동폭의 약 30% 유리한 자리
     entry = rp(c * (1 - off / 100) if L else c * (1 + off / 100), tick)
     tp = rp(entry * (1 + cfg["tp_pct"] / 100) if L else entry * (1 - cfg["tp_pct"] / 100), tick)
-    sl = rp(entry * (1 - cfg["sl_pct"] / 100) if L else entry * (1 + cfg["sl_pct"] / 100), tick)
+    ss = smart_sl(entry, side, f, cfg, tick)
     lev, mg = cfg["leverage"], cfg["margin_usdt"]
     liq = rp(entry * (1 - 1 / lev + cfg["mmr"] / 100) if L else entry * (1 + 1 / lev - cfg["mmr"] / 100), tick)
-    return {"entry": entry, "off_pct": round(off, 2), "tp": tp, "sl": sl, "liq": liq, "leverage": lev, "margin": mg,
-            "notional": round(mg * lev, 2), "qty": qty_for(mg * lev, entry),
-            "win_usdt": round(mg * cfg["win_roe"] / 100, 2), "loss_usdt": round(-mg * cfg["loss_roe"] / 100, 2)}
+    bt, bp = be_levels(entry, side, cfg, tick)
+    win, loss = round(mg * cfg["win_roe"] / 100, 2), round(-mg * ss["loss_roe"] / 100, 2)
+    return {"entry": entry, "off_pct": round(off, 2), "tp": tp, "tp_pct": cfg["tp_pct"], "sl": ss["sl"], "sl_dist": ss["dist"], "sl_basis": ss["basis"],
+            "loss_roe": ss["loss_roe"], "win_roe": cfg["win_roe"], "liq": liq, "leverage": lev, "margin": mg,
+            "notional": round(mg * lev, 2), "qty": qty_for(mg * lev, entry), "fx": round(fx, 1),
+            "win_usdt": win, "loss_usdt": loss, "win_krw": int(round(win * fx)), "loss_krw": int(round(loss * fx)),
+            "be_trigger": bt, "be_price": bp, "be_trigger_roe": round(cfg["be_trigger_pct"] * lev, 1)}
 
 
 def story(f: dict, side: str, o: dict, bias: dict) -> list[str]:
@@ -527,8 +609,8 @@ def story(f: dict, side: str, o: dict, bias: dict) -> list[str]:
     if f.get("funding") is not None:
         extra.append(f"펀딩비 {f['funding']:+.4f}%")
     extra.append(f"최근 3시간 거래량 평소의 {f['vol_ratio']:.1f}배")
-    c = (f"{' · '.join(extra)}. 진입가 {fmt_px(o['entry'])}에서 {'+' if L else '-'}2.45%면 목표, "
-         f"{'-' if L else '+'}1.50%면 미련 없이 손절합니다.")
+    c = (f"{' · '.join(extra)}. 진입가 {fmt_px(o['entry'])}에서 {'+' if L else '-'}2.45%면 목표, 로스값은 "
+         f"{o['sl_basis']}인 {fmt_px(o['sl'])}({'-' if L else '+'}{o['sl_dist']:.2f}%)이고, 닿으면 미련 없이 정리합니다.")
     return [a, b, c]
 
 
@@ -544,6 +626,9 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     log["positions"] = [p for p in log["positions"]
                         if not (p["status"] == "PENDING" and p.get("pick_date") == today and p.get("source") == "auto")]
     print("[B2] 지난 추천·보유 판정")
+    for p in log["positions"]:          # 로스값 규칙 보강 전에 만든 포지션에도 본절 방어가를 채워 둔다
+        if not p.get("be_trigger"):
+            p["be_trigger"], p["be_price"] = be_levels(p.get("entry") or p["limit"], p["direction"], cfg)
     events = evaluate(src, log, now, cfg, fx)
     prev = log.get("last_events") or {}
     if prev.get("date") == today:
@@ -621,7 +706,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     else:
         r = ok[0]
         f = feats[r["symbol"]]
-        o = make_order(f, r["side"], cfg, tick(r["symbol"]))
+        o = make_order(f, r["side"], cfg, tick(r["symbol"]), fx)
         pick = {**{k: v for k, v in f.items() if k != "spark"}, "side": r["side"], "score": r["score"], "checks": r["checks"],
                 "order": o, "story": story(f, r["side"], o, bias), "spark": f["spark"]}
         end = now + timedelta(hours=cfg["hold_hours"])
@@ -630,6 +715,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
             "id": f"{today}-{r['symbol']}", "symbol": r["symbol"], "name": f["name"], "direction": r["side"], "source": "auto",
             "status": "PENDING", "pick_date": today, "pick_time": iso(now), "limit": o["entry"], "tp": o["tp"], "sl": o["sl"],
             "qty": o["qty"], "margin": o["margin"], "leverage": o["leverage"], "hold_hours": cfg["hold_hours"], "liq": o["liq"],
+            "loss_roe": o["loss_roe"], "sl_basis": o["sl_basis"], "be_trigger": o["be_trigger"], "be_price": o["be_price"],
         })
         print(f"  ✓ {r['symbol']} {r['side']} 진입 {o['entry']} / TP {o['tp']} / SL {o['sl']}")
     near = [r for r in ranked if not (pick and r["symbol"] == pick["symbol"] and r["side"] == pick["side"])][:4]
@@ -708,7 +794,11 @@ def manual(action: str, sym: str, direction: str, price: float | None, qty: str 
                  tp=rp(price * (1 + cfg["tp_pct"] / 100) if L else price * (1 - cfg["tp_pct"] / 100)),
                  sl=rp(price * (1 - cfg["sl_pct"] / 100) if L else price * (1 + cfg["sl_pct"] / 100)),
                  liq=rp(price * (1 - 1 / cfg["leverage"] + cfg["mmr"] / 100) if L else price * (1 + 1 / cfg["leverage"] - cfg["mmr"] / 100)))
+        bt, bp = be_levels(price, d, cfg)
+        p.update(loss_roe=round(cfg["sl_pct"] * cfg["leverage"] + cfg["fee_roe"], 2), be_trigger=bt, be_price=bp, be_moved=False,
+                 sl_basis=f"수동 입력 기본 {cfg['sl_pct']}%")
         p.pop("plan", None)
+        p.pop("sl0", None)
         msg = (f"{sym} {('🟢 LONG' if L else '🔴 SHORT')} {fmt_px(price)} 진입 반영 · 증거금 {margin:,.2f} USDT · 수량 {q} "
                f"(목표 {fmt_px(p['tp'])} / 손절 {fmt_px(p['sl'])} / {kst(now + timedelta(hours=cfg['hold_hours']))} 시간 정리)")
     elif act == "CLOSE":

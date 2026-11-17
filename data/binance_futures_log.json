@@ -19,8 +19,9 @@
    "hold_hours": 24,
    "liq": 1.29473,
    "entry": 0.9747,
-   "entry_time": "2026-11-17T23:32:41Z",
-   "checked_to": null
+   "entry_time": "2026-11-17T15:15:39Z",
+   "checked_to": null,
+   "note": "실제 진입: 18시 브리핑 원픽 안내(11/18 00:15 KST) 직후 0.9747"
   }
  ],
  "history": [],

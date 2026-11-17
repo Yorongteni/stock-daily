@@ -6,7 +6,7 @@
        보유(HOLDING)      → 고가 ≥ 매도가면 익절, 저가 ≤ 손절가면 손절, 기한이면 종가 정리
   2) 남은 보유 종목의 '오늘 밤 대응 작전'(탈출 지정가 / 종가 정리 / 시초가 정리 / 1일 연장)
   3) 빈 슬롯만큼 오늘 밤 신규 타점 1~2개 (하루 변동폭 3.5% 이상 + 눌림목 반등형 / 모멘텀 돌파형)
-  4) 50만 원 예산 → 정수 주식 수, 예약 매수가·목표가(+5%)·손절가(-3.5%)
+  4) 50만 원 예산 → 정수 주식 수, 예약 매수가·목표가(+5%)·로스값(-3.5% 또는 5일/20일선 이탈가)·본절 방어가
   5) data/trade_history.json 누적 성적 + docs/swing/ 리포트
 
 사용법:
@@ -257,6 +257,12 @@ def step(pos: dict, d: str, bar: pd.Series, fx: float, hist: list, events: list)
                    "STOP" if stop < pos["entry"] else None)
     elif h >= sell:
         _close_pos(pos, sell, d, f"장중 고가 ${h:.2f}가 매도가 ${sell:.2f}에 닿아 팔렸어요.", fx, hist, events, "WIN" if tgt else None)
+    elif (pos.get("be_trigger") and not pos.get("be_moved") and h >= pos["be_trigger"]
+          and not (last_day or mode == "loc")):
+        # 본절 방어: 장중 목표의 절반에 닿았으면 다음 날부터 로스값(감시가)을 본전가로 올림
+        pos.update(stop0=pos.get("stop0") or pos["stop"], stop=max(pos["stop"], pos["be_price"]), be_moved=True)
+        events.append({"type": "be", "ticker": pos["ticker"], "name": pos.get("name"), "date": d,
+                       "price": pos["be_price"], "trigger": pos["be_trigger"]})
     elif last_day or mode == "loc":
         why = "작전대로 장 마감(LOC)에 전량 정리했어요." if mode == "loc" else             f"보유 기한({pos['held']}거래일{', 1일 연장 포함' if pos.get('ext_used') else ''})이 끝나 종가에 전량 정리했어요."
         _close_pos(pos, c, d, why, fx, hist, events)
@@ -370,6 +376,31 @@ def screen(data: dict[str, pd.DataFrame], names: dict, cfg: dict, fx: float, hel
     return picks, near[:3]
 
 
+def smart_stop(entry: float, f: dict, cfg: dict) -> dict:
+    """로스값: 진입가 -3.5% 또는 5일/20일 이동평균선 이탈가(선 아래 0.5%) 중,
+    진입가와 1.5%~3.5% 사이에 있는 가장 가까운(높은) 가격. 없으면 -3.5% 고정."""
+    base = r2(entry * (1 - cfg["stop_pct"] / 100))
+    cands = []
+    for key, nm in (("ma5", "5일선"), ("ma20", "20일선")):
+        ma = f.get(key)
+        if not ma or ma != ma or ma >= entry:
+            continue
+        lvl = r2(ma * 0.995)
+        d = (entry - lvl) / entry * 100
+        if 1.5 <= d <= cfg["stop_pct"]:
+            cands.append((lvl, d, f"{nm} ${ma:.2f} 이탈가 (선 아래 0.5%)"))
+    if cands:
+        lvl, d, why = max(cands)
+        return {"stop": lvl, "pct": round(d, 2), "basis": why}
+    mas = ", ".join(f"{n} ${f[k]:.2f}" for k, n in (("ma5", "5일선"), ("ma20", "20일선")) if f.get(k))
+    return {"stop": base, "pct": cfg["stop_pct"], "basis": f"진입가 -{cfg['stop_pct']}% 고정" + (f" ({mas}는 너무 가깝거나 멀어요)" if mas else "")}
+
+
+def be_levels(entry: float, cfg: dict) -> tuple[float, float]:
+    """(본절 방어 발동가 = 목표의 절반, 본전 로스값 = 진입가 +0.2% 수수료 여유)."""
+    return r2(entry * (1 + cfg["target_pct"] / 200)), r2(entry * 1.002)
+
+
 def make_order(f: dict, cfg: dict, fx: float, sess: dict) -> dict:
     if f["kind"] == "pullback":
         dip = min(2.0, max(0.8, 0.35 * f["atr_pct"]))
@@ -380,11 +411,15 @@ def make_order(f: dict, cfg: dict, fx: float, sess: dict) -> dict:
     limit = r2(f["close"] * (1 - dip / 100))
     qty = max(0, math.floor(cfg["budget_krw"] / (limit * fx)))
     target = r2(limit * (1 + cfg["target_pct"] / 100))
-    stop = r2(limit * (1 - cfg["stop_pct"] / 100))
+    ss = smart_stop(limit, f, cfg)
+    stop = ss["stop"]
+    be_t, be_p = be_levels(limit, cfg)
     return {
         "limit": limit, "dip_pct": round(dip, 1), "limit_why": why, "qty": qty,
         "cost_usd": r2(limit * qty), "cost_krw": int(round(limit * qty * fx)),
-        "target": target, "stop": stop,
+        "target": target, "stop": stop, "stop_pct": ss["pct"], "stop_basis": ss["basis"],
+        "gain_usd": r2((target - limit) * qty), "loss_usd": r2((stop - limit) * qty),
+        "be_trigger": be_t, "be_price": be_p,
         "gain_krw": int(round((target - limit) * qty * fx)), "loss_krw": int(round((stop - limit) * qty * fx)),
         "deadline": f"{sess['next_date'][5:].replace('-', '/')} 미국장 마감 (한국 {sess['next_close_kst']})",
     }
@@ -404,7 +439,7 @@ def pick_story(f: dict, o: dict, news: list) -> list[str]:
     if news:
         b += f" 관련 뉴스: “{news[0]['title'][:70]}”"
     c = (f"하루 평균 {f['atr_pct']:.1f}%씩 움직이는 종목이라 +5%는 하루~이틀이면 닿을 수 있는 거리예요. "
-         f"대신 ${o['stop']:.2f}(-3.5%) 아래로 밀리면 미련 없이 정리합니다.")
+         f"대신 로스값 ${o['stop']:.2f}(-{o['stop_pct']}%, {o['stop_basis']}) 아래로 밀리면 미련 없이 정리합니다.")
     return [a, b, c]
 
 
@@ -553,7 +588,8 @@ def run(today: str, cfg_all: dict, out: Path) -> dict:
         port["positions"].append({
             "id": f"{today}-{f['ticker']}", "ticker": f["ticker"], "name": f["name"], "source": "auto",
             "status": "PENDING", "order_date": today, "session_date": sess["date"], "kind": f["kind"],
-            "limit": o["limit"], "qty": o["qty"], "target": o["target"], "stop": o["stop"],
+            "limit": o["limit"], "qty": o["qty"], "target": o["target"], "stop": o["stop"], "stop_basis": o["stop_basis"],
+            "be_trigger": o["be_trigger"], "be_price": o["be_price"],
             "max_hold": cfg["max_hold"], "fx_at_order": round(fx, 1), "last_bar": f["date"],
         })
         print(f"  ✓ {f['ticker']} {f['kind']} 예약 ${o['limit']} × {o['qty']}주")
@@ -628,7 +664,10 @@ def manual(action: str, ticker: str, price: float | None, qty: int | None, cfg_a
             fresh = True
         else:
             fresh = p["status"] == "PENDING"
-        p.update(source="manual", qty=int(qty), entry=r2(price), target=target, stop=stop, note=tag)
+        be_t, be_p = be_levels(price, cfg)
+        p.update(source="manual", qty=int(qty), entry=r2(price), target=target, stop=stop, note=tag,
+                 be_trigger=be_t, be_price=be_p, be_moved=False, stop_basis=f"진입가 -{cfg['stop_pct']}% (수동 입력)")
+        p.pop("stop0", None)
         p.pop("plan", None)
         if fresh:      # 새로 체결된 것으로 보고, 그날 일봉부터 보유 일수를 셈
             p.update(status="HOLDING", entry_date=sess, session_date=sess, held=0, skip_first=True,
