@@ -415,25 +415,59 @@ def slide_html(s: Slide, i: int, n: int, date: str, slot: str, font: str, discla
         cfg = json.dumps(s.chart, ensure_ascii=False)
         for k, fn in TICKS.items():
             cfg = cfg.replace(f'"{k}"', fn)
-        script = (f"<script src='{CHART_CDN}'></script><script>Chart.defaults.font.family='{font}';Chart.defaults.color='#3A4652';"
+        # set_content 는 같은 문서에 이어 쓰므로, 슬라이드마다 변수 범위를 분리하고 완료 표시를 초기화한다
+        script = (f"<script>{_chart_js()}</script>"
+                  + f"<script>window.__done=0;(function(){{Chart.defaults.font.family='{font}';Chart.defaults.color='#3A4652';"
                   f"const cfg={cfg};cfg.options=Object.assign({{responsive:true,maintainAspectRatio:false,animation:false}},cfg.options);"
-                  f"new Chart(document.getElementById('c'),cfg);window.__done=1;</script>")
+                  f"const ch=new Chart(document.getElementById('c'),cfg);ch.resize();"
+                  f"requestAnimationFrame(()=>requestAnimationFrame(()=>{{ch.update('none');window.__done=1}}));}})();</script>")
     else:
         script = "<script>window.__done=1</script>"
     return (f"<!doctype html><html lang='ko'><head><meta charset='utf-8'><style>{CSS.replace('__FONT__', font)}</style></head>"
             f"<body class='{cls}'>{body}{script}</body></html>")
 
 
+_CHART_JS = None
+
+
+def _chart_js() -> str:
+    """Chart.js 를 한 번만 받아 슬라이드 HTML 안에 직접 넣는다 (슬라이드마다 인터넷에서 받다가 실패하는 일 방지)."""
+    global _CHART_JS
+    if _CHART_JS is None:
+        import os
+        import time
+        import urllib.request
+        local = os.environ.get("CHARTJS_PATH")
+        if local and Path(local).exists():
+            _CHART_JS = Path(local).read_text(encoding="utf-8")
+        else:
+            for i in range(3):
+                try:
+                    with urllib.request.urlopen(urllib.request.Request(CHART_CDN, headers={"User-Agent": "Mozilla/5.0"}), timeout=30) as r:
+                        _CHART_JS = r.read().decode("utf-8")
+                    break
+                except Exception as e:  # noqa: BLE001
+                    print(f"  Chart.js 받기 재시도 {i + 1}: {e}")
+                    time.sleep(3 * (2 ** i))
+            else:
+                _CHART_JS = ""
+        _CHART_JS = _CHART_JS.replace("</script", r"<\/script")
+    return _CHART_JS
+
+
 def render(slides: list[Slide], browser, work: Path, date: str, slot: str, font: str, disclaimer: str) -> list[Path]:
     page = browser.new_page(viewport={"width": 1920, "height": 1080})
+    js = _chart_js()
+    if not js:
+        print("  ✗ Chart.js 를 받지 못해 차트 없이 글자 화면만 만듭니다.")
     out = []
     for i, s in enumerate(slides, 1):
-        page.set_content(slide_html(s, i, len(slides), date, slot, font, disclaimer), wait_until="networkidle")
+        page.set_content(slide_html(s, i, len(slides), date, slot, font, disclaimer), wait_until="load")
         try:
-            page.wait_for_function("window.__done === 1", timeout=15000)
-        except Exception:  # noqa: BLE001  차트 라이브러리를 못 받아도 글자 화면은 남긴다
-            pass
-        page.wait_for_timeout(150)
+            page.wait_for_function("window.__done === 1", timeout=10000)
+        except Exception as e:  # noqa: BLE001  차트를 못 그려도 글자 화면은 남긴다
+            print(f"  ✗ 슬라이드 {i} 차트 그리기 실패: {e}")
+        page.wait_for_timeout(700)      # 차트가 크기 조정 후 다시 그려질 때까지
         p = work / f"vslide_{i:02d}.png"
         page.screenshot(path=str(p))
         out.append(p)
