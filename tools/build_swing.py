@@ -92,6 +92,16 @@ EXTRA_CSS = """<style>
 .ev3 .e{background:#fff;border-radius:18px;padding:22px 32px;border-left:14px solid #8793A0;font-size:38px;line-height:1.35}
 .ev3 .e.good{border-left-color:#1E8E3E}.ev3 .e.risk{border-left-color:#C5221F}.ev3 .e small{display:block;font-size:28px;color:#5C6875}
 .up{color:#1E8E3E}.dn{color:#C5221F}
+.tk3{display:flex;flex-direction:column;gap:16px;height:100%}
+.tk3 .top{display:flex;justify-content:space-between;align-items:center;background:#16202A;color:#fff;border-radius:20px;padding:16px 30px}
+.tk3 .top b{font-size:44px;font-weight:900}.tk3 .top span{font-size:30px;color:#C3CCD6}
+.tri3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;flex:1}
+.tri3 div{border-radius:22px;border:6px solid #DDE3E9;background:#fff;padding:20px 24px;display:flex;flex-direction:column;justify-content:center}
+.tri3 span{font-size:30px;font-weight:800;color:#5C6875}.tri3 b{font-size:64px;font-weight:900;line-height:1.15;margin:6px 0}
+.tri3 em{font-style:normal;font-size:30px;font-weight:800;line-height:1.3}.tri3 small{display:block;font-size:24px;font-weight:600;color:#5C6875}
+.tri3 .en{border-color:#16202A}.tri3 .tp{border-color:#1E8E3E;background:#F3FAF5}.tri3 .tp b,.tri3 .tp em{color:#1E8E3E}
+.tri3 .sl{border-color:#E8710A;background:#FFF6EE}.tri3 .sl b,.tri3 .sl em{color:#E8710A}
+.tk3 .tip{background:#EEF4FF;border-radius:16px;padding:14px 26px;font-size:28px;line-height:1.35}.tk3 .tip b{color:#1F5FBF}
 </style>"""
 
 
@@ -179,18 +189,32 @@ def coin_slides(fu: dict) -> list:
                       [vs.first(x) for x in p["story"]], ("good" if L else "risk", f"{sd} · 격리 3배"),
                       chart=coin_chart(p["spark"], [("진입", o["entry"], "#1F5FBF"), ("목표", o["tp"], "#1E8E3E"), ("손절", o["sl"], "#C5221F")])))
     from pricefmt import kst
-    body = (EXTRA_CSS + f"<div class='ord'><div class='oh'><div class='on'>{p['symbol']} <span>{'🟢 LONG' if L else '🔴 SHORT'} · 격리 {o['leverage']}배</span></div>"
-            f"<div class='oq'>{o['margin']:,.0f} USDT<small>수량 {o['qty']} · 포지션 {o['notional']:,.0f} USDT</small></div></div>"
-            f"<div class='or b'><span>① 진입 지정가<em>현재가보다 {o['off_pct']}% {'아래' if L else '위'}</em></span><b>{fpx(o['entry'])}</b></div>"
-            f"<div class='or t'><span>② 목표 익절가 ({'+' if L else '-'}2.45%)<em>순수익 약 +7% · {o['win_usdt']:+.1f} USDT</em></span><b>{fpx(o['tp'])}</b></div>"
-            f"<div class='or s'><span>③ 자동 손절가 ({'-' if L else '+'}1.50%)<em>약 -4.5% · {o['loss_usdt']:+.1f} USDT</em></span><b>{fpx(o['sl'])}</b></div>"
-            f"<div class='or d'><span>④ 시간 정리</span><b>{kst(p['valid_until'])}</b></div></div>")
+    sg, sgo = ("+", "-") if L else ("-", "+")
+    body = tri3(f"{p['symbol']} {'🟢 LONG' if L else '🔴 SHORT'} · 격리 {o['leverage']}배",
+                f"증거금 {o['margin']:,.0f} USDT · 수량 {o['qty']} · {kst(p['valid_until'])} 시간 정리",
+                ("① 진입 지정가", fpx(o["entry"]), "Entry", f"현재가보다 {o['off_pct']}% {'아래' if L else '위'}"),
+                (f"② 처리값 TP ({sg}{o.get('tp_pct', 2.45)}%)", fpx(o["tp"]), f"+약 {o.get('win_krw', 0):,}원", f"{o['win_usdt']:+.1f} USDT · +{o.get('win_roe', 7)}%"),
+                (f"③ 비상 로스값 SL ({sgo}{o.get('sl_dist', 1.5):.2f}%)", fpx(o["sl"]), f"-약 {abs(o.get('loss_krw', 0)):,}원",
+                 f"{o['loss_usdt']:+.1f} USDT · -{o.get('loss_roe', 4.5)}%"),
+                f"🛡 <b>본절 방어</b> {fpx(o.get('be_trigger'))}({sg}1.2%, 레버리지 +{o.get('be_trigger_roe', 3.6)}%) 도달 시 SL을 본전 <b>{fpx(o.get('be_price'))}</b>로 이동"
+                f"<br><small>로스값 근거: {html.escape(o.get('sl_basis', ''))}</small>")
     narr = (f"{nm} {sd} 주문표입니다. 바이낸스 선물에서 격리, 3배로 설정하고 증거금 360 테더를 넣습니다. "
-            f"첫째, 진입 지정가는 {fpx(o['entry'])}달러입니다. 둘째, 목표 익절가는 {fpx(o['tp'])}달러, 레버리지 포함 약 7% 수익입니다. "
-            f"셋째, 손절가는 {fpx(o['sl'])}달러, 약 4.5% 손실에서 끊습니다. 진입과 동시에 목표가와 손절가를 함께 걸어 두세요. "
-            f"넷째, 24시간 안에 둘 다 안 닿으면 {kst(p['valid_until'], '%d일 %H시')}에 정리합니다.")
+            f"첫째, 진입 지정가는 {fpx(o['entry'])}달러입니다. "
+            f"둘째, 목표 처리값은 {fpx(o['tp'])}달러, 닿으면 약 {say_won(o.get('win_krw', 0))}, {o['win_usdt']:.1f} 테더 수익입니다. "
+            f"셋째, 비상 로스값은 {fpx(o['sl'])}달러입니다. {o.get('sl_basis', '')} 자리라 꼬리에 걸려 억울하게 손절될 일이 적고, "
+            f"닿으면 최대 {say_won(abs(o.get('loss_krw', 0)))}, {abs(o['loss_usdt']):.1f} 테더 손실로 끝납니다. "
+            f"진입과 동시에 목표가와 로스값을 함께 걸어 두세요. "
+            f"가격이 {fpx(o.get('be_trigger'))}달러까지 유리하게 오면, 로스값을 본전인 {fpx(o.get('be_price'))}달러로 옮겨 손실 없이 잠그세요. "
+            f"24시간 안에 둘 다 안 닿으면 {kst(p['valid_until'], '%d일 %H시')}에 정리합니다.")
     S.append(vs.Slide("2부 · 바이낸스 선물 주문표", "바이낸스 앱에 이대로 입력하세요", narr, [], ("good" if L else "risk", f"{sd} · 360 USDT"), body_html=body))
     return S
+
+
+def tri3(top_l, top_r, en, tp, sl, tip) -> str:
+    """주문표 슬라이드: ① 진입 ② 처리값(TP) ③ 비상 로스값(SL) 나란히 + 본절 방어 팁."""
+    cell = lambda k, x: f"<div class='{k}'><span>{x[0]}</span><b>{x[1]}</b><em>{x[2]}</em><small>{x[3]}</small></div>"
+    return (EXTRA_CSS + f"<div class='tk3'><div class='top'><b>{top_l}</b><span>{top_r}</span></div><div class='tri3'>"
+            + cell("en", en) + cell("tp", tp) + cell("sl", sl) + f"</div><div class='tip'>{tip}</div></div>")
 
 
 def build(d: dict) -> list:
@@ -312,16 +336,19 @@ def build(d: dict) -> list:
                                                             ("손절", o["stop"], "#C5221F")])))
         for p in picks:
             o, nm = p["order"], p["name"]
-            body = (EXTRA_CSS + f"<div class='ord'><div class='oh'><div class='on'>{html.escape(nm)} <span>({p['ticker']})</span></div>"
-                    f"<div class='oq'>{o['qty']}주<small>약 ${o['cost_usd']:,.0f} · {o['cost_krw']:,}원</small></div></div>"
-                    f"<div class='or b'><span>① 예약 매수 지정가<em>전일 종가 대비 -{o['dip_pct']}%</em></span><b>${o['limit']:.2f}</b></div>"
-                    f"<div class='or t'><span>② 목표 익절가 (+5.0%)<em>체결 즉시 자동 매도 걸기</em></span><b>${o['target']:.2f}</b></div>"
-                    f"<div class='or s'><span>③ 손절·비상 탈출가 (-3.5%)<em>감시(스톱) 주문</em></span><b>${o['stop']:.2f}</b></div>"
-                    f"<div class='or d'><span>④ 최대 보유 기한</span><b>{html.escape(o['deadline'].split(' (')[0])}</b></div></div>")
+            body = tri3(f"{html.escape(nm)} ({p['ticker']}) · {o['qty']}주", f"약 ${o['cost_usd']:,.0f} · {o['cost_krw']:,}원",
+                        ("① 예약 매수 지정가", f"${o['limit']:.2f}", "Entry", f"전일 종가 대비 -{o['dip_pct']}%"),
+                        ("② 처리값 TP (+5.0%)", f"${o['target']:.2f}", f"+약 {o['gain_krw']:,}원", f"+${o['gain_usd']:,.2f}"),
+                        (f"③ 비상 로스값 SL (-{o['stop_pct']}%)", f"${o['stop']:.2f}", f"-약 {abs(o['loss_krw']):,}원", f"-${abs(o['loss_usd']):,.2f}"),
+                        f"🛡 <b>본절 방어</b> ${o['be_trigger']:.2f}(+2.5%) 도달 시 감시가를 본전 <b>${o['be_price']:.2f}</b>로 · "
+                        f"자동감시 주문: 감시가 ${o['stop']:.2f} 이하 시장가 매도<br><small>로스값 근거: {html.escape(o['stop_basis'])}</small>")
             narr = (f"{nm} 예약 주문표입니다. 수량은 {o['qty']}주, 예상 금액은 {say_won(o['cost_krw'])}입니다. "
-                    f"첫째, 예약 매수 지정가는 {say_usd(o['limit'])}입니다. 둘째, 체결되면 바로 목표 익절가 {say_usd(o['target'])}에 매도를 걸어 두세요. "
-                    f"셋째, 손절 기준가는 {say_usd(o['stop'])}입니다. 이 가격 아래로 밀리면 미련 없이 정리합니다. "
-                    f"넷째, 최대 보유 기한은 내일 밤 미국장 마감까지입니다. 그때까지 목표가에 안 닿으면 장 마감에 정리합니다.")
+                    f"첫째, 예약 매수 지정가는 {say_usd(o['limit'])}입니다. "
+                    f"둘째, 체결되면 바로 목표 처리값 {say_usd(o['target'])}에 매도를 걸어 두세요. 닿으면 {say_won(o['gain_krw'])} 수익입니다. "
+                    f"셋째, 비상 로스값은 {say_usd(o['stop'])}, {o['stop_basis']}입니다. 증권사 앱의 자동감시 주문에 이 가격을 감시가로 넣어 두세요. "
+                    f"닿으면 최대 {say_won(abs(o['loss_krw']))} 손실로 끝납니다. "
+                    f"주가가 {say_usd(o['be_trigger'])}까지 오르면 감시가를 본전인 {say_usd(o['be_price'])}로 올려 손실 없이 잠그세요. "
+                    f"최대 보유 기한은 내일 밤 미국장 마감까지입니다.")
             S.append(vs.Slide("1부 · 미국 주식 예약 주문표", "증권사 앱에 이대로 입력하세요", narr, [], ("info", f"{o['qty']}주 · 50만 원 이내"), body_html=body))
     else:
         near = d.get("near") or []
