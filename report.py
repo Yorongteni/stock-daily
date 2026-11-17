@@ -275,7 +275,8 @@ footer{margin-top:44px;font-size:12px;color:var(--sub);border-top:1px solid var(
 <div class="wrap" id="app"></div>
 <script>
 const DATA = __DATA__;
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const bp2pp = s => String(s ?? "").replace(/([+\-−]?)(\d+(?:\.\d+)?)\s?bp(?![A-Za-z])/g, (m, g, n) => (g === "−" ? "-" : g) + (Number(n) / 100).toFixed(2) + "%p");
+const esc = s => bp2pp(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cls = v => v == null ? "flat" : v > 0 ? "up" : v < 0 ? "down" : "flat";
 const pct = (v, d = 2) => v == null ? "–" : (v > 0 ? "+" : "") + Number(v).toFixed(d) + "%";
 const bp = v => v == null ? "–" : (v > 0 ? "+" : "") + (v / 100).toFixed(2) + "%p";
@@ -328,7 +329,8 @@ let h = "";
 // ── 머리말 ──
 h += `<header><div><span class="kicker">${esc(DATA.slot_name)} · ${esc(DATA.today)}</span>
 <h1>${esc(V.headline || "오늘의 시장 브리핑")}</h1></div>
-<div class="meta">데이터 수집 ${esc(DATA.collected_at)} KST · ${RB ? "정량 판단(AI 없음)" : "AI 분석 반영"}
+<div class="meta">데이터 수집 ${esc(DATA.collected_at)} KST · ${RB ? "데이터 기반 요약(AI 해설 지연)" : "AI 분석 반영"}
+  <br><span class="k">수치 기준: ${A.kospi ? `코스피 ${esc(A.kospi.date.slice(5).replace("-", "/"))} 종가` : ""}${A.spx ? ` · 미국 ${esc(A.spx.date.slice(5).replace("-", "/"))} 종가` : ""} (리포트 전체 같은 기준)</span>
   <nav class="nav">${DATA.prev ? `<a href="report_${esc(DATA.prev)}.html">← 이전 브리핑</a>` : ""}
   <a href="#sec-conclusion">결론 바로 보기</a><a href="archive.html">지난 리포트 전체</a></nav></div></header>`;
 

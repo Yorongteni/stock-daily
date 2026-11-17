@@ -227,8 +227,8 @@ def render_slides(d: Daily, work: Path, browser) -> list[Path]:
 # ───────────────────────────── 음성 ─────────────────────────────
 TTS_WORDS = [  # 앵커가 읽는 발음으로 (긴 것부터)
     (r"10Y-2Y", "장단기 금리차"), (r"S&P\s?500", "에스앤피 500"), (r"S&P", "에스앤피"), (r"\bVIX\b", "빅스"),
-    (r"\bEWY\b", "이더블유와이"), (r"\bSOX\b", "필라델피아 반도체 지수"), (r"\bETF\b", "이티에프"), (r"\bPER\b", "퍼"),
-    (r"\bPBR\b", "피비알"), (r"\bROE\b", "로이"), (r"\bRSI\b", "알에스아이"), (r"\bMACD\b", "맥디"), (r"\bTSI\b", "티에스아이"),
+    (r"\bEWY\b", "이더블유와이"), (r"\bSOX\b", "필라델피아 반도체 지수"), (r"\bETF\b", "이티에프"), (r"\bPER\b", "피이알"),
+    (r"\bPBR\b", "피비알"), (r"\bROE\b", "알오이"), (r"\bRSI\b", "알에스아이"), (r"\bMACD\b", "맥디"), (r"\bTSI\b", "티에스아이"),
     (r"\bAI\b", "에이아이"), (r"\bYoY\b", "작년 대비"), (r"\bFOMC\b", "에프오엠씨"), (r"\bCPI\b", "소비자물가"),
     (r"([0-9])\s?%p", r"\1퍼센트포인트"), (r"([0-9])\s?bp", r"\1베이시스포인트"), (r"([0-9])\s?%", r"\1퍼센트"),
     (r"([0-9])\s?σ", r"\1시그마"), (r"\+([0-9])", r"플러스 \1"), (r"(?<![0-9])-([0-9])", r"마이너스 \1"),
@@ -248,15 +248,33 @@ def _signed(m: re.Match) -> str:
     return f"{m.group(2)}{unit} {'상승' if m.group(1) == '+' else '하락'}"
 
 
+def _multi(m: re.Match) -> str:
+    """'1·3·6개월 +7.5%·+9.5%·+10.3%' → '1개월 뒤 7.5% 상승, 3개월 뒤 9.5% 상승, 6개월 뒤에는 10.3% 상승'"""
+    ps = m.group(1).split("·")
+    vs = re.findall(r"([+-]?\d+(?:\.\d+)?)%", m.group(2))
+    if len(ps) != len(vs):
+        return m.group(0)
+    parts = []
+    for i, (pp, vv) in enumerate(zip(ps, vs)):
+        v = float(vv)
+        word = "상승" if v > 0 else "하락" if v < 0 else "보합"
+        parts.append(f"{pp}개월 뒤{'에는' if i == len(ps) - 1 else ''} {abs(v):g}% {word}")
+    return ", ".join(parts)
+
+
 def tts_text(text: str) -> str:
     text = text.replace("−", "-").replace("–", "-")
     text = re.sub(r"[🌀-🫿☀-➿]", " ", text)           # 이모지
+    text = re.sub(r"(?:그 뒤\s*)?(\d+(?:·\d+)+)개월\s*((?:[+-]?\d+(?:\.\d+)?%·?)+)", _multi, text)
     text = re.sub(r"(?<![\w.])([+-]?)(\d+)\s?bp(?![a-z])", _bp, text)
     text = re.sub(r"(?<![\w.])([+-])(\d+(?:\.\d+)?)\s?(%p|%)", _signed, text)
     text = text.replace("구리/금", "구리와 금의 비율").replace("원/달러", "원 달러").replace("10Y-2Y", "장단기 금리차")
     text = re.sub(r"S&P\s?500", "에스앤피 오백", text)
     text = re.sub(r"(?<=[가-힣A-Za-z])/(?=[가-힣A-Za-z])", ", ", text)               # A/B → A, B
     text = text.replace("→", ", ").replace("·", ", ").replace("~", " 에서 ").replace("|", ", ")
+    # '24.9퍼센트 하락 움직였습니다' 같은 어색한 서술어 → '24.9퍼센트 하락했습니다'
+    text = re.sub(r"(%p|%|퍼센트(?:포인트)?) (상승|하락|보합)\s*(?:움직였습니다|움직였고|변했습니다)", r"\1 \2했습니다", text)
+    text = re.sub(r"(%p|%|퍼센트(?:포인트)?) (상승|하락|보합)(?:이었|였)습니다", r"\1 \2했습니다", text)
     for pat, rep in TTS_WORDS:
         text = re.sub(pat, rep, text)
     text = re.sub(r"[\[\]\(\)\"'“”‘’*#]", " ", text)

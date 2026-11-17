@@ -54,12 +54,20 @@ def split_text(text: str, n: int) -> list[str]:
 
 
 def cap(text: str, limit: int) -> str:
+    """대본 길이 상한: 문장 단위로만 자른다 (문장 중간에서 자르지 않음)."""
+    ss = _sents(text)
     out = ""
-    for s in _sents(text):
-        if len(out) + len(s) + 1 > limit:
+    for s in ss:
+        if out and len(out) + len(s) + 1 > limit:
             break
         out = f"{out} {s}".strip()
-    return out or (text or "")[:limit]
+    return out
+
+
+def first(text: str) -> str:
+    """화면 카드용: 첫 문장을 통째로 (글자 수로 자르지 않음)."""
+    ss = _sents(text)
+    return ss[0] if ss else (text or "")
 
 
 def stance_kind(label: str) -> str:
@@ -68,6 +76,52 @@ def stance_kind(label: str) -> str:
     if re.search(r"줄이기|현금|방어|축소", label or ""):
         return "risk"
     return "wait"
+
+
+def _jong(ch: str) -> int:
+    """한글 끝 글자의 받침 번호 (0 = 받침 없음, 8 = ㄹ). 한글이 아니면 -1."""
+    return (ord(ch) - 0xAC00) % 28 if ch and "가" <= ch <= "힣" else -1
+
+
+def ro(word: str) -> str:
+    """'로/으로' 고르기: 받침 없거나 ㄹ 받침이면 '로'."""
+    w = (word or "").strip()
+    j = _jong(w[-1:]) if w else 0
+    return "로" if j in (0, 8) or j == -1 and not w[-1:].isdigit() else "으로" if j > 0 else "로"
+
+
+def eun(word: str) -> str:
+    w = (word or "").strip()
+    return "은" if _jong(w[-1:]) > 0 else "는"
+
+
+def to_clause(np_: str) -> str:
+    """화면용 명사구 → 이어 말하기용 절. '비용이 커짐' → '비용이 커지고', '가치가 줄어듦' → '가치가 줄어들고', '수요 증가' → '수요가 증가하고'"""
+    s = (np_ or "").strip().rstrip(".")
+    if not s:
+        return s
+    last = s[-1]
+    j = _jong(last)
+    if last == "움" and len(s) >= 2 and _jong(s[-2]) == 0:      # 쉬움 → 쉽고, 어려움 → 어렵고 (ㅂ 불규칙)
+        return s[:-2] + chr(ord(s[-2]) + 17) + "고"
+    if s.endswith(("우려", "부담", "불안", "기대")):
+        return s + ("이" if _jong(last) > 0 else "가") + " 커지고"
+    if j == 16:                                     # ㅁ 받침: 커짐 → 커지고, 하락함 → 하락하고
+        return s[:-1] + chr(ord(last) - 16) + "고"
+    if j == 10:                                     # ㄻ 받침: 줄어듦 → 줄어들고
+        return s[:-1] + chr(ord(last) - 10 + 8) + "고"
+    if s.endswith(("증가", "감소", "하락", "상승", "확대", "축소", "약화", "강화", "둔화", "악화", "개선", "급락", "급등")):
+        return s + ("되고" if s.endswith(("약화", "강화", "둔화", "악화", "확대", "축소", "개선")) else "하고")
+    return s + ro(s) + " 이어지고"
+
+
+def moved(v, subject="코스피는") -> str:
+    """부호에 맞는 서술어: -24.9 → '코스피는 24.9% 하락했습니다'"""
+    if v is None:
+        return f"{subject} 결과를 확인할 수 없습니다."
+    if abs(v) < 0.05:
+        return f"{subject} 거의 변하지 않았습니다."
+    return f"{subject} {abs(v):.1f}% {'상승' if v > 0 else '하락'}했습니다."
 
 
 def chg_word(v, unit="%") -> str:
@@ -137,7 +191,7 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
         lines.append(f"주식 {(al.get('kr_equity') or 0) + (al.get('us_equity') or 0)}% · 금·원자재 {al.get('gold_commodities', 0)}% · 현금·채권 {(al.get('usd_cash') or 0) + (al.get('krw_cash_bonds') or 0)}%")
     conc_e = e3("conclusion")
     if conc_e:
-        lines.append(cap(conc_e[-1], 60))
+        lines.append(first(conc_e[-1]))
     S.append(Slide("오늘의 결론", "결론부터: " + (st.get("label") or "관망"), lines=lines[:3],
                    badge=(stance_kind(st.get("label", "")), st.get("label", "관망").split(" (")[0]),
                    chart=_donut([(n, al.get(k) or 0, c) for k, n, c in alloc_keys]) if al else None,
@@ -162,7 +216,7 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
         ln = [f"최근 고점 {fmt_level(a, hi[1])}({hi[0][2:4]}.{hi[0][5:7]}) → 지금 {fmt_level(a)}  ({(f'{dd / 100:+.2f}%p' if rate else f'{dd:+.1f}%') if dd is not None else '–'})",
               f"1년 전 {fmt_level(a, a.get('year_ago'))} → 지금 {fmt_level(a)}  ({(f'{(a.get('yoy') or 0) / 100:+.2f}%p' if rate else chg_word(a.get('yoy')))})",
               f"5년 전체로 보면 {rank5(a.get('pct_5y'))}"]
-        nar = hist_parts[i] or (f"{a['name']}은 최근 고점보다 {abs(dd):.0f}퍼센트 낮고, 1년 전보다 {chg_word(a.get('yoy'))} 움직였습니다." if dd is not None and not rate else ln[1])
+        nar = hist_parts[i] or (f"{a['name']}{eun(a['name'])} 최근 고점보다 {abs(dd):.0f}% 낮고, " + moved(a.get('yoy'), "1년 전보다는") if dd is not None and not rate else ln[1])
         if i == 0 and not hist_parts[0]:
             nar = "작년, 그리고 최근 5년과 비교해 지금이 어디쯤인지 보겠습니다. " + nar
         S.append(Slide("① 과거와 비교", f"{a['name']}: {state}", lines=ln, badge=(kind, state),
@@ -178,8 +232,8 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
             nm = x.get("period") or f"{m['date'][:4]}년 {int(m['date'][5:7])}월"
             names.append(f"{nm}: 그 뒤 6개월 코스피 {chg_word(m.get('kospi_26w'))}")
             parts.append(f"{nm}. " + (x.get("what_happened", "") + " " if x.get("what_happened") else "")
-                         + f"그 뒤 6개월 동안 코스피는 {chg_word(m.get('kospi_26w'))} 움직였습니다. " + (x.get("lesson") or ""))
-        S.append(Slide("① 과거와 비교", "지금과 비슷했던 과거 사례", lines=[n[:46] for n in names], badge=("info", "역사는 참고용"),
+                         + "그 뒤 6개월 동안 " + moved(m.get('kospi_26w')) + " " + (x.get("lesson") or ""))
+        S.append(Slide("① 과거와 비교", "지금과 비슷했던 과거 사례", lines=names, badge=("info", "역사는 참고용"),
                        chart=_overlay(AN), narration=cap("지금과 비슷했던 과거를 겹쳐 보겠습니다. 검은 선이 지금입니다. " + " ".join(parts), 620)))
 
     # 6. 매크로 (상태 카드 3개)
@@ -194,7 +248,11 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
     for j in range(0, min(len(chains), 4), 2):
         grp = chains[j:j + 2]
         body = "".join(_chain_html(c) for c in grp)
-        nar = " ".join(f"{c['from']}이 일어나면, " + ", ".join(c.get("steps") or []) + f", 결국 {c.get('so', '')}로 이어집니다." for c in grp)
+        def say_chain(c):
+            frm, so = c.get("from", "").strip(), (c.get("so") or "").strip().rstrip(".")
+            steps = " ".join(to_clause(s) for s in (c.get("steps") or []) if s)
+            return f"{frm}{'이' if _jong(frm[-1:]) > 0 else '가'} 일어나면, {steps} 결국 {so}{ro(so)} 이어집니다."
+        nar = " ".join(say_chain(c) for c in grp)
         S.append(Slide("③ 오늘의 연결고리", "무엇이 무엇을 움직이나" + (" (계속)" if j else ""), body_html=f"<div class='chains'>{body}</div>",
                        narration=cap(("오늘 시장이 왜 이렇게 움직이는지 연결고리로 보겠습니다. " if j == 0 else "") + nar, 520)))
 
@@ -205,7 +263,7 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
         sc3 = [s for s in (fc.get("scenarios") or []) if isinstance(s, dict)][:3]
         body = _gauge(fc, (M.get("quant") or {})) + ("<div class='scen'>" + "".join(
             f"<div class='sc {('good' if s.get('name') == '강세' else 'risk' if s.get('name') == '약세' else 'wait')}'><b>{html.escape(str(s.get('name', '')))} {s.get('prob', '')}%</b>"
-            f"<span>{html.escape(cap(str(s.get('trigger', '')), 40))}</span></div>" for s in sc3) + "</div>" if sc3 else "")
+            f"<span>{html.escape(first(str(s.get('trigger', ''))))}</span></div>" for s in sc3) + "</div>" if sc3 else "")
         S.append(Slide("③ 오늘 시장 예상", f"{'오늘' if slot == 'am' else '오늘 밤'} {fc.get('market', '지수')}: {dirw} 예상", badge=(kind, f"상승 확률 {round(fc.get('prob_up') or 50)}%"),
                        body_html=body, narration=cap(sc.get("social_forecast") or e3text("forecast"), 700)))
 
@@ -228,18 +286,18 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
     or_parts = split_text(sc.get("opps_risks") or e3text("opps_risks"), 2)
     if ops:
         S.append(Slide("⑤ 기회와 위험", "지금 기회가 있는 곳", badge=("good", "기회"),
-                       lines=[f"{o.get('title', '')}: {cap(o.get('how', ''), 40)}" for o in ops],
+                       lines=[f"{o.get('title', '')}: {first(o.get('how', ''))}" for o in ops],
                        narration=cap(or_parts[0] or " ".join(f"{o.get('title', '')}. {o.get('why', '')}" for o in ops), 380)))
     if rks:
         S.append(Slide("⑤ 기회와 위험", "조심해야 할 것", badge=("risk", "위험"),
-                       lines=[f"{r.get('title', '')}: {cap(r.get('signal', ''), 40)}" for r in rks],
+                       lines=[f"{r.get('title', '')}: {first(r.get('signal', ''))}" for r in rks],
                        narration=cap(or_parts[1] or " ".join(f"{r.get('title', '')}. {r.get('why', '')}" for r in rks), 380)))
     if not ops and not rks and e3("opps_risks"):
         S.append(Slide("⑤ 기회와 위험", "기회와 위험", lines=e3("opps_risks"), badge=("wait", "점검"), narration=e3text("opps_risks")))
 
     # 11. 종합 총론
     plan = [p for p in (V.get("action_plan") or []) if p][:3]
-    S.append(Slide("⑥ 종합 전략", "그래서 오늘은 이렇게", lines=[cap(p, 48) for p in plan] or conc_e[:3],
+    S.append(Slide("⑥ 종합 전략", "그래서 오늘은 이렇게", lines=[first(p) for p in plan] or conc_e[:3],
                    badge=(stance_kind(st.get("label", "")), st.get("label", "관망").split(" (")[0]),
                    chart=_donut([(n, al.get(k) or 0, c) for k, n, c in alloc_keys]) if al else None,
                    narration=cap(sc.get("conclusion") or e3text("conclusion"), 620)))
@@ -308,7 +366,7 @@ def _reg_card(r):
     kind = "risk" if re.search(r"상승기|강달러|약세|공포|경계|역전|축소|안전선호", v) else "good" if re.search(r"하락기|약달러|강세|저변동|확대|위험선호", v) else "wait"
     ico = BADGE[kind][0]
     return (f"<div class='rc {kind}'><div class='rl'>{html.escape(r.get('label', ''))}</div><div class='rv'>{ico} {html.escape(v)}</div>"
-            f"<div class='re'>{html.escape(cap(r.get('evidence', ''), 60))}</div></div>")
+            f"<div class='re'>{html.escape(r.get('evidence', ''))}</div></div>")
 
 
 def _chain_html(c):
@@ -329,7 +387,7 @@ def _gauge(fc, q):
 
 
 def _sec_card(c, s):
-    why = cap(s.get("why") or "", 46)
+    why = first(s.get("why") or "")
     return (f"<div class='secc'><b>{html.escape(c['name'])}</b><span class='v {'p' if c['rs_60d'] >= 0 else 'n'}'>{c['rs_60d']:+.1f}%p</span>"
             + (f"<div>{html.escape(why)}</div>" if why else "") + "</div>")
 
@@ -342,14 +400,14 @@ body{font-family:'__FONT__','Noto Color Emoji',sans-serif;background:#F5F7F9;col
 .top{position:absolute;top:0;left:0;right:0;height:88px;background:#16202A;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 64px;font-size:32px}
 .top span{color:#98A4B1}
 .sec{position:absolute;top:112px;left:64px;font-size:32px;font-weight:700;color:#0D5C6B}
-h1{position:absolute;top:156px;left:64px;right:64px;font-size:62px;font-weight:900;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+h1{position:absolute;top:156px;left:64px;right:64px;font-size:62px;font-weight:900;line-height:1.2;white-space:nowrap}
 .badge{position:absolute;top:120px;right:64px;font-size:36px;font-weight:700;padding:8px 26px;border-radius:40px}
 .main{position:absolute;top:260px;left:64px;right:64px;bottom:190px;display:flex;gap:48px;align-items:stretch}
 .chart{flex:1.35;background:#fff;border-radius:20px;padding:24px 28px;box-shadow:0 6px 20px rgba(22,32,42,.08);position:relative}
 .chart canvas{width:100%!important;height:100%!important}
 .lines{flex:1;display:flex;flex-direction:column;justify-content:center;gap:26px}
 .lines.full{flex:none;width:100%}
-.ln{font-size:40px;line-height:1.35;font-weight:500;background:#fff;border-radius:16px;padding:20px 28px;border-left:10px solid #0D5C6B;box-shadow:0 4px 14px rgba(22,32,42,.06);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ln{font-size:40px;line-height:1.35;font-weight:500;background:#fff;border-radius:16px;padding:20px 28px;border-left:10px solid #0D5C6B;box-shadow:0 4px 14px rgba(22,32,42,.06)}
 .body{flex:1}
 .center h1{top:330px;text-align:center;white-space:normal;font-size:80px}
 .center .badge{position:absolute;top:560px;left:50%;right:auto;transform:translateX(-50%)}
@@ -357,7 +415,7 @@ h1{position:absolute;top:156px;left:64px;right:64px;font-size:62px;font-weight:9
 .cards3{display:flex;gap:32px;height:100%;max-height:600px}
 .rc{flex:1;background:#fff;border-radius:20px;padding:36px;display:flex;flex-direction:column;gap:22px;border-top:14px solid #B06000}
 .rc.risk{border-top-color:#C5221F}.rc.good{border-top-color:#1E8E3E}
-.rl{font-size:36px;color:#5C6875;font-weight:700}.rv{font-size:46px;font-weight:900;line-height:1.25}.re{font-size:30px;color:#5C6875;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.rl{font-size:36px;color:#5C6875;font-weight:700}.rv{font-size:46px;font-weight:900;line-height:1.25}.re{font-size:30px;color:#5C6875;line-height:1.4}
 .chains{display:flex;flex-direction:column;gap:40px;justify-content:center;height:100%}
 .ch{display:flex;flex-wrap:wrap;align-items:center;gap:16px;background:#fff;border-radius:20px;padding:30px 34px}
 .nd{font-size:38px;font-weight:600;background:#F0F3F6;border-radius:12px;padding:14px 22px}
@@ -376,12 +434,27 @@ h1{position:absolute;top:156px;left:64px;right:64px;font-size:62px;font-weight:9
 .sc.good{background:#E6F4EA}.sc.risk{background:#FCE8E6}.sc b{font-size:38px}
 .two{display:flex;gap:40px;height:100%}.two>div{flex:1;display:flex;flex-direction:column;gap:20px}
 .two h3{font-size:42px}.two h3.g{color:#1E8E3E}.two h3.r{color:#C5221F}
-.secc{background:#fff;border-radius:16px;padding:18px 26px;font-size:30px;line-height:1.35;color:#5C6875;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.secc{background:#fff;border-radius:16px;padding:18px 26px;font-size:30px;line-height:1.35;color:#5C6875}
 .secc b{font-size:40px;color:#16202A;margin-right:16px}.secc .v{font-size:38px;font-weight:800}.secc .p{color:#1E8E3E}.secc .n{color:#C5221F}
 .subbar{position:absolute;left:0;right:0;bottom:0;height:170px;background:rgba(22,32,42,.92)}
 .subbar::before{content:'';position:absolute;left:0;top:0;width:14px;height:100%;background:#0D5C6B}
 .disc{position:absolute;bottom:178px;right:64px;font-size:22px;color:#8793A0}
 """
+
+FIT_JS = """<script>(function(){
+const h=document.querySelector('h1');
+if(h&&!document.body.classList.contains('center')){
+ // 제목은 글자 폭만큼만 차지하게 하고, 오른쪽 배지와 겹치지 않을 만큼만 줄인다
+ h.style.right='auto';const b=document.querySelector('.badge');
+ const w=(b?b.getBoundingClientRect().left-40:1856)-h.getBoundingClientRect().left;
+ let f=parseFloat(getComputedStyle(h).fontSize);while(h.getBoundingClientRect().width>w&&f>40){f-=2;h.style.fontSize=f+'px'}}
+const m=document.querySelector('.main'); if(!m)return;
+const els=[...m.querySelectorAll('*')].filter(e=>!(e instanceof HTMLCanvasElement));
+const base=els.map(e=>parseFloat(getComputedStyle(e).fontSize));
+const boxes=()=>[m,...m.querySelectorAll('.lines,.body,.cards3,.rc,.ln,.secc,.ch,.sc,.two>div,.chains')];
+const over=()=>boxes().some(e=>e.scrollHeight>e.clientHeight+2||e.scrollWidth>e.clientWidth+2);
+let k=1; while(over()&&k>0.55){k-=0.04;els.forEach((e,i)=>e.style.fontSize=(base[i]*k)+'px')}
+})();</script>"""
 
 TICKS = {
     "__YEAR_TICK__": "function(v){const l=this.getLabelForValue(v);return l.endsWith('.01')?'20'+l.slice(0,2):''}",
@@ -389,7 +462,15 @@ TICKS = {
 }
 
 
+_BP = re.compile(r"([+\-−]?)(\d+(?:\.\d+)?)\s?bp(?![A-Za-z])")
+
+
+def _pp(s: str) -> str:
+    return _BP.sub(lambda m: f"{'-' if m.group(1) in '-−' and m.group(1) else m.group(1)}{float(m.group(2)) / 100:.2f}%p", s or "")
+
+
 def slide_html(s: Slide, i: int, n: int, date: str, slot: str, font: str, disclaimer: str) -> str:
+    s.title, s.lines, s.body_html = _pp(s.title), [_pp(x) for x in s.lines], _pp(s.body_html)
     md = f"{int(date[5:7])}월 {int(date[8:10])}일"
     top = f"<div class='top'><div><b>{SLOT_NAME.get(slot, '시장 브리핑')}</b> · {md}</div><span>{i}/{n}</span></div>"
     badge = ""
@@ -409,7 +490,7 @@ def slide_html(s: Slide, i: int, n: int, date: str, slot: str, font: str, discla
             main = f"<div class='lines full'>{lines}</div>"
         body = f"{top}<div class='sec'>{html.escape(s.section)}</div><h1>{html.escape(s.title)}</h1>{badge}<div class='main'>{main}</div>"
         cls = ""
-    body += f"<div class='disc'>{html.escape(disclaimer)}</div><div class='subbar'></div>"
+    body += f"<div class='disc'>{html.escape(disclaimer)}</div><div class='subbar'></div>" + FIT_JS
     script = ""
     if s.chart and not s.center:
         cfg = json.dumps(s.chart, ensure_ascii=False)

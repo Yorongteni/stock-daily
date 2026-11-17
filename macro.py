@@ -148,6 +148,9 @@ def metrics(s: pd.Series, kind: str = "price") -> dict:
     yoy_val = ago(365)
     ma200 = s.tail(200).mean() if len(s) >= 150 else None
     weekly = s.resample("W-FRI").last().dropna().tail(270)
+    if len(weekly):                               # 그래프의 '지금' 점 = 가장 최근 거래일 종가 (날짜도 실제 거래일로)
+        weekly = weekly.iloc[:-1]
+        weekly.loc[last_d] = last
     out = {
         "kind": kind, "date": last_d.strftime("%Y-%m-%d"), "last": _r(last, 4 if abs(last) < 10 else 2),
         "chg_1d": _chg(last, float(s.iloc[-2]) if len(s) > 1 else None, rate),
@@ -254,7 +257,9 @@ def analogs(series: dict[str, pd.Series], top: int = 3, min_gap_days: int = 365)
                       "dd52": s / s.rolling(52, min_periods=40).max() - 1}[how]
     if len(cols) < 4 or "kospi" not in w or "spx" not in w:
         return {}
-    f = pd.DataFrame(cols).dropna()
+    # 일부 자산만 최신 주 값이 비어도(휴장·출처 지연) 마지막 주가 통째로 빠지지 않게 앞 값으로 최대 3주 채움.
+    # 주간 마지막 칸은 가장 최근 거래일 종가이므로, '지금' 값은 일간 최신 종가와 같다.
+    f = pd.DataFrame(cols).ffill(limit=3).dropna()
     if len(f) < 150:
         return {}
     z = (f - f.mean()) / f.std(ddof=0).replace(0, np.nan)

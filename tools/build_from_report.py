@@ -74,7 +74,7 @@ def find_report(date: str, slot: str) -> tuple[Path, str, str]:
 
 def load_payload(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
-    m = re.search(r"const DATA = (\{.*?\});\s*\nconst esc", text, flags=re.S)
+    m = re.search(r"const DATA = (\{.*?\});\s*\nconst ", text, flags=re.S)
     if not m:
         sys.exit("리포트에서 데이터(DATA)를 찾지 못했습니다. report.py 형식이 바뀌었는지 확인하세요.")
     return json.loads(m.group(1))

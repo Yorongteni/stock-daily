@@ -198,6 +198,10 @@ def main():
     ai = None if (args.no_ai or not ai_cfg.get("enabled", True)) else advisor.load_ai(ai_p, sectors)
     rule = advisor.rule_based(bundle["results"], bundle.get("macro") or {}, bundle.get("screens") or {}, slot)
     view = advisor.stance_from_ai_or_rule(ai, rule)
+    # 예측의 기준 종가는 AI 가 쓴 숫자가 아니라 수집 데이터 값으로 통일
+    q = (bundle.get("macro") or {}).get("quant") or {}
+    if ai and isinstance(view.get("forecast"), dict) and q.get("base_close"):
+        view["forecast"]["base_level"] = q["base_close"]
     print("결론: " + ("AI 브리핑" if ai else "규칙 기반(AI 없음)") + f" — {view['stance']['label']}")
     path = report.write(bundle, view, out, slot_cfg)
     print(f"\n리포트 저장: {path.resolve()}")

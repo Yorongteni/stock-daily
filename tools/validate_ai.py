@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -30,9 +31,28 @@ def _num(v):
         return None
 
 
+_BP = re.compile(r"([+\-−]?)(\d+(?:\.\d+)?)\s?bp(?![A-Za-z])")
+
+
+def fix_bp(s: str) -> str:
+    """'+40bp' → '+0.40%p' (금리 변화는 항상 %p 로)"""
+    return _BP.sub(lambda m: f"{'-' if m.group(1) in '-−' and m.group(1) else m.group(1)}{float(m.group(2)) / 100:.2f}%p", s)
+
+
+def _walk(x):
+    if isinstance(x, str):
+        return fix_bp(x)
+    if isinstance(x, list):
+        return [_walk(v) for v in x]
+    if isinstance(x, dict):
+        return {k: _walk(v) for k, v in x.items()}
+    return x
+
+
 def normalize(ai: dict, sectors: list[str] | None = None) -> tuple[dict, list[str], list[str]]:
     """(정리된 ai, 오류, 경고). 오류가 있으면 사용 불가."""
     errs, warns = [], []
+    ai = _walk(ai)
     for k in REQUIRED:
         if k not in ai or ai[k] in (None, "", [], {}):
             (errs if k in ("headline", "allocation", "forecast", "sectors") else warns).append(f"'{k}' 없음")
