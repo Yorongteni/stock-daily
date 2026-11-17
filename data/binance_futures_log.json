@@ -1,0 +1,45 @@
+{
+ "start_date": "2026-11-17",
+ "positions": [
+  {
+   "id": "2026-11-17-XAGUSDT",
+   "symbol": "XAGUSDT",
+   "name": "XAG",
+   "direction": "SHORT",
+   "source": "auto",
+   "status": "PENDING",
+   "pick_date": "2026-11-17",
+   "pick_time": "2026-11-17T14:37:54Z",
+   "limit": 47.55,
+   "tp": 46.39,
+   "sl": 48.26,
+   "qty": 22.7,
+   "margin": 360,
+   "leverage": 3,
+   "hold_hours": 24,
+   "liq": 63.16
+  }
+ ],
+ "history": [],
+ "last_events": {
+  "date": "2026-11-17",
+  "events": []
+ },
+ "updated_at": "2026-11-17 23:38",
+ "last_run": "2026-11-17",
+ "rules": {
+  "leverage": 3,
+  "margin_usdt": 360,
+  "tp_pct": 2.45,
+  "sl_pct": 1.5,
+  "win_roe": 7.0,
+  "loss_roe": 4.5,
+  "fee_roe": 0.3,
+  "hold_hours": 24,
+  "top_n": 30,
+  "max_open": 2,
+  "min_range24": 3.0,
+  "mmr": 0.5
+ },
+ "source": "okx"
+}
