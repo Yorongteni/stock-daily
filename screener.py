@@ -29,12 +29,13 @@ INFO_KEYS = ["trailingPE", "forwardPE", "priceToBook", "priceToSalesTrailing12Mo
 
 
 # ───────────────────────── 데이터 수집 ─────────────────────────
-def _annual(stmt: pd.DataFrame, names) -> list:
-    """재무제표에서 최근 3개 회계연도 값 (오래된 → 최근)."""
+def _annual(stmt: pd.DataFrame, names, n_last: int = 4) -> list:
+    """재무제표에서 최근 n_last 개 기간 값 (오래된 → 최근).
+    연간은 4개(= 3년 전 → 올해, 3년 성장률 계산용). 예전에는 3개만 받아 '3년 성장'이 실제로는 2년 성장이었다."""
     for n in names:
         if stmt is not None and n in stmt.index:
             vals = stmt.loc[n].dropna()
-            vals = vals.sort_index().tail(3)
+            vals = vals.sort_index().tail(n_last)
             return [float(v) for v in vals.values]
     return []
 
@@ -48,6 +49,13 @@ def _fetch_one(ticker: str) -> dict:
     out["revenue"] = _annual(stmt, ["Total Revenue", "Operating Revenue"])
     out["op_income"] = _annual(stmt, ["Operating Income"])
     out["net_income"] = _annual(stmt, ["Net Income", "Net Income Common Stockholders"])
+    # 분기 재무제표 (최근 5개 분기) — 야후 요약값(revenueGrowth·earningsGrowth)을 직접 계산한 전년 동기 대비로 검증
+    try:
+        q = t.quarterly_income_stmt
+        out["q_revenue"] = _annual(q, ["Total Revenue", "Operating Revenue"], 5)
+        out["q_net_income"] = _annual(q, ["Net Income", "Net Income Common Stockholders"], 5)
+    except Exception:  # noqa: BLE001
+        out["q_revenue"], out["q_net_income"] = [], []
     out["fetched"] = datetime.now().strftime("%Y-%m-%d")
     return out
 
@@ -57,7 +65,8 @@ def load_fundamentals(universe: dict, refresh_days: int = 7, demo=False) -> dict
         return _fake_fundamentals(universe)
     cache = json.loads(CACHE.read_text(encoding="utf-8")) if CACHE.exists() else {}
     limit = (datetime.now() - timedelta(days=refresh_days)).strftime("%Y-%m-%d")
-    todo = [t for t in universe if cache.get(t, {}).get("fetched", "") < limit]
+    # 분기 재무제표(q_revenue)가 없는 예전 캐시(연간 3개 값만 저장)는 다시 받는다 — 3년 성장률을 제대로 계산하기 위해
+    todo = [t for t in universe if cache.get(t, {}).get("fetched", "") < limit or "q_revenue" not in cache.get(t, {})]
     if todo:
         print(f"  … 실적 데이터 수집 {len(todo)}종목 (주 1회, 몇 분 걸릴 수 있음)")
     for i, t in enumerate(todo, 1):
@@ -103,10 +112,30 @@ def load_prices(tickers: list, demo=False, period="5y") -> tuple[dict, dict]:
 
 
 # ───────────────────────── 지표 계산 ─────────────────────────
-def _cagr(vals):
-    if len(vals) < 2 or vals[0] <= 0 or vals[-1] <= 0:
+def _cagr(vals, years: int = 3):
+    """연평균 성장률 = (최신 / years년 전) ** (1/years) − 1. years+1 개 값이 없으면 계산하지 않는다
+    (예전 캐시처럼 3개 값뿐이면 2년 성장률을 '3년'이라 부르게 되므로)."""
+    vals = list(vals or [])[-(years + 1):]
+    if len(vals) < years + 1 or vals[0] <= 0 or vals[-1] <= 0:
         return None
-    return (vals[-1] / vals[0]) ** (1 / (len(vals) - 1)) - 1
+    return (vals[-1] / vals[0]) ** (1 / years) - 1
+
+
+def _yoy_q(vals):
+    """최근 분기 전년 동기 대비 (5개 분기: 4분기 전 → 최근). 분모가 0 이하면 계산하지 않는다."""
+    vals = list(vals or [])
+    if len(vals) < 5 or vals[-5] <= 0:
+        return None
+    return vals[-1] / vals[-5] - 1
+
+
+def _checked_growth(reported, computed, label: str, ticker: str):
+    """야후 요약 성장률을 분기 재무제표로 직접 계산한 값과 대조. 직접 계산값이 있으면 그것을 쓴다."""
+    if computed is None:
+        return reported
+    if reported is not None and abs(reported - computed) > 0.2:
+        print(f"    ⚠ {ticker} {label}: 야후 요약 {reported * 100:+.0f}% ↔ 분기 재무제표 계산 {computed * 100:+.0f}% → 계산값 사용")
+    return computed
 
 
 def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
@@ -116,6 +145,10 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
         if not f:
             continue
         rev, ni = f.get("revenue") or [], f.get("net_income") or []
+        # 매출·순이익이 뒤바뀐 데이터 방지: 순이익이 매출보다 크면 그 기간 재무는 쓰지 않는다
+        if rev and ni and len(rev) == len(ni) and any(n > r > 0 for r, n in zip(rev, ni)):
+            print(f"    ⚠ {t} 순이익이 매출보다 큼 → 재무 성장률 계산 제외")
+            rev, ni = [], []
         p = prices.get(t)
         # 실적은 주 1회 받으므로, 받은 날 이후 주가 변화만큼 PER·PBR·PSR을 보정
         px0 = f.get("currentPrice") or f.get("regularMarketPrice")
@@ -130,10 +163,12 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
             "sector": SECTOR_KO.get(f.get("sector"), f.get("sector") or "기타"), "industry": f.get("industry") or "",
             "pe": mult("trailingPE"), "fpe": mult("forwardPE"),
             "pb": mult("priceToBook"), "ps": mult("priceToSalesTrailing12Months"),
-            "roe": f.get("returnOnEquity"), "rev_g": f.get("revenueGrowth"),
-            "eps_g": f.get("earningsGrowth"), "margin": f.get("profitMargins"),
+            "roe": f.get("returnOnEquity"),
+            "rev_g": _checked_growth(f.get("revenueGrowth"), _yoy_q(f.get("q_revenue")), "최근 분기 매출 성장", t),
+            "eps_g": _checked_growth(f.get("earningsGrowth"), _yoy_q(f.get("q_net_income")), "최근 분기 이익 성장", t),
+            "margin": f.get("profitMargins"),
             "rev_cagr": _cagr(rev), "ni_cagr": _cagr(ni),
-            "ni_all_pos": bool(ni) and len(ni) >= 2 and all(v > 0 for v in ni),
+            "ni_all_pos": bool(ni) and len(ni) >= 2 and all(v > 0 for v in ni[-3:]),   # 최근 3개 회계연도 연속 흑자
             "ni_last": ni[-1] if ni else None,
             "years": len(rev),
         }
@@ -141,6 +176,10 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
         mc = mult("marketCap")
         if row["pe"] is None and mc and ni and ni[-1] > 0:
             row["pe"] = mc / ni[-1]
+        # 일회성 손익에 덜 흔들리는 PER: 최근 3년 평균 순이익 기준 (고평가 판정 교차 확인용)
+        pos = [v for v in ni[-3:] if v > 0]
+        if mc and len(pos) == len(ni[-3:]) and pos:
+            row["pe_avg3"] = mc / (sum(pos) / len(pos))
         if row["pb"] is None and row["pe"] and row["roe"] and row["roe"] > 0:
             row["pb"] = row["pe"] * row["roe"]
         if p is not None and len(p) > 25:
@@ -155,7 +194,7 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
             row["vs_ma200"] = p.iloc[-1] / ma200 - 1
         rows.append(row)
     df = pd.DataFrame(rows)
-    num = ["pe", "fpe", "pb", "ps", "roe", "rev_g", "eps_g", "margin",
+    num = ["pe", "pe_avg3", "fpe", "pb", "ps", "roe", "rev_g", "eps_g", "margin",
            "rev_cagr", "ni_cagr", "ret_6m", "rsi", "vs_ma200", "ret_1d", "ret_5d", "ret_20d"]
     for c in num:
         if c not in df:
@@ -172,6 +211,8 @@ def build_table(universe: dict, fund: dict, prices: dict) -> pd.DataFrame:
     df["pe_med"] = [by_cat.get((m, c), by_sec.get((m, s), by_mkt.get(m)))
                     for m, c, s in zip(df.market, df.category, df.sector)]
     df["pe_rel"] = df.pe / df.pe_med
+    df["fpe_rel"] = df.fpe / df.pe_med
+    df["pe_avg3_rel"] = df.pe_avg3 / df.pe_med
     df["fwd_up"] = df.pe / df.fpe - 1  # +면 내년 이익 증가 예상
     return df
 
@@ -184,6 +225,11 @@ def _pct(s: pd.Series, higher_better=True):
 
 def _by_market(df, col, higher_better=True):
     return df.groupby("market")[col].transform(lambda s: _pct(s, higher_better))
+
+
+def _metrics(d: dict) -> dict:
+    """값이 없는 항목('–')은 빼서, 리포트·해설에 '최근 이익 성장 –'처럼 빈 칸이 찍히지 않게 한다."""
+    return {k: v for k, v in d.items() if v and not str(v).startswith("–")}
 
 
 def _fmt(v, kind):
@@ -204,9 +250,9 @@ def screen(df: pd.DataFrame, top_n=5, cap=1, hist: dict | None = None) -> dict:
         v = v[(v.pe_rel < 1) & (v.ni_cagr.fillna(0) > -0.05)]
         out["value"] = [{
             **_base(r),
-            "metrics": {"PER": _fmt(r.pe, "x"), "업종 PER": _fmt(r.pe_med, "x"),
-                        "PBR": _fmt(r.pb, "x"), "ROE": _fmt(r.roe, "pp"),
-                        "3년 순이익 성장": _fmt(r.ni_cagr, "p") + "/년"},
+            "metrics": _metrics({"PER": _fmt(r.pe, "x"), "업종 PER": _fmt(r.pe_med, "x"),
+                                 "PBR": _fmt(r.pb, "x"), "ROE": _fmt(r.roe, "pp"),
+                                 "3년 순이익 성장": _fmt(r.ni_cagr, "p") + "/년"}),
             "reason": f"PER이 업종 중앙값의 {r.pe_rel * 100:.0f}% 수준이고 3년 연속 흑자"
                       + (f", 순이익 연 {r.ni_cagr * 100:+.0f}% 성장" if pd.notna(r.ni_cagr) else ""),
         } for r in _diverse(v, top_n, cap).itertuples()]
@@ -219,15 +265,20 @@ def screen(df: pd.DataFrame, top_n=5, cap=1, hist: dict | None = None) -> dict:
                       + _by_market(g, "ret_6m") * 0.05)
         out["growth"] = [{
             **_base(r),
-            "metrics": {"3년 매출 성장": _fmt(r.rev_cagr, "p") + "/년", "최근 매출 성장": _fmt(r.rev_g, "p"),
-                        "최근 이익 성장": _fmt(r.eps_g, "p"), "6개월 주가": _fmt(r.ret_6m, "p"),
-                        "PER→선행PER": f"{_fmt(r.pe, 'x')}→{_fmt(r.fpe, 'x')}"},
-            "reason": f"{r.industry or r.sector} 업종, 매출이 3년간 연 {_fmt(r.rev_cagr, 'p')} 늘었고 "
-                      f"최근 분기 매출 {_fmt(r.rev_g, 'p')}",
+            "metrics": _metrics({"3년 매출 성장": _fmt(r.rev_cagr, "p") + "/년", "최근 매출 성장": _fmt(r.rev_g, "p"),
+                                 "최근 이익 성장": _fmt(r.eps_g, "p"), "6개월 주가": _fmt(r.ret_6m, "p"),
+                                 "PER→선행PER": f"{_fmt(r.pe, 'x')}→{_fmt(r.fpe, 'x')}"}),
+            "reason": f"{r.industry or r.sector} 업종"
+                      + (f", 매출이 3년간 연 {_fmt(r.rev_cagr, 'p')} 늘었고" if pd.notna(r.rev_cagr) else "")
+                      + (f" 최근 분기 매출(전년 같은 분기 대비) {_fmt(r.rev_g, 'p')}" if pd.notna(r.rev_g) else "")
+                      + (f", 최근 분기 이익 {_fmt(r.eps_g, 'p')}" if pd.notna(r.eps_g) else ""),
         } for r in _diverse(g, top_n, cap).itertuples()]
 
     # 3) 고평가 위험: 업종 대비 PER 과다 또는 적자인데 PSR 높음 + 가격 과열
-    o = df[(df.pe_rel > 1.8) | (df.pe.isna() & (df.ps > 8))].copy()
+    # 과거 12개월 PER만 높고 선행 PER·3년 평균 이익 PER은 업종 수준이면 일회성 비용으로 이익이 줄어든 것 → 고평가로 보지 않는다
+    # (예: SK텔레콤 과거 PER 43배 ↔ 선행 12.5배·3년 평균 이익 기준 19배)
+    one_off = (df.pe_rel > 1.8) & ((df.fpe_rel <= 1.2) | (df.pe_avg3_rel <= 1.2))
+    o = df[((df.pe_rel > 1.8) & ~one_off) | (df.pe.isna() & (df.ps > 8))].copy()
     if len(o):
         o["pe_rel_f"] = o.pe_rel.fillna(o.pe_rel.median() if o.pe_rel.notna().any() else 3)
         o["score"] = (_by_market(o, "pe_rel_f") * 0.3 + _by_market(o, "ps") * 0.2
@@ -235,9 +286,9 @@ def screen(df: pd.DataFrame, top_n=5, cap=1, hist: dict | None = None) -> dict:
                       + _by_market(o, "rev_g", False) * 0.15)
         out["overvalued"] = [{
             **_base(r),
-            "metrics": {"PER": _fmt(r.pe, "x") if pd.notna(r.pe) else "적자",
-                        "업종 PER": _fmt(r.pe_med, "x"), "PSR": _fmt(r.ps, "x"),
-                        "200일선 대비": _fmt(r.vs_ma200, "p"), "RSI": _fmt(r.rsi, "n")},
+            "metrics": _metrics({"PER": _fmt(r.pe, "x") if pd.notna(r.pe) else "적자",
+                                 "선행 PER": _fmt(r.fpe, "x"), "업종 PER": _fmt(r.pe_med, "x"), "PSR": _fmt(r.ps, "x"),
+                                 "200일선 대비": _fmt(r.vs_ma200, "p"), "RSI": _fmt(r.rsi, "n")}),
             "reason": (f"PER이 업종 중앙값의 {r.pe_rel * 100:.0f}%" if pd.notna(r.pe_rel)
                        else f"최근 이익 적자인데 PSR {_fmt(r.ps, 'x')}")
                       + (f", 주가가 200일선보다 {_fmt(r.vs_ma200, 'p')} 위" if pd.notna(r.vs_ma200) and r.vs_ma200 > 0.15 else ""),
@@ -422,7 +473,7 @@ def _fake_fundamentals(universe):
         rng = np.random.default_rng(zlib.crc32(t.encode()))
         base = rng.uniform(1e9, 5e10)
         g = rng.normal(0.08, 0.15)
-        rev = [base * (1 + g) ** i for i in range(3)]
+        rev = [base * (1 + g) ** i for i in range(4)]
         ni = [r * rng.uniform(-0.05, 0.2) for r in rev]
         out[t] = {"trailingPE": float(rng.lognormal(2.8, 0.6)) if ni[-1] > 0 else None,
                   "forwardPE": float(rng.lognormal(2.7, 0.5)), "priceToBook": float(rng.lognormal(0.6, 0.7)),

@@ -318,7 +318,7 @@ def _company_proof(c: dict) -> str:
     for k, lab in (("3년 매출 성장", "3년 매출은 연평균 {}"), ("3년 순이익 성장", "3년 순이익은 연평균 {}"),
                    ("최근 매출 성장", "최근 분기 매출은 {}"), ("최근 이익 성장", "최근 분기 이익은 {}")):
         v = mt.get(k)
-        if v and not v.startswith("-"):
+        if v and not v.startswith(("-", "–")):
             grow.append(lab.format(v.replace("/년", "").lstrip("+")))
     sents = []
     if grow:

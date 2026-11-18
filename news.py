@@ -11,6 +11,11 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
+try:
+    from zoneinfo import ZoneInfo
+    ET = ZoneInfo("America/New_York")      # 서머타임 자동 반영
+except Exception:  # noqa: BLE001
+    ET = timezone(timedelta(hours=-5))
 UA = "Mozilla/5.0 (stock-daily briefing bot)"
 
 NOISE = re.compile(r"^\[(게시판|인사|부고|포토|사진|화보|오늘의 운세|날씨)\]|이벤트 실시|경품|할인 행사|출시 기념")
@@ -122,6 +127,7 @@ def run(cfg: dict, categories: list[str] | None = None, demo: bool = False) -> d
                 seen.add(key)
                 it = {"title": title, "source": src or name, "lang": lang, "feed": name,
                       "time": when.astimezone(KST).strftime("%m-%d %H:%M") if when else "",
+                      "time_et": when.astimezone(ET).strftime("%m-%d %H:%M") if when else "",   # 미국 동부 현지 시각
                       "summary": _summary(e) if "news.google" not in url else "", "link": e.get("link", "")}
                 if tag.startswith("sector:"):
                     by_sector.setdefault(tag[7:], []).append(it)

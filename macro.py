@@ -116,6 +116,13 @@ def fetch_all(assets: list[dict], years: int = 5) -> tuple[dict[str, pd.Series],
             series[a["key"]], used[a["key"]] = best
         else:
             used[a["key"]] = "실패 — " + "; ".join(errs)
+    # 장단기 금리차는 표에 보이는 10년·2년 금리로 직접 계산한다 (FRED T10Y2Y 는 날짜·출처가 달라
+    # '5.10% − 4.83%'와 금리차 숫자가 맞지 않던 문제). 날짜가 어긋나면 각자 마지막 값을 이어 붙여 뺀다.
+    if "us10y" in series and "us2y" in series:
+        both = pd.concat([series["us10y"].rename("a"), series["us2y"].rename("b")], axis=1, sort=True).sort_index().ffill().dropna()
+        if len(both) >= 20:
+            series["curve"] = (both["a"] - both["b"]).round(4)
+            used["curve"] = f"계산: 10년({used.get('us10y')}) − 2년({used.get('us2y')})"
     return series, used
 
 

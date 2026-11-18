@@ -182,7 +182,10 @@ def _news_text(news: dict) -> str:
            "- 국내 키워드: " + ", ".join(f"{w}({n})" for w, n in news["keywords"].get("ko", [])),
            "- 해외 키워드: " + ", ".join(f"{w}({n})" for w, n in news["keywords"].get("en", [])), "", "### 국내"]
     out += [f"- [{i['time']}] {i['title']} ({i['source']})" for i in ko]
-    out += ["", "### 해외"] + [f"- [{i['time']}] {i['title']} ({i['source']})" for i in en]
+    # 해외 기사는 미국 현지 날짜를 함께 적는다 ('after the bell', 'today' 같은 표현이 미국 날짜 기준이라서)
+    out += ["", "### 해외 (한국 시각 · 미국 동부 시각 ET)"] + [
+        f"- [{i['time']} KST · 미국 {i['time_et']} ET] {i['title']} ({i['source']})" if i.get("time_et")
+        else f"- [{i['time']} KST] {i['title']} ({i['source']})" for i in en]
     out += ["", "### 분야별"]
     for k, v in (news.get("by_sector") or {}).items():
         out.append(f"- {k}: " + " / ".join(i["title"] for i in v[:3]))
@@ -197,10 +200,33 @@ def _spotlight_text(bundle: dict) -> str:
         return ""
 
 
+def _time_anchor(collected_at: str) -> str:
+    """한국·미국 날짜 기준점. AI 가 '미국 17일 장 마감 후'를 '미국 18일'로 하루 밀려 쓰지 않게 한다."""
+    from datetime import datetime, timedelta
+    from zoneinfo import ZoneInfo
+    kst = datetime.strptime(collected_at, "%Y-%m-%d %H:%M").replace(tzinfo=ZoneInfo("Asia/Seoul"))
+    et = kst.astimezone(ZoneInfo("America/New_York"))
+    dst = bool(et.dst())
+    close_kst = "05:00" if dst else "06:00"
+    open_kst = "22:30" if dst else "23:30"
+    m = et.hour * 60 + et.minute
+    state = ("개장 전(프리마켓)" if m < 570 else "정규장 진행 중" if m < 960 else "장 마감 후(시간외)") if et.weekday() < 5 else "주말 휴장"
+    nxt = kst + timedelta(days=1)
+    return "\n".join([
+        f"- 지금 미국 동부(ET) 시각: {et:%Y-%m-%d %H:%M} ({['월','화','수','목','금','토','일'][et.weekday()]}) · 미국 증시 {state}"
+        + (" · 서머타임" if dst else ""),
+        f"- 미국 정규장 = 한국 {open_kst} ~ 다음 날 {close_kst}. 그래서 **미국 X일 장 마감 후(after the bell) 발표 = 한국 X+1일 {close_kst}~ 아침**입니다.",
+        f"- 예: 미국 {et:%m월 %d일} 장 마감 후 발표 → 한국 {(et + timedelta(days=1)):%m월 %d일} 아침. "
+        f"한국 {kst:%m월 %d일} 기준 '오늘 밤 미국장'은 미국 {kst:%m월 %d일} 장이고, 그 장 마감 후 발표는 한국 {nxt:%m월 %d일} 아침입니다.",
+        "- 해외 기사의 'today·tonight·after the bell'은 기사 옆에 적힌 **미국 날짜** 기준입니다. 일정을 쓸 때는 미국 날짜와 한국 날짜를 둘 다 적고, 위 규칙으로 하루 밀리지 않았는지 확인하세요.",
+    ])
+
+
 def build_brief(bundle: dict, slot_cfg: dict) -> str:
     slot = bundle["slot"]
     data = "\n\n".join([
-        f"## 시점\n- 수집 시각: {bundle['collected_at']} KST · 슬롯: {slot} ({slot_cfg.get('name', '')})",
+        f"## 시점\n- 수집 시각: {bundle['collected_at']} KST · 슬롯: {slot} ({slot_cfg.get('name', '')})\n"
+        + _time_anchor(bundle["collected_at"]),
         _macro_text(bundle.get("macro") or {}),
         _results_text(bundle.get("results") or {}),
         _sector_text(bundle.get("screens") or {}) + _val_hist_text(bundle.get("valuation_history") or {}),
