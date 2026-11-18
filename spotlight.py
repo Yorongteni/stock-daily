@@ -41,7 +41,7 @@ NEWS_JUNK = re.compile(r"주식 움직였습니다|By Investing|주가 전망|�
 
 MACRO_WORDS = {
     "rate_up": ("금리 상승기", "금리 하락기"), "usd_up": ("원화 약세", "원화 강세"),
-    "oil_up": ("유가 상승기", "유가 하락기"), "risk_off": ("시장 불안 국면", "시장 안정 국면"),
+    "oil_up": ("유가 상승기", "유가 하락기"), "dxy_up": ("달러 강세", "달러 약세"), "risk_off": ("시장 불안 국면", "시장 안정 국면"),
 }
 
 
@@ -98,6 +98,10 @@ def macro_state(macro: dict | None) -> dict:
     kc = k.get("chg_3m")
     st["usd_up"] = 1 if (kc or 0) >= 2 else -1 if (kc or 0) <= -2 else 0
     ev["usd_up"] = f"원/달러 {k.get('last'):,.0f}원, 3개월 {kc:+.1f}%" if k.get("last") and kc is not None else ""
+    d = a.get("dxy") or {}
+    dc = d.get("chg_3m")
+    st["dxy_up"] = 1 if (dc or 0) >= 2 else -1 if (dc or 0) <= -2 else 0
+    ev["dxy_up"] = f"달러 인덱스 {d.get('last'):.1f}, 3개월 {dc:+.1f}%" if d.get("last") and dc is not None else ""
     o = a.get("wti") or {}
     oc, oy = o.get("chg_3m"), o.get("yoy")
     st["oil_up"] = 1 if (oc or 0) >= 5 or ((oc or 0) > -5 and (oy or 0) >= 25) else -1 if (oc or 0) <= -5 else 0
@@ -108,12 +112,35 @@ def macro_state(macro: dict | None) -> dict:
     return {"state": st, "evidence": ev}
 
 
-def macro_fit(cat: str, ms: dict, narr: dict) -> tuple[float, list[str], list[str]]:
-    """(궁합 점수 -4~+4, 유리한 이유 문장들, 불리한 이유 문장들)"""
+US_DOLLAR_WHY = "해외 매출 비중이 큰 미국 기업은 달러가 강하면 해외에서 번 돈을 달러로 바꿀 때 이익이 줄어듭니다."
+
+
+def market_of(comp: dict | None) -> str:
+    """대표 기업의 시장: 한국 종목(.KS/.KQ)이면 'kr', 그 밖은 'us'."""
+    comp = comp or {}
+    if comp.get("market") in ("kr", "us"):
+        return comp["market"]
+    t = str(comp.get("ticker") or "")
+    return "kr" if t.endswith((".KS", ".KQ")) or t.isdigit() else "us"
+
+
+def macro_fit(cat: str, ms: dict, narr: dict, market: str = "kr") -> tuple[float, list[str], list[str]]:
+    """(궁합 점수 -4~+4, 유리한 이유 문장들, 불리한 이유 문장들).
+    환율: 한국 기업이면 원/달러(원화 약세 = 수출 이익 증가), 미국 기업이면 달러 인덱스(강달러 = 해외 이익 감소)."""
     n = narr.get(cat) or {}
-    sens, why = n.get("macro") or {}, n.get("macro_why") or {}
+    sens, why = dict(n.get("macro") or {}), dict(n.get("macro_why") or {})
+    states = dict(ms.get("state") or {})
+    if market == "us":
+        # 원/달러 문구는 빼고, 수출·해외 매출에 민감한 분야면 강달러를 불리하게 본다
+        exp = sens.pop("usd_up", 0)
+        why.pop("usd_up", None)
+        states.pop("usd_up", None)
+        if exp:
+            sens["dxy_up"], why["dxy_up"] = -1, US_DOLLAR_WHY
+    else:
+        states.pop("dxy_up", None)
     score, good, bad = 0.0, [], []
-    for k, s in (ms.get("state") or {}).items():
+    for k, s in states.items():
         e = (sens.get(k) or 0) * s
         if not e or not why.get(k):
             continue
@@ -183,12 +210,25 @@ def evaluate(screens: dict, macro: dict | None = None, news: dict | None = None)
         comp = _company_from_list(screens, nm)
         fin = 1 - (rg.get(nm, n) - 1) / max(n - 1, 1)
         fin = min(1.0, fin * 0.75 + (0.25 if comp else 0))
-        mscore, good, bad = macro_fit(nm, ms, narr)
+        mscore, good, bad = macro_fit(nm, ms, narr, market_of(comp))
         hits, heads = news_match(nm, news, narr)
         out[nm] = {"traj": round(traj, 2), "fin": round(fin, 2), "macro": round((mscore + 4) / 8, 2), "news": round(min(hits, 4) / 4, 2),
                    "macro_raw": mscore, "macro_good": good, "macro_bad": bad, "news_hits": hits, "headlines": heads,
                    "rank_3y": r3.get(nm), "rank_rev": rg.get(nm), "rank_pct3y": rp.get(nm)}
     return {"cats": cats, "ev": out, "macro": ms, "narr": narr}
+
+
+FIN_MIN = 0.25          # 3년 실적 점수 최소 기준 (이보다 낮으면 대표 기업 3년 성장이 뚜렷할 때만 후보)
+STRONG_GROWTH = 15.0    # 대표 기업 3년 매출·순이익 연평균 성장률(%) 이 이 이상이면 '실적 성장이 뚜렷'
+
+
+def _strong_growth(comp: dict | None) -> bool:
+    for k in ("3년 매출 성장", "3년 순이익 성장"):
+        v = ((comp or {}).get("metrics") or {}).get(k)
+        m = re.match(r"\s*([+-]?\d+(?:\.\d+)?)", str(v or ""))
+        if m and float(m.group(1)) >= STRONG_GROWTH:
+            return True
+    return False
 
 
 def select(screens: dict, macro: dict | None = None, news: dict | None = None) -> list[dict]:
@@ -208,10 +248,15 @@ def select(screens: dict, macro: dict | None = None, news: dict | None = None) -
     if not all(r60_1y.values()):
         r60_1y = _rank(cats, "rs_60d_1y_ago")
     used, out = set(), []
+    ok = {c["name"] for c in cats if ev[c["name"]]["fin"] >= FIN_MIN or _strong_growth(_company_from_list(screens, c["name"]))}
+    if len(ok) < 3:        # 기준을 넘는 분야가 너무 적으면 실적 점수 상위 3개는 남긴다
+        ok |= {c["name"] for c in sorted(cats, key=lambda c: -ev[c["name"]]["fin"])[:3]}
+    cats = [c for c in cats if c["name"] in ok]
 
     def card(kind, c, comp, score, note):
         used.add(c["name"])
-        e = ev[c["name"]]
+        e = dict(ev[c["name"]])
+        _, e["macro_good"], e["macro_bad"] = macro_fit(c["name"], E["macro"], E["narr"], market_of(comp))
         return {"kind": kind, "kind_label": KINDS[kind][0], "icon": KINDS[kind][1], "category": c["name"],
                 "cat": {k: c.get(k) for k in ("ret_1y", "ret_3y", "ret_60d", "rev_g", "pe_kr", "pe_us", "rs_60d", "rs_60d_1y_ago",
                                                 "rs_pct_3y", "breadth", "flow")},
