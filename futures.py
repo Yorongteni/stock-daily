@@ -44,7 +44,7 @@ UA = {"User-Agent": "stock-daily-practice/1.0"}
 
 DEFAULTS = {
     "leverage": 3, "margin_usdt": 360.0, "tp_pct": 2.45, "sl_pct": 1.50, "win_roe": 7.0, "loss_roe": 4.5,
-    "fee_roe": 0.3, "hold_hours": 24,
+    "fee_roe": 0.3, "hold_hours": 24, "order_valid_hours": 6, "oi_trap": 2.0, "near_extreme": 0.5,
     "sl_min": 1.2, "sl_max": 1.8, "max_loss_roe": 5.5, "sl_buffer": 0.2, "be_trigger_pct": 1.2, "top_n": 30, "max_open": 2, "min_range24": 3.0, "mmr": 0.5,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
@@ -389,26 +389,38 @@ def coin_feats(src, sym: str, now: datetime) -> dict | None:
     return f
 
 
-def setup(f: dict, side: str, cfg: dict) -> dict:
-    """한 방향(LONG/SHORT)의 타점 점검표와 점수."""
+def setup(f: dict, side: str, cfg: dict, btc_chg24: float | None = None) -> dict:
+    """한 방향(LONG/SHORT)의 타점 점검표와 점수.
+    2026-11-18 XRP 숏 손절 복기로 보강: 미결제약정은 가격 방향과 함께, 비트코인 대비 상대 강도, 24시간 고점·저점 돌파 직전 자리 제외."""
     L = side == "LONG"
     fr, oi = f.get("funding"), f.get("oi_chg24")
+    c24, c4 = f["chg24"], f["chg4h"]
+    rel = None if btc_chg24 is None or f.get("coin") == "BTC" else c24 - btc_chg24
+    # 가격이 오르는데 미결제약정이 늘면 '새 롱 유입'(숏에 불리), 내리는데 늘면 '새 숏 유입'(롱에 불리)
+    oi_trap = oi is not None and oi > cfg["oi_trap"] and ((c4 > 1.0) if not L else (c4 < -1.0))
+    # 숏: 24시간 고점 바로 아래 + 4시간 20봉선 회복 / 롱: 24시간 저점 바로 위 + 4시간 20봉선 이탈 → 돌파·이탈 직전이라 제외
+    near_ext = ((f["close"] >= f["hi24"] * (1 - cfg["near_extreme"] / 100) and f["close"] > f["ema20_4h"]) if not L
+                else (f["close"] <= f["lo24"] * (1 + cfg["near_extreme"] / 100) and f["close"] < f["ema20_4h"]))
     chk = {
         "4시간봉 추세": f["trend4"] == (1 if L else -1),
         "1시간봉 눌림" if L else "1시간봉 반등": (-1.8 <= f["dist1h"] <= 0.8 and 36 <= f["rsi1h"] <= 58) if L
         else (-0.8 <= f["dist1h"] <= 1.8 and 42 <= f["rsi1h"] <= 64),
         "반등 캔들" if L else "꺾임 캔들": (f["bull"] or f["lower_wick"] >= 0.45) if L else (f["bear"] or f["upper_wick"] >= 0.45),
         "거래량 증가": f["vol_ratio"] >= 1.1,
-        "미결제약정 증가": oi is not None and oi > 0 and (f["chg24"] >= -2 if L else f["chg24"] <= 2),
+        "미결제약정 방향 일치": oi is not None and oi > 0 and ((c24 >= 0) if L else (c24 <= 0)) and not oi_trap,
+        "비트코인 대비 강세" if L else "비트코인 대비 약세": rel is None or ((rel >= 0) if L else (rel <= 0)),
         "펀딩비 과열 아님": fr is None or (fr <= 0.03 if L else fr >= -0.03),
         "변동폭 충분": f["range24"] >= cfg["min_range24"],
     }
-    s = sum(chk.values())
-    score = (s + (0.6 if chk["거래량 증가"] else 0) + min(f["vol_ratio"], 3) * 0.3
-             + (min(abs(oi or 0), 10) / 10 if chk["미결제약정 증가"] else 0)
-             + (abs(f["chg4h"]) * -0.15 if (f["chg4h"] < 0) == L else 0))
-    ok = chk["4시간봉 추세"] and chk["변동폭 충분"] and s >= 5
-    return {"side": side, "checks": chk, "passed": s, "score": round(score, 2), "ok": ok}
+    rel_key = "비트코인 대비 강세" if L else "비트코인 대비 약세"
+    s_ = sum(chk.values())
+    score = (s_ + (0.6 if chk["거래량 증가"] else 0) + min(f["vol_ratio"], 3) * 0.3
+             + (min(abs(oi or 0), 10) / 10 if chk["미결제약정 방향 일치"] else 0)
+             + (abs(c4) * -0.15 if (c4 < 0) == L else 0))
+    blocks = [x for x, on in (("롱 신규 유입 반등(가격↑·미결제약정↑)" if not L else "숏 신규 유입 하락(가격↓·미결제약정↑)", oi_trap),
+                              ("24시간 고점 돌파 직전" if not L else "24시간 저점 이탈 직전", near_ext)) if on]
+    ok = chk["4시간봉 추세"] and chk["변동폭 충분"] and chk[rel_key] and not blocks and s_ >= 6
+    return {"side": side, "checks": chk, "passed": s_, "score": round(score, 2), "ok": ok, "blocks": blocks, "rel_btc": rel}
 
 
 # ───────────────────────── 시장 방향 ─────────────────────────
@@ -479,7 +491,15 @@ def evaluate(src, log: dict, now: datetime, cfg: dict, fx: float) -> list:
         if pos["status"] == "CLOSED":
             continue
         start = parse(pos.get("entry_time") if pos["status"] == "OPEN" and pos.get("source") == "manual" else pos["pick_time"])
-        end = start + timedelta(hours=pos.get("hold_hours", cfg["hold_hours"]))
+        vh = pos.get("order_valid_hours")           # 예약 유효시간 (옛 포지션은 없음 → 24시간 규칙)
+        hold = timedelta(hours=pos.get("hold_hours", cfg["hold_hours"]))
+        order_end = start + timedelta(hours=vh) if vh else start + hold
+
+        def end_of(p):
+            if p["status"] == "OPEN" and vh and p.get("entry_time"):
+                return parse(p["entry_time"]) + hold       # 체결 시각부터 hold_hours
+            return order_end if p["status"] == "PENDING" else start + hold
+        end = end_of(pos)
         try:
             df = closed(src.klines(pos["symbol"], "1h", 200), 1, now)
         except Exception as e:  # noqa: BLE001
@@ -494,6 +514,7 @@ def evaluate(src, log: dict, now: datetime, cfg: dict, fx: float) -> list:
                 continue            # 추천(진입) 시각 이전 봉은 보지 않음 (미래 정보 차단)
             if checked and t1 <= checked:
                 continue
+            end = end_of(pos)
             if t1 > end:
                 break
             h, l, c = float(bar.High), float(bar.Low), float(bar.Close)
@@ -506,6 +527,11 @@ def evaluate(src, log: dict, now: datetime, cfg: dict, fx: float) -> list:
                                    "price": pos["limit"], "time": iso(t0)})
                     first = True
                 else:
+                    cl = pos.get("cancel_level")
+                    if cl and ((c < cl) if L else (c > cl)):
+                        _finish(pos, "NO_FILL", None, t1, f"체결 전 {kst(t0)} 1시간봉이 24시간 {'저점' if L else '고점'} {fmt_px(cl)} "
+                                f"{'아래' if L else '위'}에서 마감해 타점이 무효가 됐어요 (주문 취소).", cfg, fx, log, events)
+                        break
                     continue
             hit_sl = (l <= pos["sl"]) if L else (h >= pos["sl"])
             hit_tp = (h >= pos["tp"]) if L else (l <= pos["tp"])
@@ -529,12 +555,13 @@ def evaluate(src, log: dict, now: datetime, cfg: dict, fx: float) -> list:
                                "price": pos["be_price"], "trigger": bt, "time": iso(t0)})
         if pos["status"] == "CLOSED":
             continue
+        end = end_of(pos)
         if now >= end:
             if pos["status"] == "PENDING":
-                _finish(pos, "NO_FILL", None, end, f"24시간 동안 예약가 {fmt_px(pos['limit'])}에 닿지 않아 체결되지 않았어요.", cfg, fx, log, events)
+                _finish(pos, "NO_FILL", None, end, f"{vh or 24}시간 동안 예약가 {fmt_px(pos['limit'])}에 닿지 않아 주문을 취소했어요.", cfg, fx, log, events)
             else:
                 px = (pos.get("last") or {}).get("close") or pos["entry"]
-                _finish(pos, "TIME_EXIT", px, end, f"24시간이 지나 {kst(end)} 종가 {fmt_px(px)}에 정리했어요.", cfg, fx, log, events)
+                _finish(pos, "TIME_EXIT", px, end, f"진입 후 {int(hold.total_seconds() // 3600)}시간이 지나 {kst(end)} 종가 {fmt_px(px)}에 정리했어요.", cfg, fx, log, events)
     log["positions"] = [p for p in log["positions"] if p["status"] != "CLOSED"]
     return events
 
@@ -543,14 +570,22 @@ def evaluate(src, log: dict, now: datetime, cfg: dict, fx: float) -> list:
 def plan_open(pos: dict, price: float, now: datetime, cfg: dict) -> dict:
     L = pos["direction"] == "LONG"
     sign = 1 if L else -1
-    mv = (price / pos["entry"] - 1) * 100 * sign
-    start = parse(pos.get("entry_time") if pos.get("source") == "manual" else pos["pick_time"])
-    end = start + timedelta(hours=pos.get("hold_hours", cfg["hold_hours"]))
+    mv = (price / (pos.get("entry") or pos["limit"]) - 1) * 100 * sign
+    hold = timedelta(hours=pos.get("hold_hours", cfg["hold_hours"]))
+    vh = pos.get("order_valid_hours")
+    if pos["status"] == "PENDING":
+        end = parse(pos["pick_time"]) + (timedelta(hours=vh) if vh else hold)
+    elif pos.get("source") == "manual" or vh:
+        end = parse(pos.get("entry_time") or pos["pick_time"]) + hold
+    else:
+        end = parse(pos["pick_time"]) + hold
     left = max(0, int((end - now).total_seconds() // 3600))
     if pos["status"] == "PENDING":
         return {"action": f"예약 {'매수' if L else '매도'} {fmt_px(pos['limit'])} 유지 · {kst(end)}까지 안 닿으면 취소",
                 "price": pos["limit"], "kind": "wait", "left": left, "move": round(mv, 2),
-                "reason": "아직 진입가에 닿지 않았어요. 추격 진입은 하지 않습니다."}
+                "reason": "아직 진입가에 닿지 않았어요. 추격 진입은 하지 않고, 체결 전에 1시간봉이 24시간 "
+                          f"{'저점' if L else '고점'} {fmt_px(pos.get('cancel_level'))} 밖에서 마감하면 주문을 취소합니다."
+                          if pos.get("cancel_level") else "아직 진입가에 닿지 않았어요. 추격 진입은 하지 않습니다."}
     if pos.get("be_moved") or mv >= cfg["be_trigger_pct"]:
         be = pos.get("be_price") or rp(pos["entry"] * (1 + 0.1 / 100 * sign))
         pos.update(sl0=pos.get("sl0") or pos["sl"], sl=be, be_moved=True)
@@ -637,6 +672,12 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     for e in events:
         print(f"  · {e['type']}: {e.get('symbol')} {e.get('result_ko', '')} {e.get('roe', '')}")
 
+    print("[B2-1] 끝난 매매 복기")
+    try:
+        reviews = review_recent(src, log, cfg, now, today)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ✗ 복기 실패: {e}")
+        reviews = []
     print("[B3] 시장 방향 (비트코인 + 나스닥 선물)")
     stocks = {str(k).upper() for k in ((cfg_all.get("swing") or {}).get("universe") or {})}
     cand = [t for t in tk if coin(t["symbol"]) not in STABLE | NON_CRYPTO | stocks and t["qv"] > 0]
@@ -687,12 +728,12 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     open_syms = {p["symbol"] for p in log["positions"]}
     for s, f in feats.items():
         for side in ("LONG", "SHORT"):
-            st = setup(f, side, cfg)
+            st = setup(f, side, cfg, None if s == "BTCUSDT" else feats["BTCUSDT"]["chg24"])
             align = 1.5 if side == bias["side"] else -1.5 if bias["side"] != "NEUTRAL" else 0
             rows.append({"symbol": s, "name": f["name"], "side": side, "score": round(st["score"] + align, 2), "ok": st["ok"],
                          "passed": st["passed"], "checks": st["checks"], "close": f["close"], "chg24": round(f["chg24"], 2),
                          "rsi1h": round(f["rsi1h"], 1), "funding": f.get("funding"), "oi_chg24": f.get("oi_chg24"),
-                         "vol_ratio": round(f["vol_ratio"], 2), "range24": round(f["range24"], 1)})
+                         "vol_ratio": round(f["vol_ratio"], 2), "range24": round(f["range24"], 1), "blocks": st["blocks"]})
     allowed = (lambda r: r["side"] == bias["side"]) if bias["side"] != "NEUTRAL" else (lambda r: True)
     ok = sorted([r for r in rows if r["ok"] and allowed(r) and r["symbol"] not in open_syms], key=lambda r: -r["score"])
     ranked = sorted(rows, key=lambda r: -r["score"])
@@ -709,13 +750,21 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         o = make_order(f, r["side"], cfg, tick(r["symbol"]), fx)
         pick = {**{k: v for k, v in f.items() if k != "spark"}, "side": r["side"], "score": r["score"], "checks": r["checks"],
                 "order": o, "story": story(f, r["side"], o, bias), "spark": f["spark"]}
-        end = now + timedelta(hours=cfg["hold_hours"])
-        pick["valid_until"] = iso(end)
+        pick["order_until"] = iso(now + timedelta(hours=cfg["order_valid_hours"]))
+        pick["valid_until"] = pick["order_until"]          # 예약 유효 (체결되면 그때부터 hold_hours)
+        pick["hold_hours"] = cfg["hold_hours"]
+        pick["order_hours"] = cfg["order_valid_hours"]
         log["positions"].append({
             "id": f"{today}-{r['symbol']}", "symbol": r["symbol"], "name": f["name"], "direction": r["side"], "source": "auto",
             "status": "PENDING", "pick_date": today, "pick_time": iso(now), "limit": o["entry"], "tp": o["tp"], "sl": o["sl"],
             "qty": o["qty"], "margin": o["margin"], "leverage": o["leverage"], "hold_hours": cfg["hold_hours"], "liq": o["liq"],
             "loss_roe": o["loss_roe"], "sl_basis": o["sl_basis"], "be_trigger": o["be_trigger"], "be_price": o["be_price"],
+            "order_valid_hours": cfg["order_valid_hours"],
+            "cancel_level": round(f["hi24"] if r["side"] == "SHORT" else f["lo24"], 8),     # 체결 전 이 가격 밖에서 1시간봉 마감 → 무효
+            "ctx": {"close": f["close"], "chg24": round(f["chg24"], 2), "chg4h": round(f["chg4h"], 2), "oi_chg24": f.get("oi_chg24"),
+                    "funding": f.get("funding"), "rsi1h": round(f["rsi1h"], 1), "hi24": f["hi24"], "lo24": f["lo24"],
+                    "ema20_4h": f["ema20_4h"], "ema50_4h": f["ema50_4h"], "btc_chg24": round(btc["chg24"], 2), "bias": bias["side"],
+                    "checks": r["checks"]},
         })
         print(f"  ✓ {r['symbol']} {r['side']} 진입 {o['entry']} / TP {o['tp']} / SL {o['sl']}")
     near = [r for r in ranked if not (pick and r["symbol"] == pick["symbol"] and r["side"] == pick["side"])][:4]
@@ -727,8 +776,129 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         "source": src.name, "source_label": src.label, "source_errors": src_errs, "generated_at": kst(now, "%Y-%m-%d %H:%M"),
         "data_time": kst(btc["bar_time"]), "bias": bias, "btc": {k: btc[k] for k in ("close", "chg24", "ema20_4h", "ema50_4h", "rsi4h", "funding", "oi_chg24")},
         "nq": nq, "events": events, "holdings": holdings, "pick": pick, "near": near, "block": block,
-        "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx),
+        "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx), "reviews": reviews,
     }
+
+
+# ───────────────────────── 3-1) 매매 복기 ─────────────────────────
+def _pick_ctx(rec: dict) -> dict:
+    """추천 당시 근거 (포지션에 저장된 ctx, 없으면 그날 브리핑 데이터에서)."""
+    if rec.get("ctx"):
+        return rec["ctx"]
+    try:
+        d = load_json(ROOT / "docs" / "swing" / "data" / f"{(rec.get('id') or '')[:10]}.json", {})
+        fu = d.get("futures") or {}
+        p = fu.get("pick") or {}
+        if p.get("symbol") != rec.get("symbol"):
+            return {}
+        return {"close": p.get("close"), "chg24": p.get("chg24"), "chg4h": p.get("chg4h"), "oi_chg24": p.get("oi_chg24"),
+                "funding": p.get("funding"), "rsi1h": p.get("rsi1h"), "hi24": p.get("hi24"), "lo24": p.get("lo24"),
+                "ema20_4h": p.get("ema20_4h"), "ema50_4h": p.get("ema50_4h"), "btc_chg24": (fu.get("btc") or {}).get("chg24"),
+                "bias": (fu.get("bias") or {}).get("side"), "checks": p.get("checks")}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def review_trade(src, rec: dict, cfg: dict, now: datetime) -> dict | None:
+    """끝난 매매 하나를 시세로 복기: 체결 지연, 최대 유리·불리 폭, 비트코인 흐름, 청산 뒤 6시간, 새 규칙 기준 판정."""
+    if rec.get("result") in ("NO_FILL", "CANCEL") or not rec.get("entry_time") or not rec.get("exit_time"):
+        return None
+    L = rec["direction"] == "LONG"
+    sg = 1 if L else -1
+    t_in, t_out = parse(rec["entry_time"]), parse(rec["exit_time"])
+    entry, exit_ = rec["entry"], rec.get("exit") or rec["entry"]
+    try:
+        df = closed(src.klines(rec["symbol"], "1h", 200), 1, now)
+        bt = closed(src.klines("BTCUSDT", "1h", 200), 1, now)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ✗ 복기 시세 {rec['symbol']}: {e}")
+        df = bt = None
+    out = {"symbol": rec["symbol"], "name": rec.get("name"), "direction": rec["direction"], "result": rec.get("result"),
+           "result_ko": rec.get("result_ko"), "entry": entry, "exit": exit_, "roe": rec.get("roe"), "pnl_usdt": rec.get("pnl_usdt"),
+           "entry_time": rec["entry_time"], "exit_time": rec["exit_time"], "source": rec.get("source"),
+           "held_h": round((t_out - t_in).total_seconds() / 3600, 1)}
+    if rec.get("pick_time"):
+        out["fill_delay_h"] = round((t_in - parse(rec["pick_time"])).total_seconds() / 3600, 1)
+    if df is not None and len(df):
+        w = df[(df.index >= pd.Timestamp(t_in).floor("h")) & (df.index < pd.Timestamp(t_out))]
+        if len(w):
+            hi, lo = float(w["High"].max()), float(w["Low"].min())
+            out["mfe"] = round(((hi / entry - 1) if L else (1 - lo / entry)) * 100, 2)     # 가장 유리했던 폭
+            out["mae"] = round(((lo / entry - 1) if L else (1 - hi / entry)) * 100, 2)     # 가장 불리했던 폭
+        aft = df[(df.index >= pd.Timestamp(t_out)) & (df.index < pd.Timestamp(t_out + timedelta(hours=6)))]
+        if len(aft) >= 3:
+            out["after6h"] = round((float(aft["Close"].iloc[-1]) / exit_ - 1) * 100 * sg, 2)  # 청산 뒤 6시간, 내 방향 기준
+        pre = df[(df.index >= pd.Timestamp(parse(rec["pick_time"])).ceil("h")) & (df.index < pd.Timestamp(t_in).floor("h"))] \
+            if rec.get("pick_time") else None
+        ctx = _pick_ctx(rec)
+        cl = rec.get("cancel_level") or ((ctx.get("lo24") if L else ctx.get("hi24")) if ctx else None)
+        if pre is not None and len(pre) and cl:
+            brk = pre[(pre["Close"] < cl) if L else (pre["Close"] > cl)]
+            out["broke_before_fill"] = bool(len(brk))
+    if bt is not None and len(bt):
+        b = bt[(bt.index >= pd.Timestamp(t_in).floor("h")) & (bt.index < pd.Timestamp(t_out))]
+        if len(b) >= 2:
+            out["btc_move"] = round((float(b["Close"].iloc[-1]) / float(b["Open"].iloc[0]) - 1) * 100, 2)
+    # 새 규칙으로 다시 보기
+    ctx = _pick_ctx(rec)
+    flags = []
+    if ctx:
+        c24, c4, oi = ctx.get("chg24") or 0, ctx.get("chg4h") or 0, ctx.get("oi_chg24")
+        if oi is not None and oi > cfg["oi_trap"] and ((c4 > 1.0) if not L else (c4 < -1.0)):
+            flags.append(f"{'가격 상승' if not L else '가격 하락'}(4시간 {c4:+.1f}%)과 함께 미결제약정이 {oi:+.1f}% 늘어 "
+                         f"{'새 롱' if not L else '새 숏'} 자금이 들어오던 자리")
+        bc = ctx.get("btc_chg24")
+        if bc is not None and ((c24 - bc > 0) if not L else (c24 - bc < 0)):
+            flags.append(f"비트코인(24시간 {bc:+.1f}%)보다 {'강한' if not L else '약한'} 코인(24시간 {c24:+.1f}%)을 {'숏' if not L else '롱'}")
+        if ctx.get("hi24") and ctx.get("close") and ctx.get("ema20_4h"):
+            if not L and ctx["close"] >= ctx["hi24"] * (1 - cfg["near_extreme"] / 100) and ctx["close"] > ctx["ema20_4h"]:
+                flags.append(f"24시간 고점 {fmt_px(ctx['hi24'])} 바로 아래에서 4시간 20봉선을 되찾은 돌파 직전 자리")
+            if L and ctx["close"] <= ctx["lo24"] * (1 + cfg["near_extreme"] / 100) and ctx["close"] < ctx["ema20_4h"]:
+                flags.append(f"24시간 저점 {fmt_px(ctx['lo24'])} 바로 위에서 4시간 20봉선을 잃은 이탈 직전 자리")
+    if (out.get("fill_delay_h") or 0) > cfg["order_valid_hours"]:
+        flags.append(f"추천 {out['fill_delay_h']:.0f}시간 뒤에야 체결된 늦은 주문 (새 규칙: {cfg['order_valid_hours']}시간 지나면 취소)")
+    if out.get("broke_before_fill"):
+        flags.append("체결 전에 이미 24시간 " + ("저점" if L else "고점") + " 밖에서 1시간봉이 마감 (새 규칙: 주문 무효)")
+    out["flags"] = flags
+    out["new_rules_block"] = bool(flags)
+    # 한 줄 교훈
+    lessons = []
+    win = (rec.get("pnl_usdt") or 0) > 0
+    if not win and out.get("mfe") is not None and out["mfe"] < 0.5:
+        lessons.append(f"진입 뒤 유리한 쪽으로 {out['mfe']:.2f}%밖에 움직이지 않았어요. 타점 자체가 틀렸다는 신호입니다.")
+    elif not win and out.get("mfe") is not None and out["mfe"] >= cfg["be_trigger_pct"]:
+        lessons.append(f"한때 {out['mfe']:.2f}% 유리했는데 손실로 끝났어요. 본절 방어(±{cfg['be_trigger_pct']}%)를 걸었다면 손실을 피했을 수 있습니다.")
+    if not win and out.get("after6h") is not None:
+        lessons.append(f"청산 뒤 6시간 동안 내 방향으로 {out['after6h']:+.2f}% 움직였어요. "
+                       + ("손절 직후 되돌아온 '꼬리 손절'이라 로스값 위치를 점검할 만합니다." if out["after6h"] >= 1.0
+                          else "손절 뒤에도 불리한 흐름이 이어져 손절은 맞는 판단이었습니다." if out["after6h"] <= 0 else "청산 뒤에도 뚜렷한 되돌림은 없었습니다."))
+    if out.get("btc_move") is not None:
+        same = (out["btc_move"] > 0) == L
+        lessons.append(f"보유하는 동안 비트코인은 {out['btc_move']:+.2f}% 움직여 {'내 방향과 같았' if same else '내 방향과 반대였'}습니다.")
+    if flags:
+        lessons.append("보강한 선정 규칙이었다면 이 원픽은 제외됐을 자리입니다.")
+    out["lessons"] = lessons
+    out["reviewed_at"] = iso(now)
+    return out
+
+
+def review_recent(src, log: dict, cfg: dict, now: datetime, today: str) -> list:
+    """아직 복기하지 않은 최근 7일 매매를 복기하고 기록에 남긴다. 오늘 만든 복기는 같은 날 다시 돌려도 다시 보여 준다."""
+    out = []
+    for rec in log["history"]:
+        if rec.get("review"):
+            if rec["review"].get("date") == today:
+                out.append(rec["review"])
+            continue
+        if not rec.get("exit_time") or parse(rec["exit_time"]) > now or now - parse(rec["exit_time"]) > timedelta(days=7):
+            continue
+        rv = review_trade(src, rec, cfg, now)
+        if rv:
+            rv["date"] = today
+            rec["review"] = rv
+            out.append(rv)
+            print(f"  · 복기 {rec['symbol']} {rec.get('result')}: 유리 {rv.get('mfe')}% / 불리 {rv.get('mae')}% / 규칙 위반 {len(rv['flags'])}개")
+    return out
 
 
 # ───────────────────────── 4) 성적 ─────────────────────────

@@ -191,7 +191,7 @@ def coin_slides(fu: dict) -> list:
     from pricefmt import kst
     sg, sgo = ("+", "-") if L else ("-", "+")
     body = tri3(f"{p['symbol']} {'🟢 LONG' if L else '🔴 SHORT'} · 격리 {o['leverage']}배",
-                f"증거금 {o['margin']:,.0f} USDT · 수량 {o['qty']} · {kst(p['valid_until'])} 시간 정리",
+                f"증거금 {o['margin']:,.0f} USDT · 수량 {o['qty']} · 예약 {kst(p['valid_until'])}까지",
                 ("① 진입 지정가", fpx(o["entry"]), "Entry", f"현재가보다 {o['off_pct']}% {'아래' if L else '위'}"),
                 (f"② 처리값 TP ({sg}{o.get('tp_pct', 2.45)}%)", fpx(o["tp"]), f"+약 {o.get('win_krw', 0):,}원", f"{o['win_usdt']:+.1f} USDT · +{o.get('win_roe', 7)}%"),
                 (f"③ 비상 로스값 SL ({sgo}{o.get('sl_dist', 1.5):.2f}%)", fpx(o["sl"]), f"-약 {abs(o.get('loss_krw', 0)):,}원",
@@ -205,7 +205,8 @@ def coin_slides(fu: dict) -> list:
             f"닿으면 최대 {say_won(abs(o.get('loss_krw', 0)))}, {abs(o['loss_usdt']):.1f} 테더 손실로 끝납니다. "
             f"진입과 동시에 목표가와 로스값을 함께 걸어 두세요. "
             f"가격이 {fpx(o.get('be_trigger'))}달러까지 유리하게 오면, 로스값을 본전인 {fpx(o.get('be_price'))}달러로 옮겨 손실 없이 잠그세요. "
-            f"24시간 안에 둘 다 안 닿으면 {kst(p['valid_until'], '%d일 %H시')}에 정리합니다.")
+            f"예약 주문은 {kst(p['valid_until'], '%d일 %H시')}까지만 유효하고, 그 전에 1시간봉이 24시간 {'저점' if L else '고점'} 밖에서 마감하면 취소합니다. "
+            f"체결되면 그때부터 24시간 안에 목표가나 로스값에 닿지 않을 경우 정리합니다.")
     S.append(vs.Slide("2부 · 바이낸스 선물 주문표", "바이낸스 앱에 이대로 입력하세요", narr, [], ("good" if L else "risk", f"{sd} · 360 USDT"), body_html=body))
     return S
 
@@ -257,7 +258,7 @@ def build(d: dict) -> list:
         nm = e.get("name") or e["symbol"]
         sd = "롱" if e.get("direction") == "LONG" else "숏"
         if e["type"] == "missed":
-            rows.append(f"<div class='e'>⏸ <b>{html.escape(nm)} {sd}</b> 미체결<small>24시간 안에 진입가에 닿지 않았어요</small></div>")
+            rows.append(f"<div class='e'>⏸ <b>{html.escape(nm)} {sd}</b> 미체결<small>{html.escape(e.get('reason', '')[:60])}</small></div>")
             says.append(f"코인 원픽 {nm} {sd}은 진입가에 닿지 않아 체결되지 않았습니다.")
         else:
             k = "good" if e["pnl_usdt"] > 0 else "risk" if e["pnl_usdt"] < 0 else ""
@@ -277,6 +278,19 @@ def build(d: dict) -> list:
         S.append(vs.Slide("공통 인트로 · 어제 매매 성적표", "어제 판정할 추천 없음",
                           "먼저 어제 매매 성적표입니다. 미국 주식도 코인도 어제 추천하거나 들고 있던 포지션이 없어서 판정할 결과가 없습니다.",
                           ["어제는 예약·보유 포지션이 없었어요", "오늘 타점부터 보겠습니다"], ("info", "판정 없음")))
+
+    for r in (fu.get("reviews") or [])[:2]:      # 끝난 코인 매매 복기
+        nm, sd = r.get("name") or r["symbol"], "롱" if r.get("direction") == "LONG" else "숏"
+        win = (r.get("pnl_usdt") or 0) > 0
+        facts = [f"{fpx(r['entry'])} → {fpx(r['exit'])} · {(r.get('roe') or 0):+.2f}% ({(r.get('pnl_usdt') or 0):+.2f} USDT)"]
+        if r.get("mfe") is not None:
+            facts.append(f"최대 유리 {r['mfe']:+.2f}% · 최대 불리 {r['mae']:+.2f}%" + (f" · 체결까지 {r['fill_delay_h']:.0f}시간" if r.get("fill_delay_h") else ""))
+        facts += [vs.first(x) for x in (r.get("flags") or [])[:2]]
+        narr = (f"이어서 매매 복기입니다. {nm} {sd}은 {r.get('result_ko', '')}로 끝났습니다. "
+                + (f"진입 뒤 가장 유리했을 때가 {abs(r['mfe']):.1f}%, 가장 불리했을 때가 {abs(r['mae']):.1f}%였습니다. " if r.get("mfe") is not None else "")
+                + ("당시 근거를 다시 보면, " + " 그리고 ".join(r["flags"][:2]) + "였습니다. " if r.get("flags") else "")
+                + " ".join(r.get("lessons") or [])[:400])
+        S.append(vs.Slide("공통 인트로 · 매매 복기", f"🔍 {nm} {sd} 복기", narr, facts[:4], ("good" if win else "risk", "복기")))
 
     for h in holds[:3]:
         pl = h.get("plan") or {}

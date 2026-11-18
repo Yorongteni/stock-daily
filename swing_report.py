@@ -351,7 +351,7 @@ def coin_pick_html(p: dict, bias: dict) -> str:
 <div class='order'>
  <div class='oh'><div class='onm'>{esc(p['symbol'])} <span>{'🟢 LONG (오르면 수익)' if L else '🔴 SHORT (내리면 수익)'}</span></div>
   <div class='oq'>격리 {o['leverage']}배<small>증거금 {o['margin']:,.0f} USDT · 포지션 {o['notional']:,.0f} USDT · 수량 {o['qty']}</small></div></div>
- {tri_html("진입 지정가 (Entry)", fpx(o['entry']), f"현재가보다 {o['off_pct']}% {'아래' if L else '위'} · 24시간 안에 안 닿으면 취소",
+ {tri_html("진입 지정가 (Entry)", fpx(o['entry']), f"현재가보다 {o['off_pct']}% {'아래' if L else '위'} · {p.get('order_hours', 6)}시간 안에 안 닿으면 취소",
            f"목표 처리값 (TP · {'+' if L else '-'}{o['tp_pct'] if 'tp_pct' in o else 2.45}%)", fpx(o['tp']),
            f"예상 수익 <b>+약 {o.get('win_krw', 0):,}원</b> · {usdt(o['win_usdt'], True)} (+{o.get('win_roe', 7.0)}%)",
            f"비상 로스값 (SL · {'-' if L else '+'}{o.get('sl_dist', 1.5):.2f}%)", fpx(o['sl']),
@@ -360,10 +360,35 @@ def coin_pick_html(p: dict, bias: dict) -> str:
   <em>꼬리에 걸려 억울하게 손절되지 않도록 직전 1시간봉 {'저점 아래' if L else '고점 위'}에 두고, 진입가 대비 1.2~1.8% · 3배 손실 -5.5% 이내로 제한</em></div>
  <div class='orow'><span>바이낸스 입력</span><b class='sm'>격리 · 3x · 지정가 {fpx(o['entry'])} · TP/SL 체크 후 TP {fpx(o['tp'])} / SL {fpx(o['sl'])}</b>
   <em>SL 트리거는 '마크 가격(Mark)' 기준 권장 · 진입과 동시에 TP/SL을 함께 걸어 두기</em></div>
- <div class='orow ddl'><span>시간 정리</span><b class='sm'>{esc(p['valid_until_kst'])}</b><em>그때까지 TP·SL에 안 닿으면 시장가로 정리 (TIME_EXIT)</em></div>
+ <div class='orow ddl'><span>예약 유효 · 시간 정리</span><b class='sm'>{esc(p['valid_until_kst'])}까지 체결 안 되면 취소</b><em>체결 전 1시간봉이 24시간 {'저점' if L else '고점'} {fpx(p.get('lo24') if L else p.get('hi24'))} {'아래' if L else '위'}에서 마감해도 취소 · 체결되면 그때부터 {p.get('hold_hours', 24)}시간 안에 TP·SL에 안 닿으면 시장가 정리 (TIME_EXIT)</em></div>
  <div class='be'>🛡 <b>본절 방어 기준가</b> 가격이 <b>{fpx(o.get('be_trigger'))}</b>({'+' if L else '-'}1.2%, 레버리지 수익 +{o.get('be_trigger_roe', 3.6)}%)에 닿으면 SL을 본전 <b>{fpx(o.get('be_price'))}</b>(수수료 포함 본전)로 옮겨 손실 없이 잠그세요.</div>
  <div class='ohint'>참고 청산가(격리 {o['leverage']}배): 약 {fpx(o['liq'])} — 로스값이 훨씬 먼저 오므로 SL만 지키면 청산까지 가지 않아요.</div>
 </div>"""
+
+
+def review_html(r: dict) -> str:
+    from pricefmt import kst
+    sd = side_html(r.get("direction"))
+    k = "good" if (r.get("pnl_usdt") or 0) > 0 else "risk"
+    facts = []
+    if r.get("fill_delay_h") is not None:
+        facts.append(f"체결까지 {r['fill_delay_h']:.1f}시간")
+    facts.append(f"보유 {r.get('held_h', 0):.1f}시간")
+    if r.get("mfe") is not None:
+        facts.append(f"최대 유리 {r['mfe']:+.2f}% · 최대 불리 {r['mae']:+.2f}%")
+    if r.get("btc_move") is not None:
+        facts.append(f"보유 중 비트코인 {r['btc_move']:+.2f}%")
+    if r.get("after6h") is not None:
+        facts.append(f"청산 뒤 6시간 내 방향 {r['after6h']:+.2f}%")
+    flags = "".join(f"<li>{esc(x)}</li>" for x in r.get("flags") or [])
+    lessons = "".join(f"<li>{esc(x)}</li>" for x in r.get("lessons") or [])
+    return (f"<div class='hold {k}'><div class='hh'><div><b class='nm'>{esc(r.get('name'))}</b> <span class='tk'>{esc(r['symbol'])}</span> {sd}"
+            f" <span class='pill'>{esc(r.get('result_ko'))}</span><span class='src'>{'내 계좌 실제 매매' if r.get('source') == 'manual' else '자동 추적'}</span></div>"
+            f"<div class='pnl {cls(r.get('pnl_usdt'))}'>{(r.get('roe') or 0):+.2f}%<small>{usdt(r.get('pnl_usdt'), True)}</small></div></div>"
+            f"<div class='why'>{fpx(r['entry'])} → {fpx(r['exit'])} · {esc(kst(r['entry_time']))} → {esc(kst(r['exit_time']))} · {' · '.join(facts)}</div>"
+            + (f"<div class='box' style='margin:8px 0 0'><h3>당시 근거 중 틀린 것 (새 규칙 기준)</h3><ul>{flags}</ul></div>" if flags else "")
+            + (f"<div class='act' style='font-size:15px;font-weight:600'><b>교훈</b><ul style='margin:4px 0'>{lessons}</ul></div>" if lessons else "")
+            + "</div>")
 
 
 def futures_part(fu: dict) -> str:
@@ -378,11 +403,11 @@ def futures_part(fu: dict) -> str:
     if fu.get("pick"):
         out.append(coin_pick_html(fu["pick"], b))
     else:
-        rows = "".join(f"<li><b>{esc(n['name'])} ({esc(n['symbol'])})</b> {side_html(n['side'])} 충족 {n['passed']}/7 · "
+        rows = "".join(f"<li><b>{esc(n['name'])} ({esc(n['symbol'])})</b> {side_html(n['side'])} 충족 {n['passed']}/8{' · 제외: ' + ', '.join(n.get('blocks') or []) if n.get('blocks') else ''} · "
                        f"{esc(', '.join(k for k, v in n['checks'].items() if v) or '없음')}</li>" for n in fu.get("near") or [])
         out.append(f"<div class='empty'>⏸ {esc(fu['block'])}</div>" + (f"<div class='box'><h3>아깝게 빠진 후보</h3><ul>{rows}</ul></div>" if rows else ""))
     if fu.get("pick") and fu.get("near"):
-        rows = "".join(f"<tr><td>{esc(n['name'])} <span class='tk'>{esc(n['symbol'])}</span></td><td>{side_html(n['side'])}</td><td>{n['passed']}/7</td>"
+        rows = "".join(f"<tr><td>{esc(n['name'])} <span class='tk'>{esc(n['symbol'])}</span></td><td>{side_html(n['side'])}</td><td>{n['passed']}/8</td>"
                        f"<td>{pct(n['chg24'])}</td><td>{n['score']:.2f}</td></tr>" for n in fu["near"][:4])
         out.append(f"<div class='box'><h3>다음 후보 (참고만)</h3><table><tr><th>코인</th><th>방향</th><th>충족</th><th>24시간</th><th>점수</th></tr>{rows}</table></div>")
     return "".join(out)
@@ -434,6 +459,9 @@ def write(d: dict, out: Path) -> Path:
     intro += "<h3 style='margin:22px 0 6px'>🚨 보유 포지션 긴급 점검 — 오늘 밤 탈출·대응 지정가</h3>"
     intro += urgent or "<div class='empty'>지금 물려 있거나 정리 안 된 포지션이 없어요. 오늘은 새 타점에 집중합니다.</div>"
     evs = "".join(event_html(e) for e in d["events"]) + "".join(coin_event_html(e) for e in fu.get("events") or [])
+    revs = fu.get("reviews") or []
+    if revs:
+        intro += "<h3 style='margin:22px 0 6px'>🔍 매매 복기 — 끝난 코인 매매를 시세로 다시 보기</h3>" + "".join(review_html(r) for r in revs)
     intro += "<h3 style='margin:22px 0 6px'>📋 어제 추천 결과</h3>"
     intro += evs or "<div class='ev'>어제 판정할 추천·보유 종목이 없었어요.</div>"
     parts.append(f"<div class='part'>공통 인트로 · 어제 매매 성적표 & 보유 포지션 긴급 점검"
@@ -488,7 +516,9 @@ def write(d: dict, out: Path) -> Path:
 <li>목표 익절 TP: 진입가 대비 ±{FR.get('tp_pct', 2.45)}% (레버리지 포함 수수료 감안 순수익 +{FR.get('win_roe', 7.0)}%) · 로스값 SL: 직전 1시간봉 저점(롱)/고점(숏) 바깥, 진입가 대비 {FR.get('sl_min', 1.2)}~{FR.get('sl_max', 1.8)}% · 3배 손실 최대 -{FR.get('max_loss_roe', 5.5)}%</li>
 <li>본절 방어: 가격이 유리하게 {FR.get('be_trigger_pct', 1.2)}%(레버리지 +3.6%) 움직이면 SL을 본전(수수료 포함)으로 이동 — 자동 판정에도 적용</li>
 <li>방향: 비트코인 4시간봉 추세·24시간 등락 + 나스닥100 선물로 롱 우위/숏 우위를 먼저 정하고, 그 방향 코인만 고릅니다(중립이면 양방향)</li>
-<li>코인 조건 7가지(4시간봉 추세·1시간봉 눌림/반등·캔들·거래량·미결제약정·펀딩비·변동폭) 중 5개 이상 + 추세·변동폭 필수</li>
+<li>코인 조건 8가지(4시간봉 추세·1시간봉 눌림/반등·캔들·거래량·미결제약정 방향·비트코인 대비 강약·펀딩비·변동폭) 중 6개 이상 + 추세·변동폭·비트코인 대비 강약 필수</li>
+<li>제외: 숏은 가격↑·미결제약정↑(새 롱 유입) 반등이나 24시간 고점 돌파 직전, 롱은 그 반대 자리 (11/18 XRP 숏 손절 복기로 추가)</li>
+<li>예약 주문은 6시간만 유효, 체결 전 1시간봉이 24시간 고점(숏)·저점(롱) 밖에서 마감하면 취소 · 체결 뒤 24시간 안에 TP·SL 없으면 시간 정리</li>
 <li>자동 판정: 추천 이후 1시간봉으로 진입 → TP/SL 중 먼저 닿은 쪽(같은 봉에서 둘 다면 손절), 24시간 지나면 TIME_EXIT, 예약가 미도달은 NO_FILL</li></ul></div>
 <div class='box'><h3>용어 풀이</h3><div class='gl'>{''.join(f'<div><b>{esc(a)}</b>{esc(b)}</div>' for a, b in GLOSSARY)}</div></div>
 <div class='box'><h3>실제로 다르게 샀거나 팔았다면 (스마트폰)</h3><ul>
