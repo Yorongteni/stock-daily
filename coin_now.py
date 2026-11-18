@@ -1,9 +1,9 @@
 """지금 시세로 보는 코인 수시 분석 — 18시 브리핑 2부(바이낸스 3배 원픽)와 같은 규칙을 원하는 시각에 돌린다.
 
-18시 기록은 건드리지 않습니다.
-  - data/ 의 추적 JSON 을 임시 폴더에 복사해 그 사본으로만 계산합니다 (SWING_DATA_DIR).
-    그래서 이 분석의 원픽은 가상 매매 기록·성적에 들어가지 않는 '참고용 스냅샷'입니다.
-  - 18시에 고른 오늘 원픽과 보유 포지션은 그대로 두고 '지금 상태'를 함께 보여 줍니다.
+18시 브리핑과는 완전히 별개입니다.
+  - 18시의 원픽·보유 포지션·매매 기록(data/*.json)을 읽지도 쓰지도 않습니다.
+    빈 임시 폴더(SWING_DATA_DIR)에서 계산하므로, 지금 시세만 보고 새로 고른 원픽 하나만 나옵니다.
+  - 이 원픽은 가상 매매 기록·성적에 들어가지 않는 참고용 스냅샷입니다.
 결과: docs/coin-now/coin_<날짜>_<시각>.html · docs/coin-now/index.html(최신) · docs/coin-now/data/<날짜>_<시각>.json
 
   python coin_now.py            # 지금 시각 기준
@@ -23,12 +23,8 @@ KST = timezone(timedelta(hours=9))
 
 
 def _isolate_state() -> Path:
-    """futures·swing 모듈을 불러오기 전에 추적 JSON 사본 폴더를 정한다 (원본 data/ 는 읽기만)."""
+    """futures·swing 모듈을 불러오기 전에 빈 임시 폴더를 기록 폴더로 정한다 (18시 data/ 와 연결 없음)."""
     tmp = Path(tempfile.mkdtemp(prefix="coin-now-"))
-    src = ROOT / "data"
-    if src.is_dir():
-        for p in src.glob("*.json"):
-            shutil.copy2(p, tmp / p.name)
     os.environ["SWING_DATA_DIR"] = str(tmp)
     return tmp
 
@@ -43,13 +39,7 @@ def build_page(fu: dict, stamp_kst: str) -> str:
     if fu.get("error"):
         parts.append(f"<div class='empty'>⚠ 지금은 코인 데이터를 받지 못했어요. ({sr.esc(fu['error'])}) 잠시 뒤 다시 실행해 주세요.</div>")
     else:
-        hold = "".join(sr.coin_holding_html(h) for h in fu.get("holdings") or [])
-        parts.append("<h2>지금 대기·보유 중인 포지션<small>18시 원픽·직접 넣은 포지션의 지금 상태</small></h2>")
-        parts.append(hold or "<div class='empty'>지금 대기·보유 중인 코인 포지션이 없어요.</div>")
-        evs = "".join(sr.coin_event_html(e) for e in fu.get("events") or [])
-        if evs:
-            parts.append("<h2>지난 판정 이후 바뀐 것<small>참고 — 공식 판정은 다음 18시 브리핑에서</small></h2>" + evs)
-        parts.append("<h2>지금 시세로 본 원픽<small>18시 규칙 그대로 · 기록에 넣지 않는 참고용</small></h2>")
+        parts.append("<h2>지금 시세로 본 원픽<small>기록에 넣지 않는 참고용</small></h2>")
         parts.append(sr.futures_part(fu))
 
     charts = ""
@@ -71,8 +61,8 @@ def build_page(fu: dict, stamp_kst: str) -> str:
 <link rel='preconnect' href='https://fonts.googleapis.com'><link href='https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap' rel='stylesheet'>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'></script><style>{sr.CSS}</style></head><body><div class='wrap'>
 <header><h1>🪙 코인 수시 분석 · {sr.esc(stamp_kst)}</h1>
-<p>18시 브리핑 2부(바이낸스 3배 롱/숏 원픽)와 같은 규칙을 지금 시세로 돌린 참고용 스냅샷 · 개인 연습용</p>
-<p>이 분석은 가상 매매 기록·성적에 넣지 않아요. 공식 기록은 매일 18시 브리핑입니다.</p></header>
+<p>지금 시세만 보고 고른 바이낸스 3배 롱/숏 원픽 · 개인 연습용 참고 자료</p>
+<p>18시 브리핑과 별개이며, 가상 매매 기록·성적에 넣지 않아요.</p></header>
 <div class='strip'><div><span>분석 시각</span><b>{sr.esc(stamp_kst)}</b></div>
 <div><span>지금의 방향</span><b>{sr.esc((b.get('label') or '–'))}</b></div>
 <div><span>지금 원픽</span><b>{sr.esc(head_pick)}</b></div></div>
@@ -100,7 +90,7 @@ def main():
     now = datetime.now(KST)
     stamp = now.strftime("%Y-%m-%d_%H%M")
     stamp_kst = now.strftime("%Y-%m-%d %H:%M") + " KST"
-    # '오늘' 이름을 18시와 다르게 줘서, 18시에 고른 오늘 원픽을 지우지 않고 보유·대기 포지션으로 함께 판정한다
+    # 임시 기록 안에서만 쓰는 이름 (18시 기록과 섞이지 않게)
     tag = f"{now:%Y-%m-%d}-now{now:%H%M}"
     try:
         fx, _ = usdkrw()
