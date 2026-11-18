@@ -21,7 +21,7 @@ slots:
 #   어느 쪽이든 AI 결과가 없으면 규칙 기반(정량) 결론으로 리포트·영상을 만듭니다.
 claude:
   enabled: true
-  mode: api                  # GitHub Actions 가 ANTHROPIC_API_KEY(저장소 비밀값)로 직접 분석 (Claude 예약 작업 불필요)
+  mode: routine              # routine = Claude 예약 작업(다른 계정 가능)이 AI 분석을 써서 푸시 / api = GitHub 에서 API 키로 직접 (별도 과금)
   model: claude-sonnet-5-5   # mode: api 일 때만 사용
   web_search: true
   max_searches: 15

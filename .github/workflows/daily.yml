@@ -1,11 +1,12 @@
 # 모닝(07:00) · 나이트(22:00) 브리핑 자동 실행
 #
-# 모든 일정은 GitHub Actions 만으로 돕니다 (Claude 예약 작업 불필요). AI 분석은 config.yaml claude.mode: api →
-# 수집 단계에서 저장소 비밀값 ANTHROPIC_API_KEY 로 직접 호출해 docs/ai/<날짜>_<슬롯>.json 을 만들고 바로 리포트·PDF·영상까지.
+# 시각표는 GitHub 예약 실행이 맡습니다. AI 분석 글은 config.yaml claude.mode 에 따라
+#   routine: Claude 예약 작업(어느 계정이든)이 brief 를 읽고 docs/ai/<날짜>_<슬롯>.json 을 푸시 → (push) 리포트·PDF·영상
+#   api    : 수집 단계에서 저장소 비밀값 ANTHROPIC_API_KEY 로 직접 호출 (별도 과금)
 # GitHub 예약 실행(cron)은 '최선 노력'이라 수십 분 늦거나 빠질 수 있어 여러 시각에 겹쳐 둡니다 (이미 만든 날은 건너뜀).
 #
 #  수집 + AI + 리포트  KST 06:00·06:10·06:25 / 21:00·21:10·21:25
-#  (이전 방식: Claude 루틴이 docs/trigger·docs/ai 를 푸시 — 지금도 push 로 들어오면 그대로 처리합니다)
+#  Claude 루틴이 docs/trigger(수집 신호)·docs/ai(AI 결과)를 푸시하면 push 이벤트로 바로 처리합니다.
 #  누락 복구           KST 06:50·07:15·07:45 / 21:50·22:15·22:45
 #                      그 시각까지 리포트가 없으면 (데이터가 없으면 수집부터) AI 없이 리포트·영상 생성.
 #                      나중에 AI 결과가 오면 push 이벤트로 AI 반영본을 다시 만듭니다.
