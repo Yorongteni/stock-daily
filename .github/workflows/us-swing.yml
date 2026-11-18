@@ -8,7 +8,8 @@
 #  1) state : 간밤 미국장·추천 이후 코인 1시간봉으로 판정 → 보유 대응 → 오늘 타점 → 리포트 → 커밋·푸시
 #  2) video : PDF·16:9 영상(하단 자막 + 큰 글씨 카드) → docs/swing/pdf, 릴리스
 #
-#  GitHub 예약 실행은 늦거나 빠질 수 있어 18:20·18:45 에 한 번씩 더 확인합니다 (이미 만들었으면 건너뜀).
+#  시작 신호: Claude 예약 작업이 매일 17:57 KST 에 docs/trigger-swing/<날짜>.txt 를 푸시 → (push) 바로 실행.
+#  GitHub 예약 실행(18:00·18:20·18:45)은 늦거나 빠질 수 있어 백업으로 둡니다 (이미 만들었으면 건너뜀).
 #  코인은 주말에도 거래되므로 매일 실행합니다 (미국 휴장일에는 1부가 '휴장'으로 나옵니다).
 #  cron 은 UTC 기준: 09:00 UTC = 18:00 KST.
 name: 오후 6시 실전 단타 통합 브리핑
@@ -17,6 +18,9 @@ on:
     - cron: "0 9 * * *"       # KST 18:00
     - cron: "20 9 * * *"      # KST 18:20 누락 방지
     - cron: "45 9 * * *"      # KST 18:45 누락 방지
+  push:
+    branches: [main, "claude/**"]   # 시작 신호 (루틴이 main 대신 claude/ 브랜치에 올려도 반영)
+    paths: ["docs/trigger-swing/**"]
   workflow_dispatch:
     inputs:
       date:
@@ -36,14 +40,14 @@ permissions:
   contents: write
 
 env:
-  BR: ${{ github.ref_name }}
+  BR: ${{ github.event_name == 'push' && 'main' || github.ref_name }}     # 시작 신호로 돌 때도 결과는 main 에
 
 jobs:
   state:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     concurrency:
-      group: swing18-state-${{ github.ref_name }}
+      group: swing18-state-${{ github.event_name == 'push' && 'main' || github.ref_name }}
       cancel-in-progress: false
     outputs:
       run: ${{ steps.plan.outputs.run }}
@@ -52,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event_name == 'push' && 'main' || github.ref_name }}
           fetch-depth: 0
 
       - name: 오늘 할 일 정하기
@@ -138,7 +142,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     concurrency:
-      group: swing18-video-${{ github.ref_name }}
+      group: swing18-video-${{ github.event_name == 'push' && 'main' || github.ref_name }}
       cancel-in-progress: false
     env:
       DATE: ${{ needs.state.outputs.date }}
@@ -148,7 +152,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ github.event_name == 'push' && 'main' || github.ref_name }}
 
       - name: 최신 브리핑 받기
         run: git pull -q --rebase --autostash origin "$BR" || true
