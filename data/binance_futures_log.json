@@ -1,35 +1,39 @@
 {
  "start_date": "2026-11-17",
- "positions": [
+ "positions": [],
+ "history": [
   {
    "id": "2026-11-17-XRPUSDT",
    "symbol": "XRPUSDT",
    "name": "리플",
    "direction": "SHORT",
-   "source": "manual",
-   "status": "OPEN",
-   "pick_date": "2026-11-17",
    "pick_time": "2026-11-17T15:15:39Z",
    "limit": 0.9747,
    "tp": 0.95082,
-   "sl": 0.98932,
-   "qty": 1108.0,
-   "margin": 360,
    "leverage": 3,
-   "hold_hours": 24,
-   "liq": 1.29473,
+   "source": "manual",
    "entry": 0.9747,
-   "entry_time": "2026-11-17T15:15:39Z",
-   "checked_to": null,
-   "note": "실제 진입: 18시 브리핑 원픽 안내(11/18 00:15 KST) 직후 0.9747"
+   "entry_time": "2026-11-17T21:20:24Z",
+   "sl": 0.98932,
+   "qty": 30.0,
+   "margin": 9.747,
+   "exit": 0.9893,
+   "exit_time": "2026-11-18T05:33:28Z",
+   "result": "LOSS",
+   "result_ko": "로스값 손절",
+   "roe": -4.68,
+   "pnl_usdt": -0.4557,
+   "pnl_krw": -609,
+   "fx": 1336.8,
+   "fees_usdt": 0.017736,
+   "reason": "바이낸스 실제 체결: 06:20 숏 0.9747 진입 → 14:33 로스값 0.9893 도달 (8시간 13분). 수수료·펀딩비 포함 실제 손익."
   }
  ],
- "history": [],
  "last_events": {
   "date": "2026-11-17",
   "events": []
  },
- "updated_at": "2026-11-18 08:32",
+ "updated_at": "2026-11-18 16:40",
  "last_run": "2026-11-17",
  "rules": {
   "leverage": 3,
