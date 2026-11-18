@@ -1292,14 +1292,14 @@
   }
  },
  "2026-11-18": {
-  "kospi": -2.59,
+  "kospi": 1.92,
   "sp500": -1.03,
-  "headline": "금리 5.1%·공포지수 25, 오늘 밤 보합 관망",
+  "headline": "코스피 5천 회복·엔비디아 호실적, 오늘 밤 소폭 상승",
   "stance": "관망 (지금 비중 유지)",
   "allocation": {
-   "kr_equity": 22,
+   "kr_equity": 23,
    "us_equity": 28,
-   "gold_commodities": 10,
+   "gold_commodities": 9,
    "usd_cash": 17,
    "krw_cash_bonds": 18,
    "alternatives": 5
@@ -1374,8 +1374,8 @@
    "pm": {
     "ai": true,
     "stance": "관망 (지금 비중 유지)",
-    "headline": "금리 5.1%·공포지수 25, 오늘 밤 보합 관망",
-    "built_at": "2026-11-18 21:04"
+    "headline": "코스피 5천 회복·엔비디아 호실적, 오늘 밤 소폭 상승",
+    "built_at": "2026-11-18 23:31"
    }
   }
  }
