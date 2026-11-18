@@ -1293,15 +1293,15 @@
  },
  "2026-11-18": {
   "kospi": -2.59,
-  "sp500": -1.28,
-  "headline": "코스피 5천선 붕괴 뒤 약보합, 엔비디아 대기",
-  "stance": "관망 (지금 비중 유지)",
+  "sp500": -1.03,
+  "headline": "나이트 브리핑 · 오늘의 자세: 현금 확보·관망",
+  "stance": "현금 확보·관망 (주식 비중 줄이기)",
   "allocation": {
-   "kr_equity": 20,
-   "us_equity": 28,
-   "gold_commodities": 10,
-   "usd_cash": 20,
-   "krw_cash_bonds": 17,
+   "kr_equity": 19,
+   "us_equity": 26,
+   "gold_commodities": 14,
+   "usd_cash": 21,
+   "krw_cash_bonds": 15,
    "alternatives": 5
   },
   "lists": {
@@ -1321,9 +1321,9 @@
    ],
    "overvalued": [
     "CRWD",
+    "277810.KQ",
     "003670.KS",
     "017670.KS",
-    "277810.KQ",
     "TSLA"
    ]
   },
@@ -1344,9 +1344,9 @@
    ],
    "overvalued": [
     "크라우드스트라이크",
+    "레인보우로보틱스",
     "포스코퓨처엠",
     "SK텔레콤",
-    "레인보우로보틱스",
     "테슬라"
    ]
   },
@@ -1370,6 +1370,12 @@
     "stance": "관망 (지금 비중 유지)",
     "headline": "코스피 5천선 붕괴 뒤 약보합, 엔비디아 대기",
     "built_at": "2026-11-18 06:10"
+   },
+   "pm": {
+    "ai": false,
+    "stance": "현금 확보·관망 (주식 비중 줄이기)",
+    "headline": "나이트 브리핑 · 오늘의 자세: 현금 확보·관망",
+    "built_at": "2026-11-18 12:11"
    }
   }
  }
