@@ -104,6 +104,22 @@ def normalize(ai: dict, sectors: list[str] | None = None) -> tuple[dict, list[st
         miss = [s for s in sectors if s not in have]
         if miss:
             warns.append(f"sectors 누락 {len(miss)}개: {', '.join(miss)}")
+    sp = ai.get("spotlight")
+    if sp is not None:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+            from spotlight import BANNED, clean
+            if not isinstance(sp, list):
+                warns.append("spotlight 는 목록이어야 함 → 비움")
+                ai["spotlight"] = []
+            else:
+                for x in sp:
+                    for k in ("why", "business", "risk"):
+                        if isinstance(x, dict) and x.get(k) and BANNED.search(str(x[k])):
+                            warns.append(f"spotlight '{x.get('company')}' {k}: 권유형 표현 문장 삭제")
+                            x[k] = clean(x[k])
+        except Exception as e:  # noqa: BLE001
+            warns.append(f"spotlight 검사 실패: {e}")
     sc = ai.get("script")
     if isinstance(sc, dict):
         miss = [k for k in SCRIPT_KEYS if not sc.get(k)]

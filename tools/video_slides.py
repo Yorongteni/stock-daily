@@ -110,9 +110,64 @@ def to_clause(np_: str) -> str:
         return s[:-1] + chr(ord(last) - 16) + "고"
     if j == 10:                                     # ㄻ 받침: 줄어듦 → 줄어들고
         return s[:-1] + chr(ord(last) - 10 + 8) + "고"
-    if s.endswith(("증가", "감소", "하락", "상승", "확대", "축소", "약화", "강화", "둔화", "악화", "개선", "급락", "급등")):
-        return s + ("되고" if s.endswith(("약화", "강화", "둔화", "악화", "확대", "축소", "개선")) else "하고")
-    return s + ro(s) + " 이어지고"
+    BECOME = ("약화", "강화", "둔화", "악화", "확대", "축소", "개선", "위축", "지연", "부각", "고조", "심화", "완화", "반영", "집중")
+    DO = ("증가", "감소", "하락", "상승", "급락", "급등", "반등", "이동", "확보", "매도", "매수", "유입", "유출", "이탈", "회피",
+          "선호", "전환", "축적", "회복", "투자", "철수", "조정", "인상", "인하", "상향", "하향")
+    if re.search(r"[고며]$", s) and not s.endswith(("확보", "고조")):
+        return s
+    OBJ = ("확보", "매도", "매수", "회피", "선호", "축적", "투자", "인상", "인하", "상향", "하향", "조정")   # 을/를 받는 말
+    words = s.split()
+    w = words[-1] if words else s
+    if len(words) >= 2 and (w in BECOME or w in DO):
+        pre = " ".join(words[:-1])
+        noun_end = pre.endswith(("주가", "물가", "단가", "원가", "유가", "시가", "종가", "평가", "국가", "차이", "금리 차이"))
+        if noun_end or not re.search(r"(로|를|을|에|서|와|과|이|가|은|는|도|의)$", pre):     # 이미 조사가 붙어 있으면 그대로
+            j2 = _jong(pre[-1:]) > 0
+            pre += ("을" if j2 else "를") if w in OBJ else ("이" if j2 else "가")
+        s = f"{pre} {w}"
+    if s.endswith(BECOME):
+        return s + "되고"
+    if s.endswith(DO):
+        return s + "하고"
+    if s.endswith(("압력", "부담", "리스크", "변동성")):
+        return s + ("이" if _jong(last) > 0 else "가") + " 커지고"
+    if s.endswith(("약세", "강세", "역전", "현상", "흐름", "분위기")):
+        return s + ("이" if _jong(last) > 0 else "가") + " 나타나고"
+    if re.search(r"[다요고며]$", s):        # 이미 서술어로 끝남 (팔고, 줄이며 …)
+        return s if s.endswith(("고", "며")) else s
+    return s + ("이" if _jong(last) > 0 else "가") + " 나타나고"
+
+
+def after_moves(m: dict, subject="코스피는") -> str:
+    """유사 국면 이후 1·3·6개월을 한 문장으로.
+    같은 방향: '그 뒤 코스피는 1개월 뒤 10.5%, 3개월 뒤 8.2%, 6개월 뒤에는 15.0% 상승했습니다.'
+    방향이 바뀌면: '그 뒤 코스피는 1개월 뒤 1.1% 올랐다가, 3개월 뒤 26.8%, 6개월 뒤에는 24.9% 하락했습니다.'"""
+    xs = [(lab, m.get(k)) for lab, k in (("1개월 뒤", "kospi_4w"), ("3개월 뒤", "kospi_13w"), ("6개월 뒤에는", "kospi_26w"))
+          if m.get(k) is not None]
+    if not xs:
+        return ""
+    sign = lambda v: 1 if v >= 0.05 else -1 if v <= -0.05 else 0
+    out = []
+    for i, (lab, v) in enumerate(xs):
+        last = i == len(xs) - 1
+        nxt = None if last else sign(xs[i + 1][1])
+        if sign(v) == 0:
+            piece = f"{lab} 거의 변하지 않았{'습니다' if last else '고'}"
+        elif last:
+            piece = f"{lab} {abs(v):.1f}% {'상승' if v > 0 else '하락'}했습니다"
+        elif nxt != sign(v):
+            piece = f"{lab} {abs(v):.1f}% {'올랐다가' if v > 0 else '내렸다가'}"
+        else:
+            piece = f"{lab} {abs(v):.1f}%"
+        out.append(piece)
+    return f"그 뒤 {subject} " + ", ".join(out) + "."
+
+
+def drop_restated(text: str) -> str:
+    """AI 교훈 문장에서 1·3·6개월 수치를 되풀이한 문장은 뺀다 (after_moves 가 이미 읽음)."""
+    sents = re.split(r"(?<=[.?!])\s+", (text or "").strip())
+    keep = [x for x in sents if x and not (re.search(r"\d+\s*개월", x) and re.search(r"[+-]?\d+(?:\.\d+)?\s*%", x))]
+    return " ".join(keep)
 
 
 def moved(v, subject="코스피는") -> str:
@@ -232,7 +287,7 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
             nm = x.get("period") or f"{m['date'][:4]}년 {int(m['date'][5:7])}월"
             names.append(f"{nm}: 그 뒤 6개월 코스피 {chg_word(m.get('kospi_26w'))}")
             parts.append(f"{nm}. " + (x.get("what_happened", "") + " " if x.get("what_happened") else "")
-                         + "그 뒤 6개월 동안 " + moved(m.get('kospi_26w')) + " " + (x.get("lesson") or ""))
+                         + after_moves(m) + " " + drop_restated(x.get("lesson") or ""))
         S.append(Slide("① 과거와 비교", "지금과 비슷했던 과거 사례", lines=names, badge=("info", "역사는 참고용"),
                        chart=_overlay(AN), narration=cap("지금과 비슷했던 과거를 겹쳐 보겠습니다. 검은 선이 지금입니다. " + " ".join(parts), 620)))
 
@@ -249,9 +304,14 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
         grp = chains[j:j + 2]
         body = "".join(_chain_html(c) for c in grp)
         def say_chain(c):
-            frm, so = c.get("from", "").strip(), (c.get("so") or "").strip().rstrip(".")
-            steps = " ".join(to_clause(s) for s in (c.get("steps") or []) if s)
-            return f"{frm}{'이' if _jong(frm[-1:]) > 0 else '가'} 일어나면, {steps} 결국 {so}{ro(so)} 이어집니다."
+            frm = re.sub(r"\s*\([^)]*\)", "", c.get("from", "")).strip()          # 괄호 설명은 말하지 않음
+            so = re.sub(r"\s*\([^)]*\)", "", (c.get("so") or "")).strip().rstrip(".")
+            cl = [to_clause(re.sub(r"\s*\([^)]*\)", "", s)) for s in (c.get("steps") or []) if s]
+            if cl:   # 마지막 고리는 '~며,'로 끊고 '이는 결국 ~로 이어집니다'로 맺음 → '이어지고' 반복 없음
+                cl[-1] = re.sub(r"고$", "며,", cl[-1])
+            body = " ".join(cl)
+            return (f"{frm}{'이' if _jong(frm[-1:]) > 0 else '가'} 나타나면 {body} 이는 결국 {so}{ro(so)} 이어집니다." if body
+                    else f"{frm}{'이' if _jong(frm[-1:]) > 0 else '가'} 나타나면 결국 {so}{ro(so)} 이어집니다.")
         nar = " ".join(say_chain(c) for c in grp)
         S.append(Slide("③ 오늘의 연결고리", "무엇이 무엇을 움직이나" + (" (계속)" if j else ""), body_html=f"<div class='chains'>{body}</div>",
                        narration=cap(("오늘 시장이 왜 이렇게 움직이는지 연결고리로 보겠습니다. " if j == 0 else "") + nar, 520)))
@@ -302,10 +362,63 @@ def build(data: dict, slot: str, date: str) -> list[Slide]:
                    chart=_donut([(n, al.get(k) or 0, c) for k, n, c in alloc_keys]) if al else None,
                    narration=cap(sc.get("conclusion") or e3text("conclusion"), 620)))
 
+    # 12. 스포트라이트 칼럼 (정보 제공용 산업·기업 소개)
+    sp_slide = spotlight_slide(data, V)
+    if sp_slide:
+        S.append(sp_slide)
+
     S.append(Slide("마무리", "오늘 브리핑은 여기까지입니다", center=True,
                    lines=["자세한 내용은 설명란의 리포트·PDF에서"],
                    narration="자세한 분석은 설명란의 리포트와 PDF에서 확인하세요. 이 영상은 투자 권유가 아닌 정보 제공 목적입니다."))
     return [s for s in S if s.narration.strip()]
+
+
+SPOT_CSS = """<style>
+.spw{display:flex;flex-direction:column;gap:14px;height:100%}
+.sp3{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;flex:1;min-height:0}
+.sp3 .c{background:#fff;border-radius:22px;border-top:12px solid #0D5C6B;padding:22px 28px;display:flex;flex-direction:column;gap:10px}
+.sp3 .k{font-size:26px;font-weight:800;color:#0D5C6B}.sp3 .cat{font-size:44px;font-weight:900;line-height:1.1}
+.sp3 .co{font-size:34px;font-weight:800;margin-top:6px}.sp3 .co span{font-size:22px;color:#5C6875;font-weight:600}
+.sp3 .biz{font-size:25px;line-height:1.38;color:#3A4652}
+.sp3 .pt{font-size:24px;font-weight:700;background:#F0F3F6;border-radius:12px;padding:8px 14px}
+.spd{font-size:23px;color:#3A4652;background:#FFF6E5;border-radius:12px;padding:10px 18px;text-align:center}
+</style>"""
+
+
+def spotlight_slide(data: dict, V: dict):
+    """「오늘의 유망 3대 분야 & 기업 스포트라이트」 와이드 슬라이드 (약 1분, 정보 제공 어조 + 안내 멘트)."""
+    import html as _h
+    sp = data.get("spotlight")
+    if not sp:
+        try:
+            import spotlight as _sp
+            sp = _sp.build(data.get("screens") or {}, V)
+        except Exception:  # noqa: BLE001
+            sp = None
+    cards = (sp or {}).get("cards") or []
+    if len(cards) < 3:
+        return None
+    order = ["첫째", "둘째", "셋째"]
+    cols, says = [], []
+    for i, c in enumerate(cards[:3]):
+        co = c.get("company") or {}
+        nm = co.get("name", "")
+        pts = (c.get("points") or [])[:2]
+        cols.append(f"<div class='c'><div class='k'>{_h.escape(c.get('icon', ''))} {_h.escape(c['kind_label'])}</div>"
+                    f"<div class='cat'>{_h.escape(c['category'])}</div>"
+                    f"<div class='co'>{_h.escape(nm)} <span>{_h.escape(co.get('ticker', ''))}</span></div>"
+                    f"<div class='biz'>{_h.escape(c.get('business', ''))}</div>"
+                    + "".join(f"<div class='pt'>{_h.escape(p)}</div>" for p in pts) + "</div>")
+        why = first(c.get("why", ""))
+        says.append(f"{order[i]}, {c['kind_label']}는 {c['category']}입니다. {why} "
+                    f"대표 기업 {nm}{eun(nm)} {first(c.get('business', ''))}")
+    disc = sp.get("disclaimer", "")
+    narr = ("마지막으로, 데이터로 본 유망 3대 분야와 대표 기업 스포트라이트입니다. "
+            "산업 동향 학습 차원에서 분야마다 데이터상 실적이 두드러지는 기업 한 곳씩을 소개합니다. " + " ".join(says) + " " + disc)
+    body = (SPOT_CSS + "<div class='spw'><div class='sp3'>" + "".join(cols) + "</div>"
+            f"<div class='spd'>ⓘ {_h.escape(disc)}</div></div>")
+    return Slide("⑦ 스포트라이트", "오늘의 유망 3대 분야 & 기업 스포트라이트", body_html=body, badge=("info", "정보 제공"),
+                 narration=narr)
 
 
 # ───────────────────────── 차트·카드 HTML ─────────────────────────

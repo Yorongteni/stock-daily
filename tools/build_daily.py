@@ -248,24 +248,53 @@ def _signed(m: re.Match) -> str:
     return f"{m.group(2)}{unit} {'상승' if m.group(1) == '+' else '하락'}"
 
 
+def _moves_phrase(periods: list[str], vals: list) -> str:
+    """기간별 등락을 한 문장 조각으로. 같은 방향이면 서술어를 끝에 한 번만:
+    '1개월 뒤 10.5%, 3개월 뒤 8.2%, 6개월 뒤에는 15.0% 상승' / 방향이 바뀌면 '1개월 뒤 1.1% 올랐다가, 3개월 뒤 26.8%, 6개월 뒤에는 24.9% 하락'"""
+    sign = lambda v: 1 if v > 0 else -1 if v < 0 else 0
+    txt = [str(v).lstrip("+-") for v in vals]            # 원래 표기 그대로 (15.0 → 15.0)
+    vals = [float(v) for v in vals]
+    out = []
+    for i, (pp, v) in enumerate(zip(periods, vals)):
+        last = i == len(vals) - 1
+        lab = f"{pp}개월 뒤{'에는' if last and i else ''}"
+        if last:
+            out.append(f"{lab} {txt[i]}% {'상승' if v > 0 else '하락' if v < 0 else '보합'}")
+        elif sign(vals[i + 1]) != sign(v):
+            out.append(f"{lab} {txt[i]}% {'올랐다가' if v > 0 else '내렸다가' if v < 0 else '보합이었다가'}")
+        else:
+            out.append(f"{lab} {txt[i]}%")
+    return ", ".join(out)
+
+
 def _multi(m: re.Match) -> str:
-    """'1·3·6개월 +7.5%·+9.5%·+10.3%' → '1개월 뒤 7.5% 상승, 3개월 뒤 9.5% 상승, 6개월 뒤에는 10.3% 상승'"""
+    """'1·3·6개월 +7.5%·+9.5%·+10.3%' → '1개월 뒤 7.5%, 3개월 뒤 9.5%, 6개월 뒤에는 10.3% 상승'"""
     ps = m.group(1).split("·")
     vs = re.findall(r"([+-]?\d+(?:\.\d+)?)%", m.group(2))
     if len(ps) != len(vs):
         return m.group(0)
-    parts = []
-    for i, (pp, vv) in enumerate(zip(ps, vs)):
-        v = float(vv)
-        word = "상승" if v > 0 else "하락" if v < 0 else "보합"
-        parts.append(f"{pp}개월 뒤{'에는' if i == len(ps) - 1 else ''} {abs(v):g}% {word}")
-    return ", ".join(parts)
+    return _moves_phrase(ps, vs)
+
+
+def _seq(m: re.Match) -> str:
+    """'1개월 +10.5%, 3개월 +8.2%, 6개월 +15.0%' → '1개월 뒤 10.5%, 3개월 뒤 8.2%, 6개월 뒤에는 15.0% 상승'"""
+    pairs = re.findall(r"(\d+)\s*개월\s*(?:뒤(?:에는)?\s*)?([+-]?\d+(?:\.\d+)?)%", m.group(0))
+    if len(pairs) < 2:
+        return m.group(0)
+    return _moves_phrase([p for p, _ in pairs], [v for _, v in pairs])
 
 
 def tts_text(text: str) -> str:
     text = text.replace("−", "-").replace("–", "-")
     text = re.sub(r"[🌀-🫿☀-➿]", " ", text)           # 이모지
     text = re.sub(r"(?:그 뒤\s*)?(\d+(?:·\d+)+)개월\s*((?:[+-]?\d+(?:\.\d+)?%·?)+)", _multi, text)
+    text = re.sub(r"\d+\s*개월\s*(?:뒤(?:에는)?\s*)?[+-]?\d+(?:\.\d+)?%(?:\s*,\s*\d+\s*개월\s*(?:뒤(?:에는)?\s*)?[+-]?\d+(?:\.\d+)?%)+(?!\s*(?:상승|하락|보합|올랐다가|내렸다가))(?!\s*,\s*\d+\s*개월)",
+                  _seq, text)
+    # '60일 -28.7%' → '60일 동안 28.7% 하락' ('육십일'이 '61'처럼 들리지 않게 기간임을 밝힘)
+    text = re.sub(r"(?<!월 )(?<!월)(?<![\d.])(\d+)일\s+(?=[+-]?\d+(?:\.\d+)?\s?(?:%|퍼센트))", r"\1일 동안 ", text)
+    # 회사 이름 발음 고정 (앤트로픽이 '엔트로피'로 읽히지 않게)
+    text = re.sub(r"Anthropic|앤트로픽|앤스로픽", "앤트로픽", text)
+    text = re.sub(r"앤트로픽(?!\s?사)", "앤트로픽 사", text)
     text = re.sub(r"(?<![\w.])([+-]?)(\d+)\s?bp(?![a-z])", _bp, text)
     text = re.sub(r"(?<![\w.])([+-])(\d+(?:\.\d+)?)\s?(%p|%)", _signed, text)
     text = text.replace("구리/금", "구리와 금의 비율").replace("원/달러", "원 달러").replace("10Y-2Y", "장단기 금리차")
@@ -275,6 +304,11 @@ def tts_text(text: str) -> str:
     # '24.9퍼센트 하락 움직였습니다' 같은 어색한 서술어 → '24.9퍼센트 하락했습니다'
     text = re.sub(r"(%p|%|퍼센트(?:포인트)?) (상승|하락|보합)\s*(?:움직였습니다|움직였고|변했습니다)", r"\1 \2했습니다", text)
     text = re.sub(r"(%p|%|퍼센트(?:포인트)?) (상승|하락|보합)(?:이었|였)습니다", r"\1 \2했습니다", text)
+    # '15.0% 상승로 올랐습니다', '7.5% 상승로 완만하게 회복했습니다' 같은 겹친 서술어 정리
+    text = re.sub(r"(상승|하락|보합)\s*으?로\s+(?:올랐|내렸|떨어졌|마감했|끝났|마무리했|움직였)습니다", r"\1했습니다", text)
+    text = re.sub(r"(상승|하락)\s*으?로\s+((?:완만하게|크게|빠르게|서서히)\s+)?(회복|반등|하락|상승|조정)했습니다", r"\1하며 \2\3했습니다", text)
+    text = re.sub(r"(상승|하락|보합)로(?=[\s,.]|$)", r"\1으로", text)          # '하락로 꼴찌' → '하락으로 꼴찌'
+    text = re.sub(r"(올랐다가|내렸다가)(?:였|이었)습니다", r"\1 마무리했습니다", text)
     for pat, rep in TTS_WORDS:
         text = re.sub(pat, rep, text)
     text = re.sub(r"[\[\]\(\)\"'“”‘’*#]", " ", text)

@@ -57,6 +57,18 @@ h2.appx{font-size:17px;color:var(--sub);border-top:1px solid var(--line);padding
 h3{font-size:15.5px;margin:0 0 6px}
 .up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:18px 20px}
+.spot{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.spot .card{background:var(--panel);border:1px solid var(--line);border-top:5px solid var(--accent);border-radius:6px;padding:14px 16px;break-inside:avoid}
+.spot .kind{font-size:12.5px;font-weight:700;color:var(--accent)}
+.spot .cat{font-size:18px;font-weight:700;margin:2px 0 8px}
+.spot .co{font-size:15.5px;font-weight:700;margin:10px 0 2px}.spot .co span{font-size:12.5px;color:var(--sub);font-weight:500}
+.spot h4{margin:10px 0 3px;font-size:13px;color:var(--sub)}
+.spot p{margin:0;font-size:14px}
+.spot ul{margin:2px 0;padding-left:18px;font-size:13.5px}
+.spot .risk{background:var(--warn-soft);border-radius:4px;padding:6px 8px;font-size:13.5px}
+.spot-disc{border:1px dashed var(--line);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--sub);margin-top:10px}
+@media (max-width:820px){.spot{grid-template-columns:1fr}}
+@media print{#sec-spotlight{break-before:page}}
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:14px}
 .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:12px}
 .mt{margin-top:14px}
@@ -567,6 +579,20 @@ h += `<h2 id="sec-conclusion"><span class="no">6</span>종합 투자 전략 및 
  ${!RB && V.quant_reference ? `<p class="k mt" style="margin-bottom:0">참고 — 정량 모델 판단: ${esc(V.quant_reference.stance.label)} (${esc(V.quant_reference.stance.one_liner)})</p>` : ""}
  ${RB ? `<p class="note mt" style="margin-bottom:0">AI 분석이 없어 정량 모델의 결론을 표시합니다. 액션 플랜과 무효화 조건은 AI 브리핑이 있을 때 제공됩니다.</p>` : ""}</div>`;
 
+// ── ⑦ 스포트라이트 칼럼 ──
+const SP = DATA.spotlight || {};
+if (list(SP.cards).length) {
+  h += `<h2 id="sec-spotlight"><span class="no">7</span>${esc(SP.title)}</h2>
+<p class="lead">13개 분야 표와 3년 실적·밸류에이션 스크리닝 데이터를 묶어, 오늘 데이터에서 두드러지는 3개 분야와 산업 학습용 대표 기업 1곳씩을 소개합니다.</p>
+<div class="spot">` + SP.cards.map((c, i) => `<div class="card">
+  <div class="kind">${esc(c.icon)} ${i + 1}. ${esc(c.kind_label)}</div><div class="cat">${esc(c.category)}</div>
+  <h4>① 왜 이 분야가 부각되나?</h4><p>${esc(c.why)}</p>
+  <div class="co">② ${esc((c.company || {}).name || "")} <span>${esc((c.company || {}).ticker || "")}</span></div><p>${esc(c.business)}</p>
+  <h4>③ 눈에 띄는 실적·데이터 포인트</h4><ul>${list(c.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+  <h4>④ 함께 알아둘 체크 포인트(리스크)</h4><div class="risk">${esc(c.risk)}</div></div>`).join("") + `</div>
+<div class="spot-disc">ⓘ ${esc(SP.disclaimer)}</div>`;
+}
+
 // ── 용어 풀이 ──
 h += `<h2 id="glossary"><span class="no">?</span>용어 풀이</h2><p class="lead">리포트에 나오는 말을 쉬운 말로 풀었습니다.</p>`;
 if (list(V.glossary).length) h += `<h3>오늘 나온 용어</h3><div class="gloss">${V.glossary.map(g => `<div><b>${esc(g.term)}</b>${esc(g.meaning)}${g.why ? `<div class="why">오늘 왜 중요한가: ${esc(g.why)}</div>` : ""}</div>`).join("")}</div>`;
@@ -727,6 +753,15 @@ def _reports(out: Path) -> list[str]:
     return sorted(set(names), key=lambda s: (s[:10], order.get(s[10:], 1)))
 
 
+def _spotlight(bundle: dict, view: dict) -> dict:
+    try:
+        import spotlight
+        return spotlight.build(bundle.get("screens") or {}, view)
+    except Exception as e:  # noqa: BLE001  칼럼이 실패해도 리포트는 만든다
+        print(f"  ✗ 스포트라이트: {e}")
+        return {}
+
+
 def write(bundle: dict, view: dict, out: Path, slot_cfg: dict) -> Path:
     out.mkdir(parents=True, exist_ok=True)
     today, slot = bundle["date"], bundle["slot"]
@@ -753,7 +788,7 @@ def write(bundle: dict, view: dict, out: Path, slot_cfg: dict) -> Path:
     payload = {"today": today, "slot": slot, "slot_name": slot_cfg.get("name", slot),
                "collected_at": bundle.get("collected_at"), "results": bundle["results"],
                "macro": bundle.get("macro") or {}, "screens": bundle.get("screens") or {}, "news": nw,
-               "view": view, "prev": prev, "prev_lists": history[prev_day]["lists"] if prev_day else None}
+               "view": view, "spotlight": _spotlight(bundle, view), "prev": prev, "prev_lists": history[prev_day]["lists"] if prev_day else None}
     data = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     title = f"{slot_cfg.get('name', '시장 브리핑')} · {today}"
     html = TEMPLATE.replace("__TITLE__", title).replace("__DATA__", data)
