@@ -1378,5 +1378,87 @@
     "built_at": "2026-11-18 23:31"
    }
   }
+ },
+ "2026-11-19": {
+  "kospi": 1.99,
+  "sp500": -0.23,
+  "headline": "금리·달러 부담 속 반등 시도, 5,000선 사수전",
+  "stance": "관망 (지금 비중 유지)",
+  "allocation": {
+   "kr_equity": 20,
+   "us_equity": 28,
+   "gold_commodities": 10,
+   "usd_cash": 20,
+   "krw_cash_bonds": 17,
+   "alternatives": 5
+  },
+  "lists": {
+   "value": [
+    "SMCI",
+    "GOOGL",
+    "QCOM",
+    "064350.KS",
+    "PYPL"
+   ],
+   "growth": [
+    "MU",
+    "PLTR",
+    "196170.KQ",
+    "SMCI",
+    "042660.KS"
+   ],
+   "overvalued": [
+    "CRWD",
+    "003670.KS",
+    "277810.KQ",
+    "TSLA",
+    "V"
+   ]
+  },
+  "names": {
+   "value": [
+    "슈퍼마이크로",
+    "알파벳",
+    "퀄컴",
+    "현대로템",
+    "페이팔"
+   ],
+   "growth": [
+    "마이크론",
+    "팔란티어",
+    "알테오젠",
+    "슈퍼마이크로",
+    "한화오션"
+   ],
+   "overvalued": [
+    "크라우드스트라이크",
+    "포스코퓨처엠",
+    "레인보우로보틱스",
+    "테슬라",
+    "비자"
+   ]
+  },
+  "valuation": {
+   "kr": {
+    "pe_median": 18.6,
+    "pb_median": 2.26,
+    "earnings_yield": 5.38,
+    "n": 55
+   },
+   "us": {
+    "pe_median": 23.49,
+    "pb_median": 5.94,
+    "earnings_yield": 4.26,
+    "n": 90
+   }
+  },
+  "slots": {
+   "am": {
+    "ai": true,
+    "stance": "관망 (지금 비중 유지)",
+    "headline": "금리·달러 부담 속 반등 시도, 5,000선 사수전",
+    "built_at": "2026-11-19 06:13"
+   }
+  }
  }
 }
