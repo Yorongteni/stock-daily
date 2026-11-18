@@ -97,12 +97,36 @@ jobs:
           tag="report-$DATE"
           files=("out/$DATE/report_${DATE}_${SLOT}.pdf")
           [ -f "out/$DATE/${DATE}_${SLOT}.mp4" ] && files+=("out/$DATE/${DATE}_${SLOT}.mp4")
+          desc="out/$DATE/description.txt"
+          [ -f "$desc" ] || echo "$DATE 시장 브리핑 ($SLOT)" > "$desc"
+          # 설명란은 모닝·나이트 칸을 따로 두고, 이번 슬롯 칸만 새로 바꾼다 (나이트가 올라와도 모닝 설명만 남던 문제)
+          old="out/$DATE/release_old.md"; : > "$old"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release view "$tag" --json body -q .body > "$old" || : > "$old"
+          fi
+          python3 - "$old" "$desc" "$SLOT" "out/$DATE/release_notes.md" <<'PY'
+          import re, sys
+          old, desc, slot, out = sys.argv[1:5]
+          body = open(old, encoding="utf-8").read().strip()
+          blocks = {}
+          for s in ("am", "pm"):
+              m = re.search(rf"<!-- slot:{s} -->(.*?)<!-- /slot:{s} -->", body, re.S)
+              if m:
+                  blocks[s] = re.sub(r"^## [^\n]*\n+", "", m.group(1).strip())
+          if body and not blocks:          # 칸 표시가 없던 예전 설명은 모닝 칸으로 본다
+              blocks["am"] = body
+          blocks[slot] = open(desc, encoding="utf-8").read().strip()
+          head = {"am": "## 🌅 모닝 브리핑", "pm": "## 🌙 나이트 브리핑"}
+          parts = [f"<!-- slot:{s} -->\n{head[s]}\n\n{blocks[s]}\n<!-- /slot:{s} -->" for s in ("pm", "am") if s in blocks]
+          open(out, "w", encoding="utf-8").write("\n\n---\n\n".join(parts) + "\n")
+          PY
+          title="$DATE 시장 브리핑"
+          grep -q "<!-- slot:pm -->" "out/$DATE/release_notes.md" && grep -q "<!-- slot:am -->" "out/$DATE/release_notes.md" && title="$DATE 시장 브리핑 (모닝·나이트)"
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --clobber
+            gh release edit "$tag" --title "$title" --notes-file "out/$DATE/release_notes.md" --latest
           else
-            notes="out/$DATE/description.txt"
-            [ -f "$notes" ] || echo "$DATE 시장 브리핑" > "$notes"
-            gh release create "$tag" "${files[@]}" --title "$DATE 시장 브리핑" --notes-file "$notes"
+            gh release create "$tag" "${files[@]}" --title "$title" --notes-file "out/$DATE/release_notes.md" --latest
           fi
           {
             echo "### $DATE ($SLOT) 결과물"
