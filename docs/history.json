@@ -1294,14 +1294,14 @@
  "2026-11-18": {
   "kospi": -2.59,
   "sp500": -1.03,
-  "headline": "나이트 브리핑 · 오늘의 자세: 현금 확보·관망",
-  "stance": "현금 확보·관망 (주식 비중 줄이기)",
+  "headline": "금리 5.1%·공포지수 25, 오늘 밤 보합 관망",
+  "stance": "관망 (지금 비중 유지)",
   "allocation": {
-   "kr_equity": 19,
-   "us_equity": 26,
-   "gold_commodities": 14,
-   "usd_cash": 21,
-   "krw_cash_bonds": 15,
+   "kr_equity": 22,
+   "us_equity": 28,
+   "gold_commodities": 10,
+   "usd_cash": 17,
+   "krw_cash_bonds": 18,
    "alternatives": 5
   },
   "lists": {
@@ -1372,10 +1372,10 @@
     "built_at": "2026-11-18 06:10"
    },
    "pm": {
-    "ai": false,
-    "stance": "현금 확보·관망 (주식 비중 줄이기)",
-    "headline": "나이트 브리핑 · 오늘의 자세: 현금 확보·관망",
-    "built_at": "2026-11-18 12:11"
+    "ai": true,
+    "stance": "관망 (지금 비중 유지)",
+    "headline": "금리 5.1%·공포지수 25, 오늘 밤 보합 관망",
+    "built_at": "2026-11-18 21:04"
    }
   }
  }
