@@ -67,9 +67,11 @@ SCHEMA = """{
   "glossary": [{"term": "오늘 리포트에 나온 용어", "meaning": "중학생도 알아듣는 뜻 (1문장)", "why": "오늘 이 용어가 왜 중요한지 (1문장)"}],
   "script": {"intro": "", "history": "", "macro": "", "social_forecast": "", "sectors": "", "opps_risks": "", "conclusion": ""},
   "spotlight": [{"category": "[스포트라이트 대상]의 분야명 그대로", "company": "대표 기업 이름 그대로",
-                 "why": "① 왜 이 분야가 부각되나: 지난 1~2년 흐름과 최근 매크로를 연결 (2~3문장, 수치 포함)",
-                 "business": "② 무슨 일을 하는 회사인가: 무엇을 만들어 어떻게 돈을 버는지 초보자용 1~2문장",
-                 "risk": "④ 함께 알아둘 체크 포인트(리스크) 1문장"}]
+                 "past_now": "[1단계 산업의 어제와 오늘] '이 분야는 2~3년 전 ~한 흐름 속에서 두각을 드러내기 시작해, 최근에는 ~와 맞물려 다시 주목받고 있습니다' 식의 시간 흐름 서술 + 3년·1년 수치 (3~4문장)",
+                 "market_link": "[2단계 시장·사회 흐름과의 연결] 지금의 금리·환율·유가·공포지수 환경과 최신 뉴스(수출 통계·정책·규제·소비 트렌드)가 이 산업에 주는 구체적 영향 (3~4문장)",
+                 "company_story": "[3단계 대표 기업과 3년 실적 검증] 무엇을 팔아 어떻게 돈을 버는지 쉬운 소개 + '왜 하필 이 기업인가'를 3년 매출·이익 성장, 업종 내 위치(PER·점유율·수주)로 증명 (3~4문장)",
+                 "business": "대표 기업이 하는 일 1문장 (영상 화면용 요약)",
+                 "risk": "[4단계 균형 잡힌 체크 포인트] 흐름이 꺾이거나 주의할 거시적·산업적 변수 (1~2문장)"}]
 }
 분량: easy.summary 3개, chains 3~5개, glossary 8~12개, opportunities 3~4개, risks 3~4개, sectors 13개 전부, macro.assets 9개 이상(환율·달러·미국 10년·장단기 금리차·VIX·금·원유·구리·비트코인),
 social.themes 3~6개, history_context.analogs 1~2개, action_plan 3~5개, invalidation 2~3개, spotlight 3개([스포트라이트 대상] 순서 그대로).
@@ -187,10 +189,10 @@ def _news_text(news: dict) -> str:
     return "\n".join(out)
 
 
-def _spotlight_text(screens: dict) -> str:
+def _spotlight_text(bundle: dict) -> str:
     try:
         import spotlight
-        return spotlight.brief_text(screens)
+        return spotlight.brief_text(bundle.get("screens") or {}, bundle.get("macro") or {}, bundle.get("news") or {})
     except Exception:  # noqa: BLE001
         return ""
 
@@ -202,7 +204,7 @@ def build_brief(bundle: dict, slot_cfg: dict) -> str:
         _macro_text(bundle.get("macro") or {}),
         _results_text(bundle.get("results") or {}),
         _sector_text(bundle.get("screens") or {}) + _val_hist_text(bundle.get("valuation_history") or {}),
-        _spotlight_text(bundle.get("screens") or {}),
+        _spotlight_text(bundle),
         _news_text(bundle.get("news") or {}),
     ])
     tpl = (ROOT / "prompts" / "briefing.md").read_text(encoding="utf-8")

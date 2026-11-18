@@ -40,7 +40,7 @@
 | `commentary.py`, `prompts/briefing.md` | AI 입력(brief) 생성, API 모드 호출 |
 | `advisor.py`, `tools/validate_ai.py` | AI 결과 검사·정리, AI 없을 때 규칙 기반 결론 |
 | `report.py` | HTML 리포트 |
-| `spotlight.py`, `company_profiles.yaml` | 「데이터로 본 유망 3대 분야 & 대표 기업 스포트라이트」 칼럼 (분야·기업 선정, 기업 소개, 권유형 표현 차단) |
+| `spotlight.py`, `company_profiles.yaml`, `sector_narratives.yaml` | 「데이터로 본 유망 3대 분야 & 대표 기업 스포트라이트」 칼럼 (장기 궤적·3년 실적·매크로 궁합·뉴스 4차원 선정, 과거→현재→실적→체크 포인트 서사, 기업·분야 기본 해설, 권유형 표현 차단) |
 | `tools/build_from_report.py` | PDF·영상·유튜브 정보 |
 | `.claude/skills/` | 루틴용 분석 절차, 앵커 대본 규칙, 개발 가이드 |
 | `.github/workflows/daily.yml` | 수집·리포트 자동 실행 / `daily-report.yml` PDF·영상 |

@@ -114,7 +114,7 @@ def normalize(ai: dict, sectors: list[str] | None = None) -> tuple[dict, list[st
                 ai["spotlight"] = []
             else:
                 for x in sp:
-                    for k in ("why", "business", "risk"):
+                    for k in ("past_now", "market_link", "company_story", "why", "business", "risk"):
                         if isinstance(x, dict) and x.get(k) and BANNED.search(str(x[k])):
                             warns.append(f"spotlight '{x.get('company')}' {k}: 권유형 표현 문장 삭제")
                             x[k] = clean(x[k])

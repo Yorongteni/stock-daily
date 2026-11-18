@@ -65,6 +65,9 @@ h3{font-size:15.5px;margin:0 0 6px}
 .spot h4{margin:10px 0 3px;font-size:13px;color:var(--sub)}
 .spot p{margin:0;font-size:14px}
 .spot ul{margin:2px 0;padding-left:18px;font-size:13.5px}
+.spot .ev4{display:grid;grid-template-columns:1fr 1fr;gap:3px 10px;margin:6px 0 2px;font-size:11.5px;color:var(--sub)}
+.spot .ev4 div{display:flex;align-items:center;gap:6px}.spot .ev4 span{min-width:58px}
+.spot .ev4 i{flex:1;height:6px;background:var(--line);border-radius:3px;overflow:hidden}.spot .ev4 b{display:block;height:100%;background:var(--accent)}
 .spot .risk{background:var(--warn-soft);border-radius:4px;padding:6px 8px;font-size:13.5px}
 .spot-disc{border:1px dashed var(--line);border-radius:6px;padding:10px 14px;font-size:13px;color:var(--sub);margin-top:10px}
 @media (max-width:820px){.spot{grid-template-columns:1fr}}
@@ -583,13 +586,13 @@ h += `<h2 id="sec-conclusion"><span class="no">6</span>종합 투자 전략 및 
 const SP = DATA.spotlight || {};
 if (list(SP.cards).length) {
   h += `<h2 id="sec-spotlight"><span class="no">7</span>${esc(SP.title)}</h2>
-<p class="lead">13개 분야 표와 3년 실적·밸류에이션 스크리닝 데이터를 묶어, 오늘 데이터에서 두드러지는 3개 분야와 산업 학습용 대표 기업 1곳씩을 소개합니다.</p>
+<p class="lead">13개 분야를 ① 3~5년 장기 산업 궤적 ② 3년 재무·실적 ③ 지금 매크로와의 궁합 ④ 사회·정책 뉴스 흐름으로 교차 평가해, 오늘 데이터에서 두드러지는 3개 분야와 산업 학습용 대표 기업 1곳씩을 과거 → 현재 → 실적 → 체크 포인트 순서로 소개합니다.</p>
 <div class="spot">` + SP.cards.map((c, i) => `<div class="card">
   <div class="kind">${esc(c.icon)} ${i + 1}. ${esc(c.kind_label)}</div><div class="cat">${esc(c.category)}</div>
-  <h4>① 왜 이 분야가 부각되나?</h4><p>${esc(c.why)}</p>
-  <div class="co">② ${esc((c.company || {}).name || "")} <span>${esc((c.company || {}).ticker || "")}</span></div><p>${esc(c.business)}</p>
-  <h4>③ 눈에 띄는 실적·데이터 포인트</h4><ul>${list(c.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul>
-  <h4>④ 함께 알아둘 체크 포인트(리스크)</h4><div class="risk">${esc(c.risk)}</div></div>`).join("") + `</div>
+  <div class="co">${esc((c.company || {}).name || "")} <span>${esc((c.company || {}).ticker || "")}</span></div>
+  <div class="ev4">${list(c.eval_view).map(e => `<div><span>${esc(e.label)}</span><i><b style="width:${Math.round((e.value || 0) * 100)}%"></b></i></div>`).join("")}</div>
+  ${list(c.stages).map(s => `<h4>${esc(s.title)}</h4>${s.key === "risk" ? `<div class="risk">${esc(s.text)}</div>` : `<p>${esc(s.text)}</p>`}`).join("")}
+  <h4>실적·데이터 포인트</h4><ul>${list(c.points).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>`).join("") + `</div>
 <div class="spot-disc">ⓘ ${esc(SP.disclaimer)}</div>`;
 }
 
@@ -756,7 +759,7 @@ def _reports(out: Path) -> list[str]:
 def _spotlight(bundle: dict, view: dict) -> dict:
     try:
         import spotlight
-        return spotlight.build(bundle.get("screens") or {}, view)
+        return spotlight.build(bundle.get("screens") or {}, view, bundle.get("macro") or {}, bundle.get("news") or {})
     except Exception as e:  # noqa: BLE001  칼럼이 실패해도 리포트는 만든다
         print(f"  ✗ 스포트라이트: {e}")
         return {}

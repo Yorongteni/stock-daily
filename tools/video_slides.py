@@ -404,6 +404,10 @@ def spotlight_slide(data: dict, V: dict):
         co = c.get("company") or {}
         nm = co.get("name", "")
         pts = (c.get("points") or [])[:2]
+        ev = c.get("eval_view") or []
+        if ev:      # 4차원 평가를 별 5개로 (장기 궤적·3년 실적·매크로 궁합·뉴스 흐름)
+            pts = pts[:1] + [" · ".join(f"{e['label']} {'★' * max(1, round((e['value'] or 0) * 5))}" for e in ev[:2]),
+                             " · ".join(f"{e['label']} {'★' * max(1, round((e['value'] or 0) * 5))}" for e in ev[2:])]
         cols.append(f"<div class='c'><div class='k'>{_h.escape(c.get('icon', ''))} {_h.escape(c['kind_label'])}</div>"
                     f"<div class='cat'>{_h.escape(c['category'])}</div>"
                     f"<div class='co'>{_h.escape(nm)} <span>{_h.escape(co.get('ticker', ''))}</span></div>"
