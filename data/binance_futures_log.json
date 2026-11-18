@@ -1,6 +1,55 @@
 {
  "start_date": "2026-11-17",
- "positions": [],
+ "positions": [
+  {
+   "id": "2026-11-18-PENGUUSDT",
+   "symbol": "PENGUUSDT",
+   "name": "펏지펭귄",
+   "direction": "SHORT",
+   "source": "auto",
+   "status": "PENDING",
+   "pick_date": "2026-11-18",
+   "pick_time": "2026-11-18T09:16:31Z",
+   "limit": 0.004752,
+   "tp": 0.004636,
+   "sl": 0.004834,
+   "qty": 227272.0,
+   "margin": 360,
+   "leverage": 3,
+   "hold_hours": 24,
+   "liq": 0.006312,
+   "loss_roe": 5.48,
+   "sl_basis": "다음 고점 0.00488100이 멀어 최대 손실 제한(-5.5%)에 맞춘 1.73%",
+   "be_trigger": 0.004695,
+   "be_price": 0.004747,
+   "order_valid_hours": 6,
+   "cancel_level": 0.005082,
+   "ctx": {
+    "close": 0.004718,
+    "chg24": -1.07,
+    "chg4h": -0.02,
+    "oi_chg24": 23.272565995272544,
+    "funding": 0.005,
+    "rsi1h": 46.2,
+    "hi24": 0.005082,
+    "lo24": 0.00445,
+    "ema20_4h": 0.004954902452743583,
+    "ema50_4h": 0.005437237108090892,
+    "btc_chg24": 0.54,
+    "bias": "SHORT",
+    "checks": {
+     "4시간봉 추세": true,
+     "1시간봉 반등": true,
+     "꺾임 캔들": true,
+     "거래량 증가": false,
+     "미결제약정 방향 일치": true,
+     "비트코인 대비 약세": true,
+     "펀딩비 과열 아님": true,
+     "변동폭 충분": true
+    }
+   }
+  }
+ ],
  "history": [
   {
    "id": "2026-11-17-XRPUSDT",
@@ -26,15 +75,49 @@
    "pnl_krw": -609,
    "fx": 1336.8,
    "fees_usdt": 0.017736,
-   "reason": "바이낸스 실제 체결: 06:20 숏 0.9747 진입 → 14:33 로스값 0.9893 도달 (8시간 13분). 수수료·펀딩비 포함 실제 손익."
+   "reason": "바이낸스 실제 체결: 06:20 숏 0.9747 진입 → 14:33 로스값 0.9893 도달 (8시간 13분). 수수료·펀딩비 포함 실제 손익.",
+   "review": {
+    "symbol": "XRPUSDT",
+    "name": "리플",
+    "direction": "SHORT",
+    "result": "LOSS",
+    "result_ko": "로스값 손절",
+    "entry": 0.9747,
+    "exit": 0.9893,
+    "roe": -4.68,
+    "pnl_usdt": -0.4557,
+    "entry_time": "2026-11-17T21:20:24Z",
+    "exit_time": "2026-11-18T05:33:28Z",
+    "source": "manual",
+    "held_h": 8.2,
+    "fill_delay_h": 6.1,
+    "mfe": 0.94,
+    "mae": -1.66,
+    "after6h": -0.97,
+    "broke_before_fill": false,
+    "btc_move": 1.05,
+    "flags": [
+     "가격 상승(4시간 +1.7%)과 함께 미결제약정이 +5.7% 늘어 새 롱 자금이 들어오던 자리",
+     "비트코인(24시간 -0.2%)보다 강한 코인(24시간 +0.9%)을 숏",
+     "추천 6시간 뒤에야 체결된 늦은 주문 (새 규칙: 6시간 지나면 취소)"
+    ],
+    "new_rules_block": true,
+    "lessons": [
+     "청산 뒤 6시간 동안 내 방향으로 -0.97% 움직였어요. 손절 뒤에도 불리한 흐름이 이어져 손절은 맞는 판단이었습니다.",
+     "보유하는 동안 비트코인은 +1.05% 움직여 내 방향과 반대였습니다.",
+     "보강한 선정 규칙이었다면 이 원픽은 제외됐을 자리입니다."
+    ],
+    "reviewed_at": "2026-11-18T09:16:31Z",
+    "date": "2026-11-18"
+   }
   }
  ],
  "last_events": {
-  "date": "2026-11-17",
+  "date": "2026-11-18",
   "events": []
  },
- "updated_at": "2026-11-18 16:40",
- "last_run": "2026-11-17",
+ "updated_at": "2026-11-18 18:16",
+ "last_run": "2026-11-18",
  "rules": {
   "leverage": 3,
   "margin_usdt": 360,
@@ -44,6 +127,14 @@
   "loss_roe": 4.5,
   "fee_roe": 0.3,
   "hold_hours": 24,
+  "order_valid_hours": 6,
+  "oi_trap": 2.0,
+  "near_extreme": 0.5,
+  "sl_min": 1.2,
+  "sl_max": 1.8,
+  "max_loss_roe": 5.5,
+  "sl_buffer": 0.2,
+  "be_trigger_pct": 1.2,
   "top_n": 30,
   "max_open": 2,
   "min_range24": 3.0,
