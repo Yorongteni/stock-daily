@@ -600,6 +600,10 @@ if (list(SP.cards).length) {
 h += `<h2 id="glossary"><span class="no">?</span>용어 풀이</h2><p class="lead">리포트에 나오는 말을 쉬운 말로 풀었습니다.</p>`;
 if (list(V.glossary).length) h += `<h3>오늘 나온 용어</h3><div class="gloss">${V.glossary.map(g => `<div><b>${esc(g.term)}</b>${esc(g.meaning)}${g.why ? `<div class="why">오늘 왜 중요한가: ${esc(g.why)}</div>` : ""}</div>`).join("")}</div>`;
 h += `<details class="more" ${list(V.glossary).length ? "" : "open"}><summary>기본 용어 ${BASIC_TERMS.length}개 보기</summary><div class="gloss mt">${BASIC_TERMS.map(([t, m]) => `<div><b>${esc(t)}</b>${esc(m)}</div>`).join("")}</div></details>`;
+// AI 가 실제로 읽고 확인한 기사 출처 (수치는 [데이터] 기준, 뉴스·발언·일정은 아래 기사 기준)
+const SRC = list(V.sources).filter(s => s && s.url && /^https?:\/\//.test(s.url));
+if (SRC.length) h += `<details class="more"><summary>📰 AI가 확인한 기사 출처 ${SRC.length}개 보기</summary><ol class="mt" style="font-size:13px;line-height:1.7">${SRC.map(s =>
+  `<li><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a> · ${esc(s.publisher || "")} · ${esc(s.date || "")}${s.used_for ? `<div class="why">${esc(s.used_for)}</div>` : ""}</li>`).join("")}</ol></details>`;
 
 // ── 부록 ──
 h += `<h2 class="appx" id="appendix">부록 · 근거 데이터</h2><h3>관심 종목 온도계</h3><div class="thermo">`;

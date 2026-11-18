@@ -71,10 +71,13 @@ SCHEMA = """{
                  "market_link": "[2단계 시장·사회 흐름과의 연결] 지금의 금리·환율·유가·공포지수 환경과 최신 뉴스(수출 통계·정책·규제·소비 트렌드)가 이 산업에 주는 구체적 영향 (3~4문장)",
                  "company_story": "[3단계 대표 기업과 3년 실적 검증] 무엇을 팔아 어떻게 돈을 버는지 쉬운 소개 + '왜 하필 이 기업인가'를 3년 매출·이익 성장, 업종 내 위치(PER·점유율·수주)로 증명 (3~4문장)",
                  "business": "대표 기업이 하는 일 1문장 (영상 화면용 요약)",
-                 "risk": "[4단계 균형 잡힌 체크 포인트] 흐름이 꺾이거나 주의할 거시적·산업적 변수 (1~2문장)"}]
+                 "risk": "[4단계 균형 잡힌 체크 포인트] 흐름이 꺾이거나 주의할 거시적·산업적 변수 (1~2문장)"}],
+  "sources": [{"title": "실제로 열어 읽은 기사·자료 제목 그대로", "publisher": "언론사·기관", "url": "https://… (기사 원문 주소)",
+               "date": "기사 게시일 YYYY-MM-DD (기사에 적힌 날짜)", "used_for": "이 자료로 확인한 내용 (어느 섹션의 어떤 사실)"}]
 }
 분량: easy.summary 3개, chains 3~5개, glossary 8~12개, opportunities 3~4개, risks 3~4개, sectors 13개 전부, macro.assets 9개 이상(환율·달러·미국 10년·장단기 금리차·VIX·금·원유·구리·비트코인),
-social.themes 3~6개, history_context.analogs 1~2개, action_plan 3~5개, invalidation 2~3개, spotlight 3개([스포트라이트 대상] 순서 그대로).
+social.themes 3~6개, history_context.analogs 1~2개, action_plan 3~5개, invalidation 2~3개, spotlight 3개([스포트라이트 대상] 순서 그대로),
+sources 6개 이상(그중 2개 이상은 브리핑 날짜 기준 이틀 안에 게시된 기사).
 allocation 6개 비중의 합은 100. neutral 은 평소 기준 비중(위 예시값 그대로 써도 됨)."""
 
 

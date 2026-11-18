@@ -4,7 +4,8 @@
   python tools/validate_ai.py docs/ai/2026-11-17_am.json            # 검사 + 자동 정리 후 저장
   python tools/validate_ai.py docs/ai/2026-11-17_am.json --check    # 검사만
 
-종료 코드 0 = 사용 가능(경고만 있을 수 있음), 1 = 필수 항목 누락으로 사용 불가.
+종료 코드 0 = 사용 가능(경고만 있을 수 있음), 1 = 필수 항목 누락 또는 출처(sources) 부족으로 사용 불가.
+출처: 원문 URL·게시일이 있는 기사 6개 이상, 그중 2개 이상은 브리핑 날짜 기준 이틀 안 (파일 이름의 날짜 기준).
 """
 from __future__ import annotations
 
@@ -49,9 +50,69 @@ def _walk(x):
     return x
 
 
-def normalize(ai: dict, sectors: list[str] | None = None) -> tuple[dict, list[str], list[str]]:
-    """(정리된 ai, 오류, 경고). 오류가 있으면 사용 불가."""
+MIN_SOURCES = 6        # 출처 최소 개수
+MIN_RECENT = 2         # 그중 브리핑 날짜 기준 RECENT_DAYS 안에 게시된 기사 최소 개수
+RECENT_DAYS = 2
+_URL = re.compile(r"^https?://[^\s/]+\.[^\s/]+")
+_DATE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+
+
+def check_sources(ai: dict, brief_date: str | None) -> tuple[list[str], list[str]]:
+    """sources 검사 → (문제, 참고). 문제가 있으면 AI 가 푸시 전에 고쳐야 한다."""
+    from datetime import date
+    probs, notes = [], []
+    src = ai.get("sources")
+    if not isinstance(src, list) or not src:
+        return [f"'sources'(확인한 기사 출처) 없음 — {MIN_SOURCES}개 이상 필요"], notes
+    good, recent, seen = 0, 0, set()
+    bd = date.fromisoformat(brief_date) if brief_date else None
+    for i, x in enumerate(src, 1):
+        if not isinstance(x, dict):
+            probs.append(f"sources {i}번: 형식 오류")
+            continue
+        miss = [k for k in ("title", "url", "date") if not str(x.get(k) or "").strip()]
+        url = str(x.get("url") or "").strip()
+        if miss:
+            probs.append(f"sources {i}번 '{str(x.get('title'))[:30]}': {', '.join(miss)} 없음")
+            continue
+        if not _URL.match(url) or "news.google" in url or "/search?" in url:
+            probs.append(f"sources {i}번: 기사 원문 URL 이 아님 ({url[:60]})")
+            continue
+        if url in seen:
+            probs.append(f"sources {i}번: 같은 URL 중복")
+            continue
+        seen.add(url)
+        m = _DATE.match(str(x["date"]).strip())
+        if not m:
+            probs.append(f"sources {i}번: 날짜 형식은 YYYY-MM-DD ({x['date']})")
+            continue
+        try:
+            d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        except ValueError:
+            probs.append(f"sources {i}번: 없는 날짜 ({x['date']})")
+            continue
+        if bd and d > bd:
+            probs.append(f"sources {i}번: 브리핑 날짜({bd})보다 뒤 날짜 ({d})")
+            continue
+        good += 1
+        if bd and (bd - d).days <= RECENT_DAYS:
+            recent += 1
+    if good < MIN_SOURCES:
+        probs.append(f"유효한 출처 {good}개 — {MIN_SOURCES}개 이상 필요")
+    if bd and recent < MIN_RECENT:
+        probs.append(f"최근 {RECENT_DAYS}일 안 기사 {recent}개 — {MIN_RECENT}개 이상 필요 (오늘 뉴스를 원문으로 확인)")
+    notes.append(f"출처 {good}개 (최근 {RECENT_DAYS}일 안 {recent}개)")
+    return probs, notes
+
+
+def normalize(ai: dict, sectors: list[str] | None = None, brief_date: str | None = None,
+              strict_sources: bool = False) -> tuple[dict, list[str], list[str]]:
+    """(정리된 ai, 오류, 경고). 오류가 있으면 사용 불가.
+    strict_sources=True(푸시 전 검사)면 출처 문제가 오류, 아니면(리포트 생성) 경고로만 남긴다 — 예전 파일도 리포트는 만들 수 있게."""
     errs, warns = [], []
+    sp_probs, sp_notes = check_sources(ai, brief_date)
+    (errs if strict_sources else warns).extend(sp_probs)
+    warns.extend(sp_notes)
     ai = _walk(ai)
     for k in REQUIRED:
         if k not in ai or ai[k] in (None, "", [], {}):
@@ -145,7 +206,8 @@ def main():
             sectors = [c["name"] for c in (d.get("screens") or {}).get("categories", [])]
     except Exception:  # noqa: BLE001
         pass
-    ai, errs, warns = normalize(ai, sectors)
+    m = re.match(r"(\d{4}-\d{2}-\d{2})_", p.stem)
+    ai, errs, warns = normalize(ai, sectors, m.group(1) if m else None, strict_sources=True)
     for w in warns:
         print("  경고:", w)
     for e in errs:
