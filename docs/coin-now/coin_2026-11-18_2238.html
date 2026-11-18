@@ -1,0 +1,118 @@
+<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
+<title>코인 수시 분석 2026-11-18 22:38 KST</title>
+<link rel='preconnect' href='https://fonts.googleapis.com'><link href='https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap' rel='stylesheet'>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'></script><style>
+:root{--ink:#16202A;--sub:#5C6875;--line:#DDE3E9;--bg:#F5F7F9;--card:#fff;--teal:#0D5C6B;--good:#1E8E3E;--risk:#C5221F;--wait:#B06000;--blue:#1F5FBF}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans KR','Noto Sans CJK KR','Malgun Gothic',sans-serif;line-height:1.55}
+.wrap{max-width:1040px;margin:0 auto;padding:20px 16px 60px}
+header{background:var(--ink);color:#fff;border-radius:18px;padding:24px 26px}
+header h1{margin:0 0 6px;font-size:26px}header p{margin:2px 0;color:#C3CCD6;font-size:14px}
+.strip{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:16px 0}
+.strip div{background:var(--card);border-radius:14px;padding:14px 16px;box-shadow:0 2px 8px rgba(22,32,42,.06)}
+.strip span{display:block;font-size:13px;color:var(--sub)}.strip b{font-size:20px}
+h2{font-size:21px;margin:34px 0 12px;padding-left:12px;border-left:6px solid var(--teal)}
+h2 small{font-size:13px;color:var(--sub);font-weight:500;margin-left:8px}
+.ev{background:var(--card);border-radius:12px;padding:12px 16px;margin:8px 0;border-left:6px solid var(--line);font-size:15px}
+.ev.good{border-left-color:var(--good)}.ev.risk{border-left-color:var(--risk)}
+.tag{display:inline-block;font-weight:700;margin-right:8px}.why{color:var(--sub);font-size:14px;margin-top:4px}
+.tk{color:var(--sub);font-size:13px;font-weight:600}
+.hold,.pick,.order,.box{background:var(--card);border-radius:16px;padding:18px 20px;margin:12px 0;box-shadow:0 2px 10px rgba(22,32,42,.07)}
+.hold{border-top:8px solid var(--wait)}.hold.good{border-top-color:var(--good)}.hold.risk{border-top-color:var(--risk)}
+.hh{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.nm{font-size:20px}.pill{display:inline-block;background:#F0F3F6;border-radius:20px;padding:2px 10px;font-size:13px;font-weight:700;margin-left:6px}
+.pill.good{background:#E6F4EA;color:var(--good)}.src{font-size:12px;color:var(--sub);margin-left:6px}
+.pnl{font-size:24px;font-weight:900;text-align:right}.pnl small{display:block;font-size:13px;font-weight:600}
+.up{color:var(--good)}.dn{color:var(--risk)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.grid4 div{background:#F5F7F9;border-radius:10px;padding:8px 10px}.grid4 span{display:block;font-size:12px;color:var(--sub)}.grid4 b{font-size:15px}
+.act{font-size:20px;font-weight:800;background:#E6F4EA;border-radius:12px;padding:12px 16px;margin-top:6px}
+.hold.risk .act{background:#FCE8E6}.hold .act2{font-size:14px;color:var(--sub);margin:6px 2px}
+.chartbox{height:230px;margin-top:10px;position:relative}.chartbox.small{height:180px}
+.rank{display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--teal);color:#fff;align-items:center;justify-content:center;font-weight:800;margin-right:8px}
+.meta{font-size:13px;color:var(--sub);width:100%}
+.story{margin:12px 0 4px;padding-left:22px;font-size:15.5px}.story li{margin:5px 0}
+.checks{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.ck{font-size:12px;background:#F0F3F6;border-radius:8px;padding:3px 8px;color:#8793A0}
+.ck.on{background:#E6F4EA;color:var(--good);font-weight:700}
+.news{font-size:14px;margin-top:10px}.news ul{margin:4px 0;padding-left:18px}.news a{color:var(--ink)}.news span{color:var(--sub);font-size:12px}
+.order{border:3px solid var(--ink);padding:0;overflow:hidden}
+.oh{background:var(--ink);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:16px 20px;flex-wrap:wrap;gap:8px}
+.onm{font-size:24px;font-weight:900}.onm span{font-size:18px;color:#C3CCD6}
+.oq{font-size:30px;font-weight:900}.oq small{display:block;font-size:13px;font-weight:500;color:#C3CCD6;text-align:right}
+.orow{display:grid;grid-template-columns:230px 1fr;gap:2px 16px;padding:14px 20px;border-bottom:1px solid var(--line);align-items:center}
+.orow span{font-weight:700;font-size:15px}.orow b{font-size:28px;font-family:'Roboto Mono',Consolas,monospace}.orow em{grid-column:2;font-style:normal;font-size:13px;color:var(--sub)}
+.orow.buy b{color:var(--blue)}.orow.tgt b{color:var(--good)}.orow.stp b{color:var(--risk)}.orow.ddl b{font-size:19px;font-family:inherit}
+.tri{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 16px;background:#FAFBFC}
+.tile{border-radius:14px;padding:12px 14px;background:#fff;border:3px solid var(--line)}
+.tile span{display:block;font-size:13px;font-weight:800;color:var(--sub)}.tile b{display:block;font-size:30px;font-weight:900;font-family:'Roboto Mono',Consolas,monospace;margin:2px 0}
+.tile em{display:block;font-style:normal;font-size:12.5px;color:var(--sub)}.tile em b{display:inline;font-size:13.5px;font-family:inherit}
+.tile.en{border-color:#16202A}.tile.en b{color:#16202A}
+.tile.tp{border-color:var(--good);background:#F3FAF5}.tile.tp b,.tile.tp em b{color:var(--good)}
+.tile.sl{border-color:#E8710A;background:#FFF6EE}.tile.sl b,.tile.sl em b{color:#E8710A}
+.orow b.sm{font-size:16px;font-family:inherit}
+.be{margin:0;padding:12px 20px;background:#EEF4FF;border-top:1px solid var(--line);font-size:14.5px}.be b{color:#1F5FBF}
+.ohint{padding:12px 20px;font-size:13px;color:var(--sub);background:#FAFBFC}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stats div{background:var(--card);border-radius:14px;padding:14px;text-align:center;box-shadow:0 2px 8px rgba(22,32,42,.06)}
+.stats span{display:block;font-size:13px;color:var(--sub)}.stats b{font-size:24px}
+table{width:100%;border-collapse:collapse;font-size:14px;background:var(--card);border-radius:12px;overflow:hidden}
+th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}th{background:#F0F3F6;font-size:13px}
+.empty{background:var(--card);border-radius:14px;padding:18px 20px;font-size:16px;border-left:6px solid var(--wait)}
+.box h3{margin:0 0 8px;font-size:17px}.box ul{margin:4px 0;padding-left:20px;font-size:14.5px}.box li{margin:4px 0}
+.gl{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:14px}.gl b{display:block}
+.part{background:var(--ink);color:#fff;border-radius:16px;padding:16px 22px;margin:44px 0 6px;font-size:24px;font-weight:900}
+.part small{display:block;font-size:14px;font-weight:500;color:#C3CCD6;margin-top:2px}.part.b{background:#5A3A00}
+.sum2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sum2 .box{margin:0}.sum2 .big{font-size:26px;font-weight:900}
+.side{display:inline-block;border-radius:10px;padding:4px 12px;font-weight:900;font-size:18px}
+.side.L{background:#E6F4EA;color:var(--good)}.side.S{background:#FCE8E6;color:var(--risk)}.side.N{background:#F0F3F6;color:var(--sub)}
+.bias{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.bias .side{font-size:22px}
+.src{font-size:12px;color:var(--sub)}
+.disc{font-size:12.5px;color:var(--sub);margin-top:30px;text-align:center}
+@media (max-width:700px){.tri{grid-template-columns:1fr}.sum2{grid-template-columns:1fr}.strip,.stats{grid-template-columns:1fr 1fr}.grid4{grid-template-columns:1fr 1fr}.orow{grid-template-columns:1fr}.orow em{grid-column:1}.gl{grid-template-columns:1fr}}
+@media print{body{background:#fff}.hold,.pick,.order,.box,.ev,.stats,table{break-inside:avoid}h2{break-after:avoid}}
+</style></head><body><div class='wrap'>
+<header><h1>🪙 코인 수시 분석 · 2026-11-18 22:38 KST</h1>
+<p>18시 브리핑 2부(바이낸스 3배 롱/숏 원픽)와 같은 규칙을 지금 시세로 돌린 참고용 스냅샷 · 개인 연습용</p>
+<p>이 분석은 가상 매매 기록·성적에 넣지 않아요. 공식 기록은 매일 18시 브리핑입니다.</p></header>
+<div class='strip'><div><span>분석 시각</span><b>2026-11-18 22:38 KST</b></div>
+<div><span>지금의 방향</span><b>🔴 숏 우위</b></div>
+<div><span>지금 원픽</span><b>ETH SHORT</b></div></div>
+<h2>지금 대기·보유 중인 포지션<small>18시 원픽·직접 넣은 포지션의 지금 상태</small></h2>
+<div class='hold wait'>
+ <div class='hh'><div><b class='nm'>펏지펭귄</b> <span class='tk'>PENGUUSDT</span> <span class='side S'>🔴 SHORT</span>
+   <span class='pill'>보유 중 · 남은 시간 20시간</span><span class='src'>자동 추적(추천가 체결 가정)</span></div>
+  <div class='pnl dn'>-0.05%<small>-0.18 USDT</small></div></div>
+ <div class='grid4'>
+  <div><span>진입가 · 격리 3배</span><b>0.00475200</b></div>
+  <div><span>현재가</span><b>0.00474800</b></div>
+  <div><span>목표가 (TP)</span><b>0.00463600</b></div>
+  <div><span>로스값 (SL)</span><b>0.00483400</b></div>
+ </div>
+ <div class='act'>👉 목표가 0.00463600 · 손절가 0.00483400 그대로 · 11/19 19:00에 시간 정리</div>
+ <div class='why'><b>근거</b> 진입가 근처에서 움직이고 있어 처음 계획을 그대로 지킵니다.</div>
+</div><h2>지난 판정 이후 바뀐 것<small>참고 — 공식 판정은 다음 18시 브리핑에서</small></h2><div class='ev good'><span class='tag'>✅ 진입 체결</span><b>펏지펭귄</b> <span class='tk'>PENGUUSDT</span> <span class='side S'>🔴 SHORT</span> — 0.00475200 (11/18 19:00 봉)</div><h2>지금 시세로 본 원픽<small>18시 규칙 그대로 · 기록에 넣지 않는 참고용</small></h2><div class='box'><div class='bias'><b>오늘의 방향</b> <span class='side S'>🔴 SHORT</span> <span class='why'>점수 -2.60 (비트코인 -2.0 · 나스닥 선물 -1.0×0.6)</span></div>
+<ul><li>비트코인 64,051달러, 24시간 -1.5% · 4시간봉 50선 아래(하락 배열)</li><li>나스닥100 선물 24시간 -0.5% · 20일 평균선 아래</li></ul><div class='src'>데이터: OKX USDT 무기한 선물 (바이낸스 선물 API 접속 제한으로 대체) · 기준 11/18 22:00 (한국 시간) · 분석 32종목</div></div>
+<div class='pick'>
+ <div class='hh'><div><b class='nm'>이더리움</b> <span class='tk'>ETHUSDT</span> <span class='side S'>🔴 SHORT</span></div>
+  <div class='meta'>현재가 1,794.35 · 24시간 -1.55% · 1시간 RSI 42 · 펀딩비 -0.0021% · 미결제약정 24h +0.7% · 거래량 평소의 0.7배</div></div>
+ <ol class='story'><li>4시간봉이 50봉 평균선 아래에서 내리는 흐름이에요 (24시간 -1.5%). 오늘 시장 방향은 숏 우위입니다.</li><li>1시간봉이 20봉 평균선 근처(-0.7%)까지 되돌림 반등했다가(RSI 42) 마지막 봉이 음봉으로 꺾였어요.</li><li>미결제약정 24시간 +0.7% · 펀딩비 -0.0021% · 최근 3시간 거래량 평소의 0.7배. 진입가 1,798.41에서 -2.45%면 목표, 로스값은 직전 1시간봉 고점 1,819.10(18일 14시) 위 0.20% 여유인 1,822.74(+1.35%)이고, 닿으면 미련 없이 정리합니다.</li></ol>
+ <div class='chartbox'><canvas id='fpc'></canvas></div>
+ <div class='checks'><span class='ck on'>✔ 4시간봉 추세</span><span class='ck on'>✔ 1시간봉 반등</span><span class='ck on'>✔ 꺾임 캔들</span><span class='ck '>· 거래량 증가</span><span class='ck on'>✔ 미결제약정 방향 일치</span><span class='ck on'>✔ 비트코인 대비 약세</span><span class='ck on'>✔ 펀딩비 과열 아님</span><span class='ck on'>✔ 변동폭 충분</span></div>
+</div>
+<div class='order'>
+ <div class='oh'><div class='onm'>ETHUSDT <span>🔴 SHORT (내리면 수익)</span></div>
+  <div class='oq'>격리 3배<small>증거금 360 USDT · 포지션 1,080 USDT · 수량 0.6</small></div></div>
+ <div class='tri'><div class='tile en'><span>① 진입 지정가 (Entry)</span><b>1,798.41</b><em>현재가보다 0.23% 위 · 6시간 안에 안 닿으면 취소</em></div><div class='tile tp'><span>② 목표 처리값 (TP · -2.45%)</span><b>1,754.35</b><em>예상 수익 <b>+약 33,586원</b> · +25.20 USDT (+7.0%)</em></div><div class='tile sl'><span>③ 비상 로스값 (SL · +1.35%)</span><b>1,822.74</b><em>최대 허용 손실 <b>-약 20,925원</b> · -15.70 USDT (-4.36%)</em></div></div>
+ <div class='orow'><span>로스값 근거</span><b class='sm'>직전 1시간봉 고점 1,819.10(18일 14시) 위 0.20% 여유</b>
+  <em>꼬리에 걸려 억울하게 손절되지 않도록 직전 1시간봉 고점 위에 두고, 진입가 대비 1.2~1.8% · 3배 손실 -5.5% 이내로 제한</em></div>
+ <div class='orow'><span>바이낸스 입력</span><b class='sm'>격리 · 3x · 지정가 1,798.41 · TP/SL 체크 후 TP 1,754.35 / SL 1,822.74</b>
+  <em>SL 트리거는 '마크 가격(Mark)' 기준 권장 · 진입과 동시에 TP/SL을 함께 걸어 두기</em></div>
+ <div class='orow ddl'><span>예약 유효 · 시간 정리</span><b class='sm'>11/19 04:38 (한국 시간)까지 체결 안 되면 취소</b><em>체결 전 1시간봉이 24시간 고점 1,835.39 위에서 마감해도 취소 · 체결되면 그때부터 24시간 안에 TP·SL에 안 닿으면 시장가 정리 (TIME_EXIT)</em></div>
+ <div class='be'>🛡 <b>본절 방어 기준가</b> 가격이 <b>1,776.83</b>(-1.2%, 레버리지 수익 +3.6%)에 닿으면 SL을 본전 <b>1,796.61</b>(수수료 포함 본전)로 옮겨 손실 없이 잠그세요.</div>
+ <div class='ohint'>참고 청산가(격리 3배): 약 2,388.89 — 로스값이 훨씬 먼저 오므로 SL만 지키면 청산까지 가지 않아요.</div>
+</div><div class='box'><h3>다음 후보 (참고만)</h3><table><tr><th>코인</th><th>방향</th><th>충족</th><th>24시간</th><th>점수</th></tr><tr><td>라이트코인 <span class='tk'>LTCUSDT</span></td><td><span class='side S'>🔴 SHORT</span></td><td>6/8</td><td>-2.61%</td><td>8.53</td></tr><tr><td>파일코인 <span class='tk'>FILUSDT</span></td><td><span class='side S'>🔴 SHORT</span></td><td>6/8</td><td>-3.06%</td><td>8.28</td></tr><tr><td>에테나 <span class='tk'>ENAUSDT</span></td><td><span class='side S'>🔴 SHORT</span></td><td>6/8</td><td>-5.76%</td><td>8.12</td></tr><tr><td>STRK <span class='tk'>STRKUSDT</span></td><td><span class='side S'>🔴 SHORT</span></td><td>6/8</td><td>-5.97%</td><td>8.09</td></tr></table></div>
+<p class='disc'>개인 연습용 참고 자료입니다. 투자 권유가 아니며, 실제 매매 판단과 책임은 본인에게 있습니다. 코인 선물은 레버리지로 손실이 커질 수 있습니다.</p>
+</div><script>
+function mk(id,labels,ds){const el=document.getElementById(id);if(!el||!window.Chart)return;new Chart(el,{type:'line',data:{labels,datasets:ds},
+options:{responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},scales:{x:{ticks:{maxTicksLimit:8}}}}})}
+mk('fpc',["15\uc77c 22\uc2dc", "15\uc77c 23\uc2dc", "16\uc77c 00\uc2dc", "16\uc77c 01\uc2dc", "16\uc77c 02\uc2dc", "16\uc77c 03\uc2dc", "16\uc77c 04\uc2dc", "16\uc77c 05\uc2dc", "16\uc77c 06\uc2dc", "16\uc77c 07\uc2dc", "16\uc77c 08\uc2dc", "16\uc77c 09\uc2dc", "16\uc77c 10\uc2dc", "16\uc77c 11\uc2dc", "16\uc77c 12\uc2dc", "16\uc77c 13\uc2dc", "16\uc77c 14\uc2dc", "16\uc77c 15\uc2dc", "16\uc77c 16\uc2dc", "16\uc77c 17\uc2dc", "16\uc77c 18\uc2dc", "16\uc77c 19\uc2dc", "16\uc77c 20\uc2dc", "16\uc77c 21\uc2dc", "16\uc77c 22\uc2dc", "16\uc77c 23\uc2dc", "17\uc77c 00\uc2dc", "17\uc77c 01\uc2dc", "17\uc77c 02\uc2dc", "17\uc77c 03\uc2dc", "17\uc77c 04\uc2dc", "17\uc77c 05\uc2dc", "17\uc77c 06\uc2dc", "17\uc77c 07\uc2dc", "17\uc77c 08\uc2dc", "17\uc77c 09\uc2dc", "17\uc77c 10\uc2dc", "17\uc77c 11\uc2dc", "17\uc77c 12\uc2dc", "17\uc77c 13\uc2dc", "17\uc77c 14\uc2dc", "17\uc77c 15\uc2dc", "17\uc77c 16\uc2dc", "17\uc77c 17\uc2dc", "17\uc77c 18\uc2dc", "17\uc77c 19\uc2dc", "17\uc77c 20\uc2dc", "17\uc77c 21\uc2dc", "17\uc77c 22\uc2dc", "17\uc77c 23\uc2dc", "18\uc77c 00\uc2dc", "18\uc77c 01\uc2dc", "18\uc77c 02\uc2dc", "18\uc77c 03\uc2dc", "18\uc77c 04\uc2dc", "18\uc77c 05\uc2dc", "18\uc77c 06\uc2dc", "18\uc77c 07\uc2dc", "18\uc77c 08\uc2dc", "18\uc77c 09\uc2dc", "18\uc77c 10\uc2dc", "18\uc77c 11\uc2dc", "18\uc77c 12\uc2dc", "18\uc77c 13\uc2dc", "18\uc77c 14\uc2dc", "18\uc77c 15\uc2dc", "18\uc77c 16\uc2dc", "18\uc77c 17\uc2dc", "18\uc77c 18\uc2dc", "18\uc77c 19\uc2dc", "18\uc77c 20\uc2dc", "18\uc77c 21\uc2dc"],[{"label": "1시간봉 종가", "data": [1829.74, 1806.0, 1809.75, 1814.35, 1813.35, 1815.0, 1823.77, 1825.2, 1818.54, 1826.52, 1834.4, 1813.36, 1804.52, 1824.26, 1826.6, 1817.53, 1812.27, 1816.36, 1820.39, 1805.03, 1796.87, 1807.77, 1805.17, 1799.3, 1802.92, 1845.46, 1819.32, 1827.84, 1820.36, 1820.32, 1822.95, 1820.1, 1828.31, 1827.19, 1819.55, 1813.66, 1819.52, 1813.76, 1831.79, 1834.16, 1833.17, 1825.2, 1831.22, 1819.26, 1811.18, 1787.92, 1821.47, 1822.57, 1828.11, 1814.1, 1784.41, 1777.21, 1786.86, 1789.08, 1790.2, 1799.82, 1805.24, 1813.52, 1824.19, 1819.86, 1802.21, 1803.16, 1804.29, 1803.47, 1810.6, 1808.37, 1816.23, 1811.01, 1812.7, 1805.94, 1800.27, 1794.35], "borderColor": "#16202A", "borderWidth": 2.2, "pointRadius": 0, "tension": 0.15}, {"label": "20봉 평균선", "data": [1818.621518459146, 1817.4194690820846, 1816.6890434552195, 1816.4662774118653, 1816.1694890869258, 1816.0581091738852, 1816.7925749668486, 1817.593282112863, 1817.683445721162, 1818.5250223191465, 1820.0369249554183, 1819.4010273406166, 1817.98378664151, 1818.5815212470804, 1819.3451858902158, 1819.1723110435287, 1818.5149480870023, 1818.3097149358591, 1818.5078373229203, 1817.2242337683563, 1815.2857353142272, 1814.5699509985864, 1813.6747175701494, 1812.3056968491828, 1811.4118209587846, 1814.6545046769954, 1815.0988375649006, 1816.3122816063385, 1816.697778596211, 1817.0427520632386, 1817.605347104835, 1817.8429330948507, 1818.8397966096268, 1819.6350540753765, 1819.6269536872455, 1819.0586723836982, 1819.1026083471554, 1818.5937885045691, 1819.850570551753, 1821.2133733563478, 1822.3520997033622, 1822.623328303042, 1823.4420589408473, 1823.0437676131478, 1821.9138849833241, 1818.6763721277694, 1818.9424319251248, 1819.2879145989223, 1820.1281132085487, 1819.554007188687, 1816.2069588850025, 1812.4929628007164, 1810.0517282482672, 1808.0544207960513, 1806.353999767856, 1805.7317140756793, 1805.6848841637097, 1806.4310856719278, 1808.1224108460299, 1809.2402764797412, 1808.5707263388135, 1808.0554190684502, 1807.6968077285978, 1807.2942546115885, 1807.609087505723, 1807.6815553623208, 1808.4956929468617, 1808.7351507614462, 1809.1127554508323, 1808.8105882650389, 1807.9971989064638, 1806.6974656772768], "borderColor": "#8793A0", "borderDash": [6, 4], "borderWidth": 1.5, "pointRadius": 0}, {"label": "진입 1,798.41", "data": [1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41, 1798.41], "borderColor": "#1F5FBF", "borderWidth": 2, "pointRadius": 0, "borderDash": [2, 3]}, {"label": "목표 1,754.35", "data": [1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35, 1754.35], "borderColor": "#1E8E3E", "borderWidth": 2, "pointRadius": 0, "borderDash": [2, 3]}, {"label": "손절 1,822.74", "data": [1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74, 1822.74], "borderColor": "#C5221F", "borderWidth": 2, "pointRadius": 0, "borderDash": [2, 3]}]);
+</script></body></html>
