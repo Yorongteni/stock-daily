@@ -176,6 +176,16 @@ def main():
     if args.build and data_p.exists():
         bundle = json.loads(data_p.read_text(encoding="utf-8"))
         print(f"저장된 데이터 묶음 사용: {data_p}")
+        # 수집 때 API 호출이 실패했으면 리포트를 만들기 전에 저장된 AI 입력으로 한 번 더 시도
+        if (ai_cfg.get("enabled") and ai_cfg.get("mode") == "api" and not args.no_ai and not args.demo
+                and not ai_p.exists() and brief_p.exists()):
+            print("… API 모드: AI 결과가 없어 다시 생성")
+            res = commentary.generate_api(brief_p.read_text(encoding="utf-8"), ai_cfg)
+            if "error" in res:
+                print("  ✗ " + res["error"])
+            else:
+                ai_p.write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+                print(f"  ✓ {ai_p}")
     else:
         bundle = collect(cfg, slot, today, args.demo, out)
         data_p.write_text(json.dumps(bundle, ensure_ascii=False, default=_jsonable), encoding="utf-8")
