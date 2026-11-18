@@ -1,0 +1,58 @@
+# 코인 수시 분석 — 원할 때 지금 시세로 18시 2부(바이낸스 3배 롱/숏 원픽)와 같은 규칙을 돌린다.
+#
+#  18시 브리핑·가상 매매 기록(data/*.json)은 건드리지 않습니다 (사본으로 계산 → docs/coin-now 만 커밋).
+#  시작 방법
+#    1) GitHub 앱/웹 → stock-daily → Actions → 코인 수시 분석 → Run workflow
+#    2) docs/trigger-coin/ 아래에 아무 파일이나 푸시 (Claude 에게 "지금 코인 분석해줘")
+#  결과: https://yorongteni.github.io/stock-daily/coin-now/ (최신) · docs/coin-now/coin_<날짜>_<시각>.html
+name: 코인 수시 분석
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "claude/**"]
+    paths: ["docs/trigger-coin/**"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: coin-now
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 패키지 설치 (재시도)
+        run: for i in 1 2 3; do pip install --retries 5 -r requirements.txt && break; sleep $((i*15)); done
+
+      - name: 지금 시세로 코인 분석 → 커밋·푸시
+        run: |
+          set -o pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ok=0
+          for t in 1 2 3; do python coin_now.py | tee out.txt && { ok=1; break; }; echo "재시도 $t"; sleep $((t*20)); done
+          STAMP=$(grep -o 'STAMP=.*' out.txt | tail -1 | cut -d= -f2)
+          git add docs/coin-now
+          if ! git diff --cached --quiet; then
+            git commit -q -m "코인 수시 분석: ${STAMP}"
+            for i in 1 2 3 4; do git pull -q --rebase --autostash origin main && git push -q origin HEAD:main && break; echo "푸시 재시도 $i"; sleep $((i*10)); done
+          fi
+          {
+            echo "### 코인 수시 분석 ${STAMP}"
+            grep '^결과:' out.txt | tail -1 | sed 's/^/- /'
+            echo "- 최신: https://yorongteni.github.io/stock-daily/coin-now/"
+            echo "- 이번 분석: https://yorongteni.github.io/stock-daily/coin-now/coin_${STAMP}.html"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$ok" = 1 ]
