@@ -2,11 +2,11 @@
  "start_date": "2026-11-17",
  "positions": [],
  "last_events": {
-  "date": "2026-11-19",
+  "date": "2026-11-20",
   "events": []
  },
- "updated_at": "2026-11-19 02:47",
- "last_run": "2026-11-19",
+ "updated_at": "2026-11-20 08:24",
+ "last_run": "2026-11-20",
  "rules": {
   "budget_krw": 500000,
   "target_pct": 5.0,
