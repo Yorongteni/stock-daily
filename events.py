@@ -54,9 +54,10 @@ def _yaml_events(start: date, end: date) -> list[dict]:
     import yaml
     rows = yaml.safe_load(p.read_text(encoding="utf-8")) or []
     out = []
+    far = (end + timedelta(days=7)).isoformat()          # 대형 이벤트는 2주 앞까지 미리 알림
     for r in rows:
         d = str(r.get("date", ""))
-        if start.isoformat() <= d <= end.isoformat():
+        if start.isoformat() <= d <= (far if r.get("scale") == "대형" else end.isoformat()):
             out.append({**r, "status": r.get("status", "확정(공식 일정)")})
     return out
 

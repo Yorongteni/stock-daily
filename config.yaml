@@ -78,8 +78,10 @@ news:
     ko: [코스피 증시, 원달러 환율, 한국은행 금리, 반도체 수출, 정부 경제정책, 부동산 대출 규제, 지정학 리스크]
     en: [stock market, Federal Reserve, Treasury yields, oil prices, tariffs trade, geopolitical risk]
   event_queries:   # 앞으로 시장을 움직일 이벤트(정상회담·정책·실적·지표 발표 예정)를 다룬 기사 → 이벤트 캘린더
-    ko: [증시 다음주 일정, 정상회담 예정 경제, 발표 예정 정책 증시, 실적 발표 예정, 수혜주 기대감 예정]
-    en: [week ahead stocks calendar, earnings this week, economic calendar this week, summit trade deal expected]
+    ko: [증시 다음주 일정, 이번주 증시 일정, 정상회담 예정 경제, 발표 예정 정책 증시, 실적 발표 예정, 수혜주 기대감 예정,
+         금통위 기준금리 전망, FOMC 앞두고, 미국 물가 발표 앞두고, 공모주 상장 예정, 관세 발표 예정, 한한령 해제, 정부 대책 발표 예정]
+    en: [week ahead stocks calendar, earnings this week, economic calendar this week, summit trade deal expected,
+         Fed meeting next week, CPI report preview, jobs report preview, tariff deadline, IPO this week]
   sector_queries: true   # 13개 분야마다 국내 뉴스 검색 1회씩
 
 screening:
