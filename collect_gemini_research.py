@@ -175,7 +175,7 @@ def run(day: str, slot: str = "am", save: bool = True, out_docs: Path | None = N
                 res["warning"] = "구글 검색 근거(grounding)가 비어 있음 — 검색 없이 답했을 수 있어 참고만"
             break
         except Exception as e:  # noqa: BLE001  (할당량 초과 429·일시 오류·JSON 형식 오류 모두)
-            last = f"{type(e).__name__}: {str(e)[:300]}"
+            last = f"{type(e).__name__}: {str(e)[:1500]}"   # 할당량 오류는 뒤쪽에 원인(quotaMetric)이 있어 길게 남김
             print(f"  ✗ 제미나이 {model} {attempt}차 실패: {last[:160]}")
             if ("404" in last or "NOT_FOUND" in last) and models:      # 모델 없음 → 다음 모델로 (시도 횟수는 새로)
                 model, attempt = models.pop(0), 0
