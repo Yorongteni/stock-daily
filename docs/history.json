@@ -1466,5 +1466,87 @@
     "built_at": "2026-11-19 21:13"
    }
   }
+ },
+ "2026-11-20": {
+  "kospi": 1.39,
+  "sp500": -2.02,
+  "headline": "모닝 브리핑 · 오늘의 자세: 현금 확보·관망",
+  "stance": "현금 확보·관망 (주식 비중 줄이기)",
+  "allocation": {
+   "kr_equity": 20,
+   "us_equity": 26,
+   "gold_commodities": 14,
+   "usd_cash": 20,
+   "krw_cash_bonds": 15,
+   "alternatives": 5
+  },
+  "lists": {
+   "value": [
+    "SMCI",
+    "GOOGL",
+    "064350.KS",
+    "QCOM",
+    "PYPL"
+   ],
+   "growth": [
+    "MU",
+    "PLTR",
+    "196170.KQ",
+    "SMCI",
+    "042660.KS"
+   ],
+   "overvalued": [
+    "CRWD",
+    "277810.KQ",
+    "003670.KS",
+    "TSLA",
+    "323410.KS"
+   ]
+  },
+  "names": {
+   "value": [
+    "슈퍼마이크로",
+    "알파벳",
+    "현대로템",
+    "퀄컴",
+    "페이팔"
+   ],
+   "growth": [
+    "마이크론",
+    "팔란티어",
+    "알테오젠",
+    "슈퍼마이크로",
+    "한화오션"
+   ],
+   "overvalued": [
+    "크라우드스트라이크",
+    "레인보우로보틱스",
+    "포스코퓨처엠",
+    "테슬라",
+    "카카오뱅크"
+   ]
+  },
+  "valuation": {
+   "kr": {
+    "pe_median": 18.94,
+    "pb_median": 2.24,
+    "earnings_yield": 5.28,
+    "n": 55
+   },
+   "us": {
+    "pe_median": 23.13,
+    "pb_median": 5.89,
+    "earnings_yield": 4.32,
+    "n": 90
+   }
+  },
+  "slots": {
+   "am": {
+    "ai": false,
+    "stance": "현금 확보·관망 (주식 비중 줄이기)",
+    "headline": "모닝 브리핑 · 오늘의 자세: 현금 확보·관망",
+    "built_at": "2026-11-20 07:53"
+   }
+  }
  }
 }
