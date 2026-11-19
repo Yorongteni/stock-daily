@@ -38,6 +38,8 @@ git push -q origin HEAD:main || git push -q origin HEAD
 - 35분이 지나도 없으면: `pip install -r requirements.txt` 후 `python main.py --slot <슬롯> --collect --out docs` 로
   직접 수집을 시도합니다. 실패하면 **AI 결과는 푸시하지 말고** 종료합니다
   (06:50 / 21:50 누락 복구가 AI 없이 리포트를 만듭니다).
+- 기사 원문 열기(WebFetch)가 네트워크에서 막히면, 웹 검색 결과에 나온 기사 제목·URL·게시일을 출처로 적어도 됩니다
+  (`used_for` 에 "검색 결과 요약으로 확인" 이라고 적음). 날짜가 안 보이는 결과는 출처로 쓰지 않습니다.
 
 ## 4. 분석 작성
 
@@ -72,7 +74,14 @@ python tools/validate_ai.py docs/ai/<날짜>_<슬롯>.json
 
 - `✗ 사용 불가` 이면 오류를 고쳐 다시 검사합니다. 경고는 가능하면 고칩니다.
   출처 부족(`sources` 6개 미만, 최근 기사 2개 미만, 원문 URL 아님)과 이벤트 부족(`upcoming_events` 3개 미만)도 사용 불가입니다 → 검색을 더 해서 채웁니다.
-  끝내 채우지 못하면 AI 결과를 푸시하지 않습니다 (누락 복구가 AI 없이 리포트를 만듭니다).
+  끝내 채우지 못하면 AI 결과를 푸시하지 않습니다. 대신 **바로 만들기 신호**를 푸시해 AI 없는 리포트가 제시간에 나오게 합니다
+  (GitHub 누락 복구 예약은 몇 시간씩 밀리는 날이 있어 기다리지 않음):
+  ```bash
+  git pull -q; date -u +%FT%TZ > docs/trigger/<날짜>_<슬롯>_build.txt
+  git add docs/trigger/<날짜>_<슬롯>_build.txt && git commit -q -m "AI 없이 리포트 만들기: <날짜> (<슬롯>)"
+  git push -q origin HEAD:main || git push -q origin HEAD
+  ```
+  그 뒤 AI 분석을 늦게라도 쓰면 docs/ai/ 를 푸시합니다 → AI 반영본으로 다시 만들어집니다.
 - 통과하면:
 
 ```bash

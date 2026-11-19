@@ -103,7 +103,14 @@ jobs:
               changed="$(git diff --name-only "$BEFORE" "$GITHUB_SHA" 2>/dev/null || git show --name-only --format= "$GITHUB_SHA")"
               f="$(echo "$changed" | grep -E '^docs/ai/[0-9-]+_(am|pm)\.json$' | tail -n 1)"
               if [ -n "$f" ]; then step=build; else
-                f="$(echo "$changed" | grep -E '^docs/trigger/[0-9-]+_(am|pm)\.txt$' | tail -n 1)"; step=collect; fi
+                f="$(echo "$changed" | grep -E '^docs/trigger/[0-9-]+_(am|pm)_build\.txt$' | tail -n 1)"
+                if [ -n "$f" ]; then
+                  # AI 분석을 못 쓴 예약 작업이 보내는 '바로 만들기' 신호 → GitHub 누락 복구 예약을 기다리지 않고 AI 없이 리포트 생성
+                  step=build; f="${f%_build.txt}.txt"
+                else
+                  f="$(echo "$changed" | grep -E '^docs/trigger/[0-9-]+_(am|pm)\.txt$' | tail -n 1)"; step=collect
+                fi
+              fi
               if [ -n "$f" ]; then s="$(basename "$f")"; s="${s%.*}"; d="${s%_*}"; slot="${s##*_}"; fi ;;
             workflow_dispatch)
               step="${IN_STEP:-all}"; slot="${IN_SLOT}"; [ -n "$IN_DATE" ] && d="$IN_DATE"; force=true ;;
