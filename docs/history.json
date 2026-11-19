@@ -1380,15 +1380,15 @@
   }
  },
  "2026-11-19": {
-  "kospi": 1.99,
+  "kospi": -0.03,
   "sp500": -0.23,
-  "headline": "금리·달러 부담 속 반등 시도, 5,000선 사수전",
+  "headline": "금리 부담 속 앤트로픽 상장일, 관망하며 반등 확인",
   "stance": "관망 (지금 비중 유지)",
   "allocation": {
-   "kr_equity": 20,
+   "kr_equity": 22,
    "us_equity": 28,
    "gold_commodities": 10,
-   "usd_cash": 20,
+   "usd_cash": 18,
    "krw_cash_bonds": 17,
    "alternatives": 5
   },
@@ -1409,8 +1409,8 @@
    ],
    "overvalued": [
     "CRWD",
-    "003670.KS",
     "277810.KQ",
+    "003670.KS",
     "TSLA",
     "V"
    ]
@@ -1432,17 +1432,17 @@
    ],
    "overvalued": [
     "크라우드스트라이크",
-    "포스코퓨처엠",
     "레인보우로보틱스",
+    "포스코퓨처엠",
     "테슬라",
     "비자"
    ]
   },
   "valuation": {
    "kr": {
-    "pe_median": 18.6,
-    "pb_median": 2.26,
-    "earnings_yield": 5.38,
+    "pe_median": 19.92,
+    "pb_median": 2.29,
+    "earnings_yield": 5.02,
     "n": 55
    },
    "us": {
@@ -1458,6 +1458,12 @@
     "stance": "관망 (지금 비중 유지)",
     "headline": "금리·달러 부담 속 반등 시도, 5,000선 사수전",
     "built_at": "2026-11-19 06:13"
+   },
+   "pm": {
+    "ai": true,
+    "stance": "관망 (지금 비중 유지)",
+    "headline": "금리 부담 속 앤트로픽 상장일, 관망하며 반등 확인",
+    "built_at": "2026-11-19 21:13"
    }
   }
  }
