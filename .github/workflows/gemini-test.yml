@@ -33,6 +33,32 @@ jobs:
       - name: 패키지 설치
         run: for i in 1 2 3; do pip install --retries 5 -r requirements.txt && break; sleep $((i*15)); done
 
+      - name: 진단 — 이 키로 쓸 수 있는 모델 · 검색 없이 호출
+        continue-on-error: true
+        run: |
+          python - <<'PY'
+          import os
+          from google import genai
+          from google.genai import types
+          c = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          names = []
+          try:
+              for m in c.models.list():
+                  if "generateContent" in (getattr(m, "supported_actions", None) or []) and "flash" in m.name:
+                      names.append(m.name.replace("models/", ""))
+          except Exception as e:
+              print("모델 목록 실패:", str(e)[:300])
+          print("flash 모델:", ", ".join(names[:30]))
+          for model in [n for n in names if "lite" not in n][:2] + [n for n in names if "lite" in n][:1]:
+              for tool in (False, True):
+                  try:
+                      cfg = types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())]) if tool else None
+                      r = c.models.generate_content(model=model, contents="한 단어로: 오늘 요일은?", config=cfg)
+                      print(f"✓ {model} 검색 {'켬' if tool else '끔'}: {(r.text or '').strip()[:40]}")
+                  except Exception as e:
+                      print(f"✗ {model} 검색 {'켬' if tool else '끔'}: {str(e)[:160]}")
+          PY
+
       - name: "[1단계] 제미나이 구글 검색 리서치"
         run: |
           D="$(TZ=Asia/Seoul date +%F)"; echo "D=$D" >> "$GITHUB_ENV"
