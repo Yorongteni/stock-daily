@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""오후 6시 실전 단타 통합 브리핑 PDF + 16:9 영상 (1부 미국 주식 + 2부 바이낸스 3배 선물). 개인 연습용 — 업로드하지 않음.
+"""실전 단타 통합 브리핑 PDF + 16:9 영상 (1부 미국 주식 + 2부 바이낸스 3배 선물). 개인 연습용 — 업로드하지 않음.
 
   python tools/build_swing.py --date 2026-11-17 --out out/swing-2026-11-17 [--silent] [--pdf-only]
 
@@ -24,7 +24,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 PAGES = os.environ.get("PAGES_URL", "https://yorongteni.github.io/stock-daily")
 DISCLAIMER = "개인 연습용 가상 매매입니다. 투자 권유가 아니며 판단과 책임은 본인에게 있습니다."
-vs.SLOT_NAME["swing"] = "오후 6시 단타 통합"
+vs.SLOT_NAME["swing"] = "실전 단타 통합"
 
 
 @dataclass
@@ -225,13 +225,13 @@ def build(d: dict) -> list:
     picks, holds = d["picks"], d["holdings"]
     open_say = say_time(sess["open_kst"])
     fu = d.get("futures") or {}
-    sub = (f"{m}월 {day}일 18시 · 미국장 {sess['open_kst']} 개장 · 바이낸스 3배 원픽" if sess["trading"]
-           else f"{m}월 {day}일 18시 · 미국 증시 휴장 · 바이낸스 3배 원픽")
-    intro = (f"안녕하세요, {m}월 {day}일 오후 6시, 실전 단타 통합 브리핑입니다. "
+    sub = (f"{m}월 {day}일 · 미국장 {sess['open_kst']} 개장 · 바이낸스 3배 원픽" if sess["trading"]
+           else f"{m}월 {day}일 · 미국 증시 휴장 · 바이낸스 3배 원픽")
+    intro = (f"안녕하세요, {m}월 {day}일 실전 단타 통합 브리핑입니다. "
              + (f"오늘 밤 미국 증시는 한국 시간 {open_say}에 열립니다. " if sess["trading"] else "오늘 밤 미국 증시는 쉬는 날입니다. ")
              + "먼저 어제 매매 성적표와 보유 포지션을 점검하고, 1부에서 미국 주식 50만 원 타점, "
              "2부에서 바이낸스 3배 선물 롱 숏 원픽을 보겠습니다.")
-    S.append(vs.Slide("오프닝", "오후 6시 실전 단타 통합 브리핑", intro, [sub, "공통 인트로 → 1부 미국 주식 → 2부 바이낸스 선물"],
+    S.append(vs.Slide("오프닝", "실전 단타 통합 브리핑", intro, [sub, "공통 인트로 → 1부 미국 주식 → 2부 바이낸스 선물"],
                       ("info", "개인 연습용"), center=True))
 
     # Part 1. 성적표
@@ -406,7 +406,7 @@ def build(d: dict) -> list:
                       "실제로 다른 가격에 샀거나 팔았다면, 스마트폰 깃허브 앱의 보유 포지션 수동 입력에서 미국 주식인지 바이낸스인지 고르고 가격을 넣어 주세요. "
                       "다음 브리핑부터 내 실제 진입가로 작전을 짭니다. 개인 연습용 가상 매매이며 투자 권유가 아닙니다. 감사합니다.",
                       ["다르게 샀다면: GitHub 앱 → Actions → 보유 포지션 수동 입력", "market · action · ticker · direction · price · qty"],
-                      ("info", "내일 18시에 만나요"), center=True))
+                      ("info", "필요할 때 다시 요청하세요"), center=True))
     for s in S:
         s.narration = speak(s.narration)
     return S
@@ -432,7 +432,7 @@ def write_meta(d: dict, job: Job, starts: list, out: Path) -> None:
     what = " · ".join(f"{p['name']} {p['order']['qty']}주" for p in picks) or "미국 쉬어가기"
     cp = fu.get("pick")
     what += " | " + (f"{cp['symbol']} {cp['side']}" if cp else "코인 쉬어가기")
-    title = f"[{m}/{day} 18시] 단타 통합 | {what}"[:100]
+    title = f"[{m}/{day}] 단타 통합 | {what}"[:100]
     chap, last = [], None
     for s, sc in zip(starts, job.scenes):
         sec = sc.section.split(" · ")[0]
@@ -441,7 +441,7 @@ def write_meta(d: dict, job: Job, starts: list, out: Path) -> None:
             last = sec
     rec = d["record"]
     desc = "\n\n".join([
-        f"{m}월 {day}일 18시 실전 단타 통합 브리핑 (개인 연습용) — 어제 성적표·보유 점검, 1부 미국 주식 50만 원 타점, 2부 바이낸스 3배 선물 원픽.",
+        f"{m}월 {day}일 실전 단타 통합 브리핑 (개인 연습용) — 어제 성적표·보유 점검, 1부 미국 주식 50만 원 타점, 2부 바이낸스 3배 선물 원픽.",
         f"미국 누적: {rec['trades']}회 · 승률 {rec['winrate'] if rec['winrate'] is not None else '–'}% · {rec['pnl_krw']:+,}원",
         f"코인 누적: {(fu.get('record') or {}).get('trades', 0)}회 · {(fu.get('record') or {}).get('pnl_usdt', 0):+,.2f} USDT",
         f"📊 리포트: {PAGES}/swing/swing_{d['date']}.html\n📄 PDF: {PAGES}/swing/pdf/swing_{d['date']}.pdf",
@@ -467,7 +467,7 @@ def main() -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         pdf = out / f"swing_{a.date}.pdf"
-        make_pdf(browser, a.docs / "swing" / f"swing_{a.date}.html", pdf, f"오후 6시 단타 통합 브리핑 · {a.date}")
+        make_pdf(browser, a.docs / "swing" / f"swing_{a.date}.html", pdf, f"실전 단타 통합 브리핑 · {a.date}")
         print(f"PDF 완료: {pdf}")
         if a.pdf_only:
             browser.close()

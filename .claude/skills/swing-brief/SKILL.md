@@ -1,0 +1,70 @@
+---
+name: swing-brief
+description: 사용자가 "단타 브리핑 만들어줘"처럼 실전 단타 통합 브리핑을 요청하면, 지금 시세로 브리핑을 실행하고 보유 포지션·추천 타점마다 앞으로 1주일 대응 플랜을 써서 리포트에 붙인다.
+---
+
+# 실전 단타 통합 브리핑 + 1주일 대응 플랜
+
+단타 브리핑은 정해진 시간 없이 **요청한 순간의 시세**로 만듭니다. 추천 타점은 가상 매매로 기록하지 않고,
+사용자가 실제로 매매해 '보유 포지션 수동 입력'으로 넣은 포지션만 추적합니다.
+**이 요청을 받으면 반드시 1주일 대응 플랜까지 써야 합니다** — 브리핑 실행만 하고 끝내지 않습니다.
+
+## 1. 지금 시세로 브리핑 실행
+
+```bash
+gh workflow run us-swing.yml -R Yorongteni/stock-daily --ref main -f video=false   # 영상까지 원하면 video=true
+```
+- 실행 ID 를 찾아 끝날 때까지 기다립니다 (약 5분): `gh run watch <id> -R Yorongteni/stock-daily`
+- 실패하면 로그 끝부분을 보고 원인을 사용자에게 알립니다.
+- 끝나면 `git fetch origin main` 후 `docs/swing/data/<오늘 KST 날짜>.json` 을 읽습니다.
+
+## 2. 읽을 것 (data JSON)
+
+- `generated_at` (이 브리핑의 시세 시각 — 플랜의 `based_on` 에 그대로 씀)
+- `holdings`: 실제 보유 미국 주식 (진입가·수량·목표·손절·본전 방어가·보유 일수·오늘 작전 `plan`)
+- `picks`: 이번 미국 주식 추천 타점 (예약 매수가·수량·목표·손절)
+- `futures.holdings` / `futures.pick`: 바이낸스 실제 보유 / 이번 원픽 (진입·TP·SL·본전 방어·24시간 규칙)
+- `futures.bias`, `vix`, `qqq`, `fx`: 시장 방향과 환경
+- `weekly_plan`: 규칙 기반 기본 1주일 플랜 (출발점)
+- 다가오는 일정: `python3 -c "import events,json;print(json.dumps(events.collect('<날짜>',{})['calendar'],ensure_ascii=False,indent=1))"`
+  + 웹 검색으로 이번 주 미국 지표·연준 발언·대형 실적·코인 관련 일정을 확인합니다 (최소 3회).
+
+## 3. 1주일 대응 플랜 작성 → `docs/swing/ai/<날짜>.json`
+
+```json
+{
+  "date": "YYYY-MM-DD",
+  "based_on": "data JSON 의 generated_at 그대로",
+  "written_at": "YYYY-MM-DD HH:MM (KST)",
+  "overall": "이번 주 전체 대응 원칙 2~3문장 (시장 방향·변동성·주의 일정과 그래서 어떻게)",
+  "plans": [
+    {"name": "엔비디아 (NVDA)", "kind": "보유 | 추천",
+     "summary": "지금 위치 한 줄 (진입가 대비 수익률, 목표·손절까지 거리)",
+     "days": [{"when": "미국 11/20(금) 장 (한국 11/21 새벽)", "plan": "구체적 행동 — 가격·주문 종류·조건"}],
+     "scenarios": [{"if": "가격·지표 조건", "then": "그때 할 일"}],
+     "exit_rules": "언제 무조건 정리하는지 (손절·시간 정리·이벤트 전 축소)"}
+  ],
+  "week_events": ["11/21(토) 06:00 미국 옵션 만기 — 대형 기술주 변동", "..."]
+}
+```
+- **보유 포지션(실제 매매)이 가장 중요합니다.** 보유가 있으면 맨 앞에, 날짜별로 빠짐없이 씁니다.
+- 각 날짜마다 **가격·주문 종류(예약 지정가·LOC·시장가)·조건**을 숫자로. "지켜보세요" 같은 결론 없는 말 금지.
+- 규칙(목표 +5%·손절 −3.5%/이평선·본전 방어·최대 2거래일 + 예외 1일 연장, 코인은 TP/SL·본전 이동·24시간)을 지키고,
+  규칙에서 벗어난 조정(예: FOMC 전날 비중 축소)은 이유를 씁니다.
+- 큰 일정(FOMC·CPI·고용·대형 실적·옵션 만기) 전후의 대응을 `scenarios` 와 `days` 에 넣습니다.
+- 미국 날짜와 한국 날짜를 함께 씁니다 (미국 X일 장 마감 = 한국 X+1일 새벽).
+- 투자 권유 표현("꼭 사세요" 등) 대신 개인 연습 플랜 어조로 씁니다.
+
+## 4. 푸시 → 리포트 반영
+
+```bash
+git add docs/swing/ai/<날짜>.json && git commit -m "단타 브리핑 1주일 대응 플랜: <날짜>"
+git pull --rebase -q origin main && git push origin HEAD:main
+```
+- 푸시하면 Actions 가 리포트(`docs/swing/swing_<날짜>.html`)만 다시 그려 맨 위 「🗓 앞으로 1주일 대응 플랜」에 AI 플랜이 나옵니다.
+- 같은 날 브리핑을 다시 실행하면 시세가 바뀌므로, 플랜도 새 `generated_at` 기준으로 다시 써야 리포트에 나옵니다.
+
+## 5. 사용자에게 보고
+
+채팅으로 짧게: 리포트 링크(https://yorongteni.github.io/stock-daily/swing/swing_<날짜>.html), 시장 방향,
+보유 포지션별 이번 주 핵심 대응(가격 포함), 추천 타점 요약, 주의 일정.

@@ -657,9 +657,12 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     src, tk, src_errs = pick_source(force_source)
     tick = getattr(src, "tick", lambda s: None)
 
+    record = bool((cfg_all.get("futures") or {}).get("record_picks", False))
     # 같은 날 다시 돌리면 오늘 만든 자동 추천은 지우고 새로 (수동 입력 반영)
     log["positions"] = [p for p in log["positions"]
                         if not (p["status"] == "PENDING" and p.get("pick_date") == today and p.get("source") == "auto")]
+    if not record:   # 가상 매매 기록 안 함: 자동 추천 포지션은 지우고 실제 매매(수동 입력)만 판정·대응
+        log["positions"] = [p for p in log["positions"] if p.get("source") == "manual"]
     print("[B2] 지난 추천·보유 판정")
     for p in log["positions"]:          # 로스값 규칙 보강 전에 만든 포지션에도 본절 방어가를 채워 둔다
         if not p.get("be_trigger"):
@@ -754,7 +757,8 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         pick["valid_until"] = pick["order_until"]          # 예약 유효 (체결되면 그때부터 hold_hours)
         pick["hold_hours"] = cfg["hold_hours"]
         pick["order_hours"] = cfg["order_valid_hours"]
-        log["positions"].append({
+        if record:
+          log["positions"].append({
             "id": f"{today}-{r['symbol']}", "symbol": r["symbol"], "name": f["name"], "direction": r["side"], "source": "auto",
             "status": "PENDING", "pick_date": today, "pick_time": iso(now), "limit": o["entry"], "tp": o["tp"], "sl": o["sl"],
             "qty": o["qty"], "margin": o["margin"], "leverage": o["leverage"], "hold_hours": cfg["hold_hours"], "liq": o["liq"],

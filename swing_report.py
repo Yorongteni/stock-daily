@@ -1,4 +1,4 @@
-"""오후 6시 실전 단타 통합 브리핑 리포트 (docs/swing/swing_<날짜>.html, index.html = 최신본).
+"""실전 단타 통합 브리핑 리포트 (요청 시각 기준) (docs/swing/swing_<날짜>.html, index.html = 최신본).
 
 공통 인트로(어제 성적표·보유 긴급 점검) → 1부 미국 주식 → 2부 바이낸스 3배 선물 → 누적 성적 → 규칙."""
 from __future__ import annotations
@@ -135,7 +135,7 @@ def order_html(p: dict, sess: dict) -> str:
   <em>증권사 앱 › 해외주식 › 자동감시(조건) 주문 › 손절 감시가에 {usd(o['stop'])} 입력 · 매수 체결 직후 바로 등록</em></div>
  <div class='orow ddl'><span>최대 보유 기한</span><b class='sm'>{esc(o['deadline'])}</b><em>그때까지 TP·SL에 안 닿으면 장 마감(LOC)에 전량 정리</em></div>
  <div class='be'>🛡 <b>본절 방어 기준가</b> 주가가 <b>{usd(o['be_trigger'])}</b>(+{RULE_HALF}%, 목표의 절반)에 닿으면 감시가를 본전 <b>{usd(o['be_price'])}</b>로 올려 손실 없이 잠그세요.</div>
- <div class='ohint'>주문 시간: 오늘 18시 이후 ~ 미국장 개장({esc(sess['open_kst'])}) 전에 '예약 지정가'로 넣으면 개장과 동시에 체결을 기다립니다.</div>
+ <div class='ohint'>주문 시간: 미국장 개장({esc(sess['open_kst'])}) 전이면 '예약 지정가'로 넣어 두고, 장중이면 지정가로 바로 넣으세요.</div>
 </div>"""
 
 
@@ -431,6 +431,49 @@ def coin_record_html(rec: dict) -> str:
     return out
 
 
+def _ai_plan(d: dict, out: Path) -> dict | None:
+    """Claude 가 쓴 1주일 대응 플랜 (docs/swing/ai/<날짜>.json) — based_on 이 이 브리핑의 generated_at 과 같을 때만."""
+    p = out / "swing" / "ai" / f"{d['date']}.json"
+    if not p.exists():
+        return None
+    try:
+        a = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return None
+    return a if a.get("based_on") == d.get("generated_at") else None     # 이 브리핑 시세로 쓴 플랜만 (다시 실행하면 새로 써야 함)
+
+
+def weekly_html(d: dict, out: Path) -> str:
+    h = "<h3 style='margin:22px 0 6px'>🗓 앞으로 1주일 대응 플랜</h3>"
+    ai = _ai_plan(d, out)
+    if ai:
+        h += (f"<div class='box' style='border-left:5px solid var(--teal)'><b>🤖 AI 대응 플랜</b> <span class='why'>({esc(ai.get('written_at', ''))} 작성 · "
+              f"{esc(ai.get('based_on', ''))} 시세 기준)</span><p>{esc(ai.get('overall', ''))}</p>")
+        for pl in ai.get("plans") or []:
+            h += f"<h3 style='margin:12px 0 4px'>{esc(pl.get('name', ''))} <small class='why'>{esc(pl.get('kind', ''))}</small></h3>"
+            if pl.get("summary"):
+                h += f"<div class='why'>{esc(pl['summary'])}</div>"
+            h += "<table><tr><th>언제</th><th>할 일</th></tr>" + "".join(
+                f"<tr><td>{esc(x.get('when', ''))}</td><td>{esc(x.get('plan', ''))}</td></tr>" for x in pl.get("days") or []) + "</table>"
+            if pl.get("scenarios"):
+                h += "<ul>" + "".join(f"<li><b>{esc(c.get('if', ''))}</b> → {esc(c.get('then', ''))}</li>" for c in pl["scenarios"]) + "</ul>"
+            if pl.get("exit_rules"):
+                h += f"<div class='why'>정리 원칙: {esc(pl['exit_rules'])}</div>"
+        if ai.get("week_events"):
+            h += "<div class='why'>이번 주 주의 일정: " + " / ".join(esc(x) for x in ai["week_events"]) + "</div>"
+        h += "</div>"
+    plans = d.get("weekly_plan") or []
+    if not plans:
+        return h + ("" if ai else "<div class='empty'>지금 보유 포지션과 이번 추천 타점이 없어 1주일 플랜이 없어요. 실제로 매매했다면 '보유 포지션 수동 입력'으로 넣어 주세요.</div>")
+    h += "<details" + ("" if ai else " open") + "><summary><b>규칙 기반 기본 플랜</b> (목표·손절·본전 방어·최대 보유일 + 다가오는 일정)</summary>"
+    for pl in plans:
+        h += (f"<div class='box'><h3 style='margin:0 0 4px'>{esc(pl['name'])} <small class='why'>{esc(pl['market'])} · {esc(pl['kind'])}</small></h3>"
+              f"<div class='why'>{esc(pl['summary'])}</div><table><tr><th>언제</th><th>할 일</th></tr>"
+              + "".join(f"<tr><td>{esc(r['label'])}</td><td>{esc(r['action'])}{'<div class=why>' + esc(r['watch']) + '</div>' if r.get('watch') else ''}</td></tr>"
+                        for r in pl["days"]) + "</table></div>")
+    return h + "</details>"
+
+
 def write(d: dict, out: Path) -> Path:
     sess, rec = d["session"], d["record"]
     fu = d.get("futures") or {}
@@ -462,7 +505,8 @@ def write(d: dict, out: Path) -> Path:
     revs = fu.get("reviews") or []
     if revs:
         intro += "<h3 style='margin:22px 0 6px'>🔍 매매 복기 — 끝난 코인 매매를 시세로 다시 보기</h3>" + "".join(review_html(r) for r in revs)
-    intro += "<h3 style='margin:22px 0 6px'>📋 어제 추천 결과</h3>"
+    intro += weekly_html(d, out)
+    intro += "<h3 style='margin:22px 0 6px'>📋 지난 판정 결과 (실제 매매)</h3>"
     intro += evs or "<div class='ev'>어제 판정할 추천·보유 종목이 없었어요.</div>"
     parts.append(f"<div class='part'>공통 인트로 · 어제 매매 성적표 & 보유 포지션 긴급 점검"
                  f"<small>미국 {esc((d.get('data_date') or '')[5:].replace('-', '/'))} 종가 · 코인 {esc(fu.get('data_time') or '–')} 1시간봉 기준</small></div>{intro}")
@@ -527,11 +571,11 @@ def write(d: dict, out: Path) -> Path:
 <li>코인 qty: 숫자만 넣으면 투입 증거금 USDT(예: 360), 코인 수량이면 '개'를 붙여요(예: 7.6개). 비우면 360 USDT</li></ul></div>""")
 
     page = f"""<!doctype html><html lang='ko'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>
-<title>오후 6시 단타 통합 브리핑 {esc(d['date'])}</title>
+<title>실전 단타 통합 브리핑 {esc(d['date'])}</title>
 <link rel='preconnect' href='https://fonts.googleapis.com'><link href='https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap' rel='stylesheet'>
 <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js'></script><style>{CSS}</style></head><body><div class='wrap'>
-<header><h1>⏰ 오후 6시 실전 단타 통합 브리핑 · {md(d['date'])}</h1>
-<p>1부 미국 주식 50만 원 단타 + 2부 바이낸스 3배 선물 원픽 · 개인 연습용 (외부 배포 없음)</p>
+<header><h1>⏰ 실전 단타 통합 브리핑 · {md(d['date'])} {esc((d.get('generated_at') or '')[11:16])}</h1>
+<p>1부 미국 주식 50만 원 단타 + 2부 바이낸스 3배 선물 원픽 · 요청 시각 시세 기준 · 추천은 가상 매매로 기록하지 않음 · 개인 연습용</p>
 <p>{esc(open_note)} · 원/달러 {d['fx']:,.1f}</p></header>
 <div class='strip'><div><span>🇺🇸 보유 · 오늘 밤 신규</span><b>{hold_n}종목 · {pick_n}종목</b></div>
 <div><span>🪙 오늘의 방향 · 원픽</span><b>{esc(((fu.get('bias') or {}).get('label') or '–').split(' ')[0])} {esc((fu.get('pick') or {}).get('coin') or '쉬어가기' if not fu.get('error') else '데이터 없음')}</b></div>

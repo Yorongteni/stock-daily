@@ -1,46 +1,23 @@
-# 오후 6시 실전 단타 통합 브리핑 (매일 18:00 KST) — 1부 미국 주식 50만 원 단타 + 2부 바이낸스 3배 선물 원픽
+# 실전 단타 통합 브리핑 (요청할 때만) — 1부 미국 주식 50만 원 단타 + 2부 바이낸스 3배 선물 원픽
 #
-#  개인 연습용입니다. 유튜브 업로드·외부 배포를 하지 않고 이 저장소에만 저장합니다.
-#    data/us_swing_portfolio.json · data/trade_history.json · data/binance_futures_log.json  (추적용 JSON)
-#    docs/swing/ (리포트 HTML·데이터 JSON) · docs/swing/pdf/ (PDF) · 릴리스 swing-<날짜> (PDF·MP4)
-#  아침·밤 시황 브리핑(daily.yml, daily-report.yml)과는 완전히 별개입니다.
-#
-#  1) state : 간밤 미국장·추천 이후 코인 1시간봉으로 판정 → 보유 대응 → 오늘 타점 → 리포트 → 커밋·푸시
-#  2) video : PDF·16:9 영상(하단 자막 + 큰 글씨 카드) → docs/swing/pdf, 릴리스
-#
-#  GitHub 예약 실행만으로 돕니다. 늦거나 빠질 수 있어 18:00·18:07·18:20·18:45·19:15·20:40·21:50 에 겹쳐 둡니다 (이미 만들었으면 건너뜀).
-#  예약이 몇 시간 밀려 17~23시(KST) 밖에 도착하면 만들지 않습니다 (새벽 시세로 다음 날 브리핑을 미리 만들지 않게).
-#  가장 확실한 방법: Claude 예약 작업이 17:57 에 docs/trigger-swing/<날짜>.txt 를 푸시 (ROUTINES.md ①).
-#  (docs/trigger-swing/<날짜>.txt 를 푸시해도 바로 시작합니다 — 수동 시작용)
-#  코인은 주말에도 거래되므로 매일 실행합니다 (미국 휴장일에는 1부가 '휴장'으로 나옵니다).
-#  cron 은 UTC 기준: 09:00 UTC = 18:00 KST.
-name: 오후 6시 실전 단타 통합 브리핑
+#  정해진 시간 없이, 실행하는 순간의 시세로 만듭니다.
+#    GitHub 앱 → Actions → 실전 단타 통합 브리핑 → Run workflow (또는 Claude 에게 "단타 브리핑 만들어줘")
+#  가상 매매 기록은 하지 않습니다 (config.yaml swing/futures.record_picks: false) — 추천 타점은 보여 주기만 합니다.
+#  실제로 매매했으면 '보유 포지션 수동 입력'으로 넣으면, 그 포지션의 대응 플랜이 이 브리핑에 매번 들어갑니다.
+#    data/us_swing_portfolio.json · data/trade_history.json · data/binance_futures_log.json  (실제 매매만)
+#    docs/swing/ (리포트 HTML·데이터 JSON, 같은 날 여러 번 실행하면 그날 최신본) · docs/swing/pdf/ · 릴리스 swing-<날짜>
+#  개인 연습용 — 유튜브 업로드·외부 배포를 하지 않습니다. 아침·밤 시황 브리핑과는 별개입니다.
+name: 실전 단타 통합 브리핑 (요청 시)
 on:
-  schedule:
-    - cron: "0 9 * * *"       # KST 18:00
-    - cron: "7 9 * * *"       # KST 18:07 누락 방지 (정각은 GitHub 예약이 몰려 밀리기 쉬움)
-    - cron: "20 9 * * *"      # KST 18:20 누락 방지
-    - cron: "45 9 * * *"      # KST 18:45 누락 방지
-    - cron: "15 10 * * *"     # KST 19:15 누락 방지
-    - cron: "40 11 * * *"     # KST 20:40 누락 방지 (GitHub 예약이 크게 밀리는 날 대비)
-    - cron: "50 12 * * *"     # KST 21:50 누락 방지 (17~23시 밖에서 도착한 예약은 건너뜀)
   push:
-    branches: [main, "claude/**"]   # 시작 신호 (루틴이 main 대신 claude/ 브랜치에 올려도 반영)
-    paths: ["docs/trigger-swing/**"]
+    branches: [main, "claude/**"]   # docs/trigger-swing/ 에 파일을 푸시해도 바로 시작
+    paths: ["docs/trigger-swing/**", "docs/swing/ai/**"]   # ai/ = Claude 가 쓴 1주일 대응 플랜 → 리포트만 다시 그림
   workflow_dispatch:
     inputs:
-      date:
-        description: "날짜 (예: 2026-11-17, 비우면 오늘)"
-        required: false
-        default: ""
-      force:
-        description: "이미 만들었어도 다시 만들기 (수동 입력 반영 등)"
+      video:
+        description: "영상도 만들기 (끄면 리포트·PDF만, 약 5분)"
         type: boolean
         default: false
-      video:
-        description: "영상도 만들기 (끄면 리포트·PDF만)"
-        type: boolean
-        default: true
 
 permissions:
   contents: write
@@ -68,32 +45,36 @@ jobs:
       - name: 오늘 할 일 정하기
         id: plan
         env:
-          IN_DATE: ${{ inputs.date }}
-          IN_FORCE: ${{ inputs.force }}
           IN_VIDEO: ${{ inputs.video }}
           EVENT: ${{ github.event_name }}
         run: |
-          DATE="${IN_DATE:-$(TZ=Asia/Seoul date +%F)}"
-          if ! [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then echo "::error::날짜 형식 오류: $DATE"; exit 1; fi
-          # GitHub 예약이 몇 시간 밀려 새벽에 돌면, 그날 날짜로 '18시 브리핑'을 새벽 시세로 미리 만들어 버리고
-          # 정작 그날 18시에는 '이미 있음'으로 건너뛰던 문제(11/19: 02:47 생성) → 예약 실행은 17~23시(KST)에만 만든다
-          H=$((10#$(TZ=Asia/Seoul date +%H)))
-          if [ "$EVENT" = "schedule" ] && { [ "$H" -lt 17 ] || [ "$H" -gt 23 ]; }; then
-            echo "date=$DATE" >> "$GITHUB_OUTPUT"; echo "video=false" >> "$GITHUB_OUTPUT"; echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::예약 실행이 ${H}시(KST)에 늦게 도착 — 18시 브리핑 시간대(17~23시)가 아니라 건너뜁니다."
-            exit 0
+          DATE="$(TZ=Asia/Seoul date +%F)"     # 실행하는 지금 (같은 날 다시 실행하면 그날 최신본으로 덮어씀)
+          if [ "$EVENT" = "push" ]; then        # AI 1주일 플랜만 올라온 경우: 수집 없이 리포트만 다시 그림
+            f="$(git show --name-only --format= "$GITHUB_SHA" | grep -E '^docs/swing/ai/[0-9-]+\.json$' | tail -n 1)"
+            if [ -n "$f" ]; then
+              d="$(basename "$f" .json)"
+              echo "date=$d" >> "$GITHUB_OUTPUT"; echo "video=false" >> "$GITHUB_OUTPUT"; echo "run=render" >> "$GITHUB_OUTPUT"
+              echo "AI 1주일 플랜 반영: $d"; exit 0
+            fi
           fi
           echo "date=$DATE" >> "$GITHUB_OUTPUT"
-          vid=true
-          [ "$EVENT" = "workflow_dispatch" ] && [ "$IN_VIDEO" = "false" ] && vid=false
-          cfgv=$(python3 -c "import yaml;print(str((yaml.safe_load(open('config.yaml',encoding='utf-8')).get('swing') or {}).get('video',True)).lower())" 2>/dev/null || echo true)
-          [ "$cfgv" = "false" ] && vid=false
+          vid=false
+          [ "$EVENT" = "workflow_dispatch" ] && [ "$IN_VIDEO" = "true" ] && vid=true
           echo "video=$vid" >> "$GITHUB_OUTPUT"
-          if [ -f "docs/swing/data/$DATE.json" ] && [ "$IN_FORCE" != "true" ]; then
-            echo "run=false" >> "$GITHUB_OUTPUT"; echo "이미 $DATE 브리핑이 있어 건너뜁니다."
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          echo "요청 시각 $(TZ=Asia/Seoul date '+%F %H:%M') KST · 영상 $vid"
+
+      - name: AI 1주일 플랜 반영 (리포트만 다시 그림)
+        if: steps.plan.outputs.run == 'render'
+        env:
+          DATE: ${{ steps.plan.outputs.date }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 -c "import json,swing_report;from pathlib import Path;d=json.load(open('docs/swing/data/$DATE.json',encoding='utf-8'));print(swing_report.write(d,Path('docs')))"
+          git add docs/swing
+          git diff --cached --quiet || { git commit -q -m "단타 브리핑 AI 1주일 플랜 반영: $DATE"; for i in 1 2 3 4; do git pull -q --rebase --autostash origin main && git push -q origin HEAD:main && break; sleep $((i*5)); done; }
+          echo "### AI 1주일 플랜 반영 $DATE — https://yorongteni.github.io/stock-daily/swing/swing_${DATE}.html" >> "$GITHUB_STEP_SUMMARY"
 
       - uses: actions/setup-python@v6
         if: steps.plan.outputs.run == 'true'
@@ -120,7 +101,7 @@ jobs:
           build_brief
           git add $FILES
           if ! git diff --cached --quiet; then
-            git commit -q -m "오후 6시 단타 통합 브리핑: $DATE"
+            git commit -q -m "실전 단타 통합 브리핑: $DATE"
             for i in 1 2 3 4; do
               if git pull -q --rebase --autostash origin "$BR"; then
                 git push -q origin "HEAD:$BR" && break
@@ -128,13 +109,13 @@ jobs:
                 # 그 사이 수동 입력이 같은 파일을 바꿨으면, 최신 상태에서 다시 계산해 올린다
                 git rebase --abort 2>/dev/null || true
                 git fetch -q origin "$BR" && git reset -q --hard "origin/$BR"
-                build_brief && git add $FILES && { git diff --cached --quiet || git commit -q -m "오후 6시 단타 통합 브리핑: $DATE"; }
+                build_brief && git add $FILES && { git diff --cached --quiet || git commit -q -m "실전 단타 통합 브리핑: $DATE"; }
               fi
               echo "푸시 재시도 $i"; sleep $((i*10))
             done
           fi
           {
-            echo "### 오후 6시 단타 통합 브리핑 $DATE"
+            echo "### 실전 단타 통합 브리핑 $DATE"
             echo "- 리포트: https://yorongteni.github.io/stock-daily/swing/swing_${DATE}.html (main 기준)"
             python - <<'PY'
           import json, os
@@ -201,7 +182,7 @@ jobs:
           cp "out/swing-$DATE/swing_${DATE}.pdf" docs/swing/pdf/
           git add docs/swing/pdf
           if ! git diff --cached --quiet; then
-            git commit -q -m "오후 6시 단타 통합 브리핑 PDF: $DATE"
+            git commit -q -m "실전 단타 통합 브리핑 PDF: $DATE"
             for i in 1 2 3 4; do git pull -q --rebase --autostash origin "$BR" && git push -q origin "HEAD:$BR" && break; echo "푸시 재시도 $i"; sleep $((i*10)); done
           fi
 
@@ -212,17 +193,17 @@ jobs:
           tag="swing-$DATE"
           files=("out/swing-$DATE/swing_${DATE}.pdf" "docs/swing/data/${DATE}.json")
           [ -f "out/swing-$DATE/swing_${DATE}.mp4" ] && files+=("out/swing-$DATE/swing_${DATE}.mp4")
-          notes="out/swing-$DATE/description.txt"; [ -f "$notes" ] || echo "$DATE 오후 6시 단타 통합 브리핑 (개인 연습용)" > "$notes"
+          notes="out/swing-$DATE/description.txt"; [ -f "$notes" ] || echo "$DATE 실전 단타 통합 브리핑 (개인 연습용)" > "$notes"
           for i in 1 2 3; do
             if gh release view "$tag" >/dev/null 2>&1; then
               gh release upload "$tag" "${files[@]}" --clobber && break
             else
-              gh release create "$tag" "${files[@]}" --target "$BR" --title "$DATE 오후 6시 단타 통합 브리핑" --notes-file "$notes" && break
+              gh release create "$tag" "${files[@]}" --target "$BR" --title "$DATE 실전 단타 통합 브리핑" --notes-file "$notes" && break
             fi
             echo "릴리스 재시도 $i"; sleep $((i*10))
           done
           {
-            echo "### $DATE 오후 6시 단타 통합 브리핑 결과물 (외부 업로드 없음)"
+            echo "### $DATE 실전 단타 통합 브리핑 결과물 (외부 업로드 없음)"
             echo "- PDF: docs/swing/pdf/swing_${DATE}.pdf"
             echo "- PDF·영상·JSON 다운로드: https://github.com/$GITHUB_REPOSITORY/releases/tag/$tag"
           } >> "$GITHUB_STEP_SUMMARY"

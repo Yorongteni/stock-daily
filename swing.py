@@ -1,4 +1,5 @@
-"""오후 6시 실전 단타 통합 브리핑 — 1부 미국 주식(1~2거래일 보유) + 2부 바이낸스 3배 선물(futures.py). 매일 18:00 KST.
+"""실전 단타 통합 브리핑 — 1부 미국 주식(1~2거래일 보유) + 2부 바이낸스 3배 선물(futures.py). 요청할 때 그 시각 시세로 만든다.
+가상 매매 기록은 config swing.record_picks(기본 false)로 끈다 — 추천 타점은 보여 주기만 하고, 실제 매매(수동 입력)만 추적한다.
 
 하는 일 (순서대로):
   1) data/us_swing_portfolio.json 을 읽고, 간밤(들) 미국장 일봉으로 보유·예약 종목을 판정
@@ -513,12 +514,24 @@ def spark(df: pd.DataFrame, n: int = 40) -> dict:
             "high": [r2(x) for x in t["High"]], "low": [r2(x) for x in t["Low"]]}
 
 
-def run(today: str, cfg_all: dict, out: Path) -> dict:
+def upcoming_session(now: datetime | None = None) -> Date:
+    """지금 진행 중이거나 다음에 열릴 미국 정규장의 미국 날짜 (요청 시각 기준 '이번 미국장')."""
+    now = (now or datetime.now(KST)).astimezone(ET)
+    d = now.date()
+    if is_trading_day(d) and now.time() < time(16, 0):
+        return d
+    return next_trading_day(d)
+
+
+def run(today: str, cfg_all: dict, out: Path, session: Date | None = None) -> dict:
     cfg = {**DEFAULTS, **(cfg_all.get("swing") or {})}
+    record = bool((cfg_all.get("swing") or {}).get("record_picks", False))
     names = {str(k): v for k, v in (cfg.get("universe") or {}).items()}
-    tonight = Date.fromisoformat(today)
+    tonight = session or Date.fromisoformat(today)
     sess = session_info(tonight)
     port, hist = load_state()
+    if not record:   # 가상 매매 기록 안 함: 예전에 자동으로 넣은 추천 포지션은 지우고, 실제 매매(수동 입력)만 남긴다
+        port["positions"] = [p for p in port["positions"] if p.get("source") == "manual"]
     print(f"[1/5] 환율·시세 ({len(names)}종목 + 보유 {len(port['positions'])}개)")
     fx, fx_date = usdkrw()
     tick = list(names) + [p["ticker"] for p in port["positions"]] + ["QQQ", "^VIX"]
@@ -585,6 +598,9 @@ def run(today: str, cfg_all: dict, out: Path) -> dict:
         f["news"], f["order"], f["story"] = nws, o, pick_story(f, o, nws)
         f["spark"] = spark(data[f["ticker"]])
         picks.append(f)
+        if not record:
+            print(f"  ✓ {f['ticker']} {f['kind']} 추천 ${o['limit']} × {o['qty']}주 (기록 안 함)")
+            continue
         port["positions"].append({
             "id": f"{today}-{f['ticker']}", "ticker": f["ticker"], "name": f["name"], "source": "auto",
             "status": "PENDING", "order_date": today, "session_date": sess["date"], "kind": f["kind"],
@@ -619,6 +635,13 @@ def run(today: str, cfg_all: dict, out: Path) -> dict:
     except Exception as e:  # noqa: BLE001
         print(f"  ✗ 코인 파트 실패: {type(e).__name__}: {e}")
         payload["futures"] = {"error": f"{type(e).__name__}: {str(e)[:200]}"}
+    try:   # 앞으로 1주일 대응 플랜 (규칙 + 다가오는 일정) — AI 플랜은 docs/swing/ai/<날짜>.json 으로 따로
+        import swing_plan
+        payload["weekly_plan"] = swing_plan.build(payload)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ✗ 1주일 플랜 실패: {e}")
+        payload["weekly_plan"] = []
+    payload["record_picks"] = record
     (out / "swing" / "data").mkdir(parents=True, exist_ok=True)
     save_json(out / "swing" / "data" / f"{today}.json", payload)
     import swing_report
@@ -720,7 +743,7 @@ def main():
     if a.manual:
         print(manual(a.manual, a.ticker, a.price, a.qty, cfg, a.note))
         return
-    run(a.date or datetime.now(KST).strftime("%Y-%m-%d"), cfg, Path(a.out))
+    run(a.date or datetime.now(KST).strftime("%Y-%m-%d"), cfg, Path(a.out), session=None if a.date else upcoming_session())
 
 
 if __name__ == "__main__":
