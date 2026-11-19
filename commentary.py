@@ -231,6 +231,37 @@ def _time_anchor(collected_at: str) -> str:
     ])
 
 
+def _gemini_text(gem: dict) -> str:
+    """[1단계] 제미나이 구글 검색 리서치 → brief 맨 앞쪽에 '최우선 근거'로."""
+    if not gem:
+        return ""
+    if not gem.get("ok"):
+        return f"## 제미나이 구글 검색 리서치 (1단계)\n- 이번에는 없음 ({gem.get('error', '실패')}) — 뉴스 헤드라인과 직접 웹 검색으로 확인하세요."
+    out = [f"## 제미나이 구글 검색 리서치 (1단계 · {gem.get('model')} · {gem.get('collected_at')} KST) — 최우선 근거",
+           "구글 검색으로 날짜·출처를 확인해 온 내용입니다. upcoming_events·chains·spotlight·script 를 쓸 때 **가장 먼저** 근거로 씁니다.",
+           "다만 [데이터] 수치와 다르면 [데이터]를 따르고, 중요한 사실은 원문 기사로 한 번 더 확인해 sources 에 적습니다.",
+           "", "### 앞으로 7일 이벤트"]
+    for e in gem.get("events") or []:
+        out.append(f"- {e['date_kst']} {e.get('time_kst', '')} · {e['title']} · {e.get('scale', '')} · {e.get('confirmed', '')} · "
+                   f"영향: {', '.join(e.get('sectors') or [])} — {e.get('why', '')} [{e.get('source', '')} {e.get('source_date', '')}]"
+                   + (f" {e['url']}" if e.get("url") else ""))
+    out += ["", "### 최근 시장을 움직인 섹터·테마와 뉴스 원인"]
+    for m in gem.get("movers") or []:
+        out.append(f"- {m['sector']} {m.get('direction', '')} {m.get('move', '')} ({m.get('date_kst', '')}) — {m['cause']}"
+                   + (f" · 대표: {', '.join(m.get('names') or [])}" if m.get("names") else "")
+                   + f" [{m.get('source', '')} {m.get('source_date', '')}]" + (f" {m['url']}" if m.get("url") else ""))
+    if gem.get("excluded"):
+        out.append("- 확인이 안 돼 뺀 내용: " + " / ".join(map(str, gem["excluded"][:6])))
+    if gem.get("search_queries"):
+        out.append("- 제미나이 검색어: " + ", ".join(gem["search_queries"][:12]))
+    if gem.get("grounding"):
+        out.append("- 검색 근거 사이트: " + ", ".join(g.get("title", "") for g in gem["grounding"][:15])
+                   + " (근거 링크는 구글 중계 주소라 sources 에는 원문 기사 주소를 직접 찾아 적습니다)")
+    if gem.get("warning"):
+        out.append(f"- ⚠ {gem['warning']}")
+    return "\n".join(out)
+
+
 def _events_text(bundle: dict) -> str:
     try:
         import events
@@ -248,6 +279,7 @@ def build_brief(bundle: dict, slot_cfg: dict) -> str:
         _macro_text(bundle.get("macro") or {}),
         _results_text(bundle.get("results") or {}),
         _sector_text(bundle.get("screens") or {}) + _val_hist_text(bundle.get("valuation_history") or {}),
+        _gemini_text(bundle.get("gemini") or {}),
         _spotlight_text(bundle),
         _events_text(bundle),
         _news_text(bundle.get("news") or {}),

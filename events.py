@@ -61,10 +61,23 @@ def _yaml_events(start: date, end: date) -> list[dict]:
     return out
 
 
-def collect(today: str, news: dict | None = None, days: int = 7) -> dict:
+def _gemini_events(gem: dict | None) -> list[dict]:
+    """제미나이가 구글 검색으로 확인한 이벤트 (collect_gemini_research.py 가 날짜·기사 날짜 검사를 마친 것)."""
+    if not gem or not gem.get("ok"):
+        return []
+    st = {"확정": "확정", "예정": "예정", "보도": "가능성(보도)"}
+    return [{"date": e["date_kst"], "time_kst": e.get("time_kst", ""), "title": e["title"], "scale": e.get("scale", "중형"),
+             "status": st.get(e.get("confirmed"), e.get("confirmed") or "예정"), "markets": ", ".join(e.get("sectors") or []),
+             "note": e.get("why", ""), "source": f"제미나이 검색 · {e.get('source', '')} {e.get('source_date', '')}".strip(),
+             "url": e.get("url", "")} for e in gem.get("events") or [] if e.get("date_kst")]
+
+
+def collect(today: str, news: dict | None = None, days: int = 7, gemini: dict | None = None) -> dict:
     start = date.fromisoformat(today)
     end = start + timedelta(days=days)
     cal = _rule_events(start, end) + _yaml_events(start, end)
+    have = {(e["date"], e["title"][:8]) for e in cal}
+    cal += [e for e in _gemini_events(gemini) if (e["date"], e["title"][:8]) not in have]
     cal.sort(key=lambda e: e["date"])
     for e in cal:
         d = date.fromisoformat(e["date"])
@@ -79,11 +92,12 @@ def brief_text(ev: dict) -> str:
     if not ev:
         return ""
     lines = [f"## 다가오는 이벤트 후보 ({ev['from']} ~ {ev['to']}, 프로그램 수집 — upcoming_events 의 출발점)",
-             "### 날짜가 정해진 일정"]
+             "### 일정 (규칙·공식 일정 + [제미나이 검색] 표시는 구글 검색으로 확인된 이벤트)"]
     for e in ev.get("calendar") or []:
         dd = "오늘" if e["d_day"] == 0 else "내일" if e["d_day"] == 1 else f"D-{e['d_day']}"
         lines.append(f"- {e['date']}({e['weekday']}, {dd}) {e.get('time_kst', '')} · {e['title']} · 규모 {e.get('scale', '')} · "
-                     f"{e.get('status', '')} · 영향: {e.get('markets', '')} — {e.get('note', '')}")
+                     f"{e.get('status', '')} · 영향: {e.get('markets', '')} — {e.get('note', '')}"
+                     + (f" [{e['source']}]" if e.get("source") else ""))
     if not ev.get("calendar"):
         lines.append("- (없음)")
     lines.append("### 앞으로의 일을 다룬 뉴스 헤드라인 (예정·회담·발표 앞둠 등 — 날짜·사실은 원문으로 확인)")

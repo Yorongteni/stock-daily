@@ -124,6 +124,7 @@ jobs:
         id: collect
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}     # [1단계] 제미나이 구글 검색 리서치 (없으면 건너뜀)
           D: ${{ steps.plan.outputs.date }}
           S: ${{ steps.plan.outputs.slot }}
           STEP: ${{ steps.plan.outputs.step }}
@@ -140,7 +141,7 @@ jobs:
           python main.py --slot "$S" --date "$D" --collect --out docs
           git config user.name  "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add docs/data docs/ai cache/ 2>/dev/null || true
+          git add docs/data docs/ai cache/ data/gemini_research.json 2>/dev/null || true
           git commit -q -m "데이터 수집: $D ($S)" || echo "변경 없음"
           for i in 1 2 3 4; do git pull -q --rebase --autostash origin main && git push -q origin HEAD:main && break; echo "푸시 재시도 $i"; sleep $((i*10)); done
 

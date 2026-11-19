@@ -140,9 +140,22 @@ def collect(cfg: dict, slot: str, today: str, demo: bool, out: Path) -> dict:
             nw = {"error": str(e), "count": 0}
             print(f"  ✗ 뉴스 수집 실패: {e}")
 
-    try:   # 앞으로 7일 이벤트 후보 (날짜가 정해진 일정 + 앞으로의 일을 다룬 기사)
+    # [1단계] 제미나이 + 구글 검색 리서치 (이벤트·테마 배경 팩트체크). 실패하면 RSS 만으로 계속
+    gem = {}
+    if not demo and cfg.get("gemini", {}).get("enabled", True):
+        print("[+] 제미나이 구글 검색 리서치")
+        try:
+            import collect_gemini_research as gr
+            gem = gr.run(today, slot, out_docs=out)
+            print(f"  ✓ 이벤트 {len(gem.get('events', []))}개 · 테마 {len(gem.get('movers', []))}개 · 검색어 {len(gem.get('search_queries', []))}개"
+                  if gem.get("ok") else f"  ✗ 건너뜀 → RSS 로 계속: {gem.get('error')}")
+        except Exception as e:  # noqa: BLE001
+            gem = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+            print(f"  ✗ 제미나이 단계 오류 → RSS 로 계속: {e}")
+
+    try:   # 앞으로 7일 이벤트 후보 (날짜가 정해진 일정 + 제미나이 검색 이벤트 + 앞으로의 일을 다룬 기사)
         import events
-        ev = events.collect(today, nw)
+        ev = events.collect(today, nw, gemini=gem)
         print(f"  ✓ 이벤트 후보 일정 {len(ev['calendar'])}개 · 관련 기사 {len(ev['headlines'])}건")
     except Exception as e:  # noqa: BLE001
         ev = {"error": str(e)}
@@ -150,7 +163,7 @@ def collect(cfg: dict, slot: str, today: str, demo: bool, out: Path) -> dict:
 
     return {
         "date": today, "slot": slot, "collected_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
-        "demo": demo, "results": results, "macro": mac, "screens": screens, "news": nw, "events": ev,
+        "demo": demo, "results": results, "macro": mac, "screens": screens, "news": nw, "events": ev, "gemini": gem,
         "valuation_history": valuation_history(out, (screens or {}).get("valuation") or {}),
     }
 

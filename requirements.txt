@@ -7,3 +7,5 @@ yfinance>=0.2.50
 # 뉴스·사회 흐름 수집 (RSS, API 키 불필요)
 feedparser>=6.0
 beautifulsoup4>=4.12
+# [1단계] 제미나이 + 구글 검색 리서치 (GEMINI_API_KEY 없으면 건너뜀)
+google-genai>=1.0

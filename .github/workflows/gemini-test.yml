@@ -1,0 +1,83 @@
+# 제미나이 리서치 시험 — 실제 GEMINI_API_KEY 로 [1단계] 리서치 → 수집 → 리포트까지 돌려 보고, 저장소에는 아무것도 커밋하지 않는다.
+#  GitHub → Actions → 제미나이 리서치 시험 → Run workflow. 결과는 실행 요약과 첨부 파일(artifact)로 확인.
+name: 제미나이 리서치 시험
+on:
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "am = 모닝 / pm = 나이트"
+        type: choice
+        options: [pm, am]
+        default: pm
+      full:
+        description: "수집 전체 + 리포트까지 (끄면 제미나이 리서치만)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      SLOT: ${{ inputs.slot }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: 패키지 설치
+        run: for i in 1 2 3; do pip install --retries 5 -r requirements.txt && break; sleep $((i*15)); done
+
+      - name: "[1단계] 제미나이 구글 검색 리서치"
+        run: |
+          D="$(TZ=Asia/Seoul date +%F)"; echo "D=$D" >> "$GITHUB_ENV"
+          [ -n "$GEMINI_API_KEY" ] && echo "GEMINI_API_KEY: 등록됨 (${#GEMINI_API_KEY}자)" || echo "::warning::GEMINI_API_KEY 비밀값이 비어 있음"
+          python collect_gemini_research.py --date "$D" --slot "$SLOT"
+          python - <<'PY'
+          import json
+          r = json.load(open("data/gemini_research.json", encoding="utf-8"))
+          lines = [f"### 제미나이 리서치 {r['date']} ({r['slot']}) — {'성공' if r.get('ok') else '실패: ' + str(r.get('error'))}"]
+          if r.get("ok"):
+              lines.append(f"- 모델 {r['model']} · 검색어 {len(r['search_queries'])}개 · 근거 링크 {len(r['grounding'])}개 · 제외 {len(r['dropped'])}건")
+              lines.append("- 검색어: " + ", ".join(r["search_queries"][:10]))
+              lines.append("#### 앞으로 7일 이벤트")
+              lines += [f"- {e['date_kst']} · **{e['title']}** · {e['scale']} · {e.get('confirmed','')} · {', '.join(e.get('sectors') or [])} · [{e.get('source','')} {e.get('source_date','')}]" for e in r["events"]]
+              lines.append("#### 시장을 움직인 테마")
+              lines += [f"- {m['sector']} {m.get('direction','')} {m.get('move','')} — {m['cause']} [{m.get('source','')}]" for m in r["movers"]]
+              if r["dropped"]:
+                  lines.append("#### 팩트체크로 뺀 것")
+                  lines += [f"- {x}" for x in r["dropped"]]
+              if r.get("warning"):
+                  lines.append(f"- ⚠ {r['warning']}")
+          open(__import__("os").environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8").write("\n".join(lines) + "\n")
+          print("\n".join(lines))
+          PY
+
+      - name: 수집 전체 + 리포트 (시험 폴더, 커밋 안 함)
+        if: ${{ inputs.full }}
+        run: |
+          mkdir -p out_test && cp -r docs/history.json docs/data out_test/ 2>/dev/null || true
+          python main.py --slot "$SLOT" --date "$D" --collect --out out_test
+          python main.py --slot "$SLOT" --date "$D" --build --out out_test
+          {
+            echo "### brief 에 들어간 제미나이·이벤트 부분"
+            echo '```'
+            sed -n '/^## 제미나이 구글 검색 리서치/,/^## 뉴스 헤드라인/p' "out_test/data/${D}_${SLOT}_brief.md" | head -60
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gemini-test-${{ inputs.slot }}
+          path: |
+            data/gemini_research.json
+            out_test/data/*_brief.md
+            out_test/data/*_gemini.json
+            out_test/report_*.html
+          if-no-files-found: ignore

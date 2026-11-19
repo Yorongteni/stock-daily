@@ -58,6 +58,11 @@ macro:
     # 가상자산
     - { key: btc,     name: 비트코인,          group: 가상자산, sources: [[yf, BTC-USD], [fdr, BTC/USD]] }
 
+# [1단계] 제미나이(gemini-2.5-flash) + 구글 검색: 앞으로 7일 이벤트·테마 배경을 팩트체크해 클로드 분석의 최우선 근거로 넘김
+#   GitHub 저장소 비밀값 GEMINI_API_KEY 필요. 없거나 실패하면 자동으로 아래 RSS 수집만 사용
+gemini:
+  enabled: true
+
 # 뉴스·사회 흐름 (API 키 없이 RSS 로 수집, 최근 36시간)
 news:
   enabled: true
