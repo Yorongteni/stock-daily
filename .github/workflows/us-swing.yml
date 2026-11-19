@@ -8,7 +8,9 @@
 #  1) state : 간밤 미국장·추천 이후 코인 1시간봉으로 판정 → 보유 대응 → 오늘 타점 → 리포트 → 커밋·푸시
 #  2) video : PDF·16:9 영상(하단 자막 + 큰 글씨 카드) → docs/swing/pdf, 릴리스
 #
-#  GitHub 예약 실행만으로 돕니다. 늦거나 빠질 수 있어 18:00·18:07·18:20·18:45·19:15 에 겹쳐 둡니다 (이미 만들었으면 건너뜀).
+#  GitHub 예약 실행만으로 돕니다. 늦거나 빠질 수 있어 18:00·18:07·18:20·18:45·19:15·20:40·21:50 에 겹쳐 둡니다 (이미 만들었으면 건너뜀).
+#  예약이 몇 시간 밀려 17~23시(KST) 밖에 도착하면 만들지 않습니다 (새벽 시세로 다음 날 브리핑을 미리 만들지 않게).
+#  가장 확실한 방법: Claude 예약 작업이 17:57 에 docs/trigger-swing/<날짜>.txt 를 푸시 (ROUTINES.md ①).
 #  (docs/trigger-swing/<날짜>.txt 를 푸시해도 바로 시작합니다 — 수동 시작용)
 #  코인은 주말에도 거래되므로 매일 실행합니다 (미국 휴장일에는 1부가 '휴장'으로 나옵니다).
 #  cron 은 UTC 기준: 09:00 UTC = 18:00 KST.
@@ -20,6 +22,8 @@ on:
     - cron: "20 9 * * *"      # KST 18:20 누락 방지
     - cron: "45 9 * * *"      # KST 18:45 누락 방지
     - cron: "15 10 * * *"     # KST 19:15 누락 방지
+    - cron: "40 11 * * *"     # KST 20:40 누락 방지 (GitHub 예약이 크게 밀리는 날 대비)
+    - cron: "50 12 * * *"     # KST 21:50 누락 방지 (17~23시 밖에서 도착한 예약은 건너뜀)
   push:
     branches: [main, "claude/**"]   # 시작 신호 (루틴이 main 대신 claude/ 브랜치에 올려도 반영)
     paths: ["docs/trigger-swing/**"]
@@ -71,6 +75,14 @@ jobs:
         run: |
           DATE="${IN_DATE:-$(TZ=Asia/Seoul date +%F)}"
           if ! [[ "$DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then echo "::error::날짜 형식 오류: $DATE"; exit 1; fi
+          # GitHub 예약이 몇 시간 밀려 새벽에 돌면, 그날 날짜로 '18시 브리핑'을 새벽 시세로 미리 만들어 버리고
+          # 정작 그날 18시에는 '이미 있음'으로 건너뛰던 문제(11/19: 02:47 생성) → 예약 실행은 17~23시(KST)에만 만든다
+          H=$((10#$(TZ=Asia/Seoul date +%H)))
+          if [ "$EVENT" = "schedule" ] && { [ "$H" -lt 17 ] || [ "$H" -gt 23 ]; }; then
+            echo "date=$DATE" >> "$GITHUB_OUTPUT"; echo "video=false" >> "$GITHUB_OUTPUT"; echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::예약 실행이 ${H}시(KST)에 늦게 도착 — 18시 브리핑 시간대(17~23시)가 아니라 건너뜁니다."
+            exit 0
+          fi
           echo "date=$DATE" >> "$GITHUB_OUTPUT"
           vid=true
           [ "$EVENT" = "workflow_dispatch" ] && [ "$IN_VIDEO" = "false" ] && vid=false
