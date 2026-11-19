@@ -140,9 +140,17 @@ def collect(cfg: dict, slot: str, today: str, demo: bool, out: Path) -> dict:
             nw = {"error": str(e), "count": 0}
             print(f"  ✗ 뉴스 수집 실패: {e}")
 
+    try:   # 앞으로 7일 이벤트 후보 (날짜가 정해진 일정 + 앞으로의 일을 다룬 기사)
+        import events
+        ev = events.collect(today, nw)
+        print(f"  ✓ 이벤트 후보 일정 {len(ev['calendar'])}개 · 관련 기사 {len(ev['headlines'])}건")
+    except Exception as e:  # noqa: BLE001
+        ev = {"error": str(e)}
+        print(f"  ✗ 이벤트 후보 실패: {e}")
+
     return {
         "date": today, "slot": slot, "collected_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),
-        "demo": demo, "results": results, "macro": mac, "screens": screens, "news": nw,
+        "demo": demo, "results": results, "macro": mac, "screens": screens, "news": nw, "events": ev,
         "valuation_history": valuation_history(out, (screens or {}).get("valuation") or {}),
     }
 

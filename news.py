@@ -96,19 +96,21 @@ def keywords(titles: list[str], lang: str, n: int = 15) -> list[list]:
 
 def run(cfg: dict, categories: list[str] | None = None, demo: bool = False) -> dict:
     if demo:
-        return {"items": [], "keywords": {"ko": [], "en": []}, "by_sector": {}, "errors": ["demo"], "count": 0}
+        return {"items": [], "keywords": {"ko": [], "en": []}, "by_sector": {}, "events": [], "errors": ["demo"], "count": 0}
     hours = cfg.get("hours", 36)
     per = cfg.get("per_feed", 8)
     since = datetime.now(timezone.utc) - timedelta(hours=hours)
     jobs = [(f["name"], f["lang"], f["url"], "general") for f in cfg.get("feeds", [])]
     for lang, qs in (cfg.get("queries") or {}).items():
         jobs += [(f"검색: {q}", lang, _gnews(q, lang), "topic") for q in qs]
+    for lang, qs in (cfg.get("event_queries") or {}).items():   # 앞으로의 일(예정·회담·발표)을 다룬 기사
+        jobs += [(f"이벤트: {q}", lang, _gnews(q, lang), "event") for q in qs]
     if cfg.get("sector_queries") and categories:
         for c in categories:
             q = " OR ".join(c.split("·")[:2]) + " 주가"
             jobs.append((f"분야: {c}", "ko", _gnews(q, "ko"), "sector:" + c))
 
-    items, seen, errors = [], set(), []
+    items, seen, errors, events = [], set(), [], []
     by_sector: dict[str, list] = {}
     import time
     for name, lang, url, tag in jobs:
@@ -131,6 +133,8 @@ def run(cfg: dict, categories: list[str] | None = None, demo: bool = False) -> d
                       "summary": _summary(e) if "news.google" not in url else "", "link": e.get("link", "")}
                 if tag.startswith("sector:"):
                     by_sector.setdefault(tag[7:], []).append(it)
+                elif tag == "event":
+                    events.append(it)
                 else:
                     items.append(it)
                 n += 1
@@ -143,6 +147,7 @@ def run(cfg: dict, categories: list[str] | None = None, demo: bool = False) -> d
               "en": [i["title"] for i in items if i["lang"] == "en"]}
     return {
         "items": items[:80], "by_sector": {k: v[:5] for k, v in by_sector.items()},
+        "events": sorted(events, key=lambda x: x["time"], reverse=True)[:30],
         "keywords": {"ko": keywords(titles["ko"], "ko"), "en": keywords(titles["en"], "en")},
         "errors": errors, "count": len(items) + sum(len(v) for v in by_sector.values()),
         "collected_at": datetime.now(KST).strftime("%Y-%m-%d %H:%M"),

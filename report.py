@@ -81,6 +81,13 @@ ul.clean{margin:4px 0 0;padding-left:18px} ul.clean li{margin:3px 0}
 .pill.pos{background:var(--up-soft);color:var(--up);border-color:transparent}
 .pill.neg{background:var(--down-soft);color:var(--down);border-color:transparent}
 .pill.mid{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.evs{display:grid;gap:10px}
+.ev{display:grid;grid-template-columns:92px 1fr;gap:14px;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:6px;padding:12px 16px;break-inside:avoid}
+.ev.big{border-left-color:var(--up)}.ev.mid{border-left-color:var(--warn)}.ev.small{border-left-color:var(--flat)}
+.ev .dd{font-weight:800;font-size:20px;line-height:1.1}.ev .dd small{display:block;font-size:12px;font-weight:500;color:var(--sub);margin-top:4px}
+.ev h4{margin:0 0 4px;font-size:15.5px}.ev .mk{font-size:13px;color:var(--sub);margin:2px 0}
+.ev .sc{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;font-size:13px}.ev .sc div{background:var(--bg);border-radius:4px;padding:6px 9px}
+@media(max-width:640px){.ev{grid-template-columns:1fr}.ev .sc{grid-template-columns:1fr}}
 .pill.acc{background:var(--acc-soft);color:var(--accent);border-color:transparent}
 .note{font-size:13px;color:var(--warn);background:var(--warn-soft);padding:8px 12px;border-radius:4px;margin:0 0 12px}
 .err{color:var(--warn);background:var(--warn-soft);padding:12px 14px;border-radius:4px;font-size:14px}
@@ -347,7 +354,15 @@ h += `<header><div><span class="kicker">${esc(DATA.slot_name)} · ${esc(DATA.tod
 <div class="meta">데이터 수집 ${esc(DATA.collected_at)} KST · ${RB ? "데이터 기반 요약(AI 해설 지연)" : "AI 분석 반영"}
   <br><span class="k">수치 기준: ${A.kospi ? `코스피 ${esc(A.kospi.date.slice(5).replace("-", "/"))} 종가` : ""}${A.spx ? ` · 미국 ${esc(A.spx.date.slice(5).replace("-", "/"))} 종가` : ""} (리포트 전체 같은 기준)</span>
   <nav class="nav">${DATA.prev ? `<a href="report_${esc(DATA.prev)}.html">← 이전 브리핑</a>` : ""}
-  <a href="#sec-conclusion">결론 바로 보기</a><a href="archive.html">지난 리포트 전체</a></nav></div></header>`;
+  <a href="#sec-conclusion">결론 바로 보기</a><a href="#sec-events">다가오는 이벤트</a><a href="archive.html">지난 리포트 전체</a></nav></div></header>`;
+{ // 맨 위 알림: 오늘·내일 이벤트와 일주일 안 대형 이벤트 (최소 하루 전에 알리기)
+  const T0 = new Date(DATA.today + "T00:00:00"), dn = d => Math.round((new Date(d + "T00:00:00") - T0) / 864e5);
+  const E0 = list(V.upcoming_events).length ? list(V.upcoming_events) : list((DATA.events || {}).calendar);
+  const hot = E0.filter(e => e && e.date && (dn(e.date) <= 1 || e.scale === "대형")).sort((a, b) => (a.date > b.date ? 1 : -1)).slice(0, 4);
+  if (hot.length) h += `<div class="panel" style="margin:14px 0;border-left:5px solid var(--up)"><b>📅 미리 알아 둘 이벤트</b>
+  <ul class="clean" style="margin:6px 0 0">${hot.map(e => `<li><b>${dn(e.date) <= 0 ? "오늘" : dn(e.date) === 1 ? "내일" : "D-" + dn(e.date)}</b> ${esc(e.date.slice(5).replace("-", "/"))} · ${esc(e.title)} <span class="pill ${e.scale === "대형" ? "pos" : e.scale === "중형" ? "mid" : ""}">${esc(e.scale || "")}</span>${e.markets ? ` <span class="k">— ${esc(e.markets)}</span>` : ""}</li>`).join("")}</ul>
+  <a href="#sec-events" class="k">자세히 보기 →</a></div>`;
+}
 
 // ── 오늘의 쉬운 요약 ──
 if (list(EZ.summary).length) h += `<div class="easysum" id="easy-sum"><h3>오늘 시장, 이것만 알면 됩니다</h3><ol>${EZ.summary.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
@@ -517,6 +532,26 @@ h += easyBox(EZ.forecast);
 const CATS = SC.categories || [];
 const aiSec = Object.fromEntries(list(V.sectors).map(s => [s.name, s]));
 const LD = SC.leadership || {};
+// ── 📅 다가오는 이벤트 (앞으로 7일) ──
+{
+  const T0 = new Date(DATA.today + "T00:00:00");
+  const dday = d => { const n = Math.round((new Date(d + "T00:00:00") - T0) / 864e5); return n <= 0 ? "오늘" : n === 1 ? "내일" : `D-${n}`; };
+  const wd = d => "일월화수목금토"[new Date(d + "T00:00:00").getDay()];
+  const kcls = s => s === "대형" ? "big" : s === "중형" ? "mid" : "small";
+  const AIE = list(V.upcoming_events).filter(e => e && e.date && e.title);
+  const CAL = list((DATA.events || {}).calendar);
+  const EV = (AIE.length ? AIE : CAL).slice().sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+  if (EV.length) {
+    h += `<h2 id="sec-events"><span class="no">📅</span>다가오는 이벤트 — 앞으로 일주일</h2>
+<p class="lead">${AIE.length ? "시장을 움직일 수 있는 일정을 미리 정리했습니다. 대형 = 지수 전체, 중형 = 특정 분야, 소형 = 일부 종목." : "날짜가 정해진 일정만 표시합니다 (AI 분석이 없어 정상회담·정책 등 기사로 알려진 일정은 빠져 있습니다)."}</p>
+<div class="evs">` + EV.map(e => `<div class="ev ${kcls(e.scale)}"><div class="dd">${dday(e.date)}<small>${esc(e.date.slice(5).replace("-", "/"))}(${wd(e.date)})${e.time_kst ? "<br>" + esc(e.time_kst) : ""}</small></div>
+  <div><h4>${esc(e.title)} <span class="pill ${e.scale === "대형" ? "pos" : e.scale === "중형" ? "mid" : ""}">${esc(e.scale || "")}</span> <span class="pill">${esc(e.status || "")}</span></h4>
+  ${e.markets ? `<div class="mk">영향: ${esc(e.markets)}</div>` : ""}${e.why || e.note ? `<p class="txt" style="margin:4px 0">${esc(e.why || e.note)}</p>` : ""}
+  ${e.if_good || e.if_bad ? `<div class="sc">${e.if_good ? `<div>✅ 되면: ${esc(e.if_good)}</div>` : ""}${e.if_bad ? `<div>⚠️ 안 되면: ${esc(e.if_bad)}</div>` : ""}</div>` : ""}
+  ${e.prepare ? `<div class="mk" style="margin-top:6px"><b>미리 할 대응</b> ${esc(e.prepare)}</div>` : ""}</div></div>`).join("") + `</div>`;
+  }
+}
+
 h += `<h2 id="sec-sectors"><span class="no">4</span>${CATS.length}개 분야 전수 브리핑</h2>
 <p class="lead">분야마다 대표 종목들의 평균 주가 흐름입니다. "시장 평균 대비 힘"이 플러스면 시장 평균보다 잘 오른 분야, "상승 흐름 종목 비율"은 그 분야에서 최근 한 달 오름세를 타는 종목의 비율, "거래 활발도"가 1보다 크면 평소보다 사고파는 돈이 많은 상태입니다.
 ${LD.now ? `지금 가장 힘센 분야: <b>${LD.now.map(esc).join(", ")}</b> / 1년 전엔: <b>${(LD.year_ago || []).map(esc).join(", ")}</b>` : ""}</p>`;
@@ -795,6 +830,7 @@ def write(bundle: dict, view: dict, out: Path, slot_cfg: dict) -> Path:
     payload = {"today": today, "slot": slot, "slot_name": slot_cfg.get("name", slot),
                "collected_at": bundle.get("collected_at"), "results": bundle["results"],
                "macro": bundle.get("macro") or {}, "screens": bundle.get("screens") or {}, "news": nw,
+               "events": bundle.get("events") or {},
                "view": view, "spotlight": _spotlight(bundle, view), "prev": prev, "prev_lists": history[prev_day]["lists"] if prev_day else None}
     data = json.dumps(payload, ensure_ascii=False).replace("</", "<\\/")
     title = f"{slot_cfg.get('name', '시장 브리핑')} · {today}"

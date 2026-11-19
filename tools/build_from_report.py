@@ -132,7 +132,38 @@ def _cap(text: str, limit: int) -> str:
 
 # ───────────────────────────── 장면 구성: 핵심 요약(약 5분) ─────────────────────────────
 SHORT_CAP = {"analog": 560, "intro": 220, "easy": 300, "gloss": 380, "sum": 220, "history": 560, "macro": 560, "chains": 620,
-             "fc": 700, "heat": 700, "or": 520, "conc": 620}
+             "fc": 700, "events": 650, "heat": 700, "or": 520, "conc": 620}
+
+
+def events_scene(job, V: dict, RB: bool, sc_: dict, shots: dict, cap: int | None = None):
+    """📅 다가오는 이벤트 장면 — AI 대본이 있으면 그대로, 없으면 이벤트 목록으로 만든다. 없으면 None."""
+    from datetime import date
+    evs = [e for e in (V.get("upcoming_events") or []) if isinstance(e, dict) and e.get("date") and e.get("title")] if not RB else []
+    if not evs:
+        evs = [e for e in ((job.data.get("events") or {}).get("calendar") or []) if e.get("date")]
+    if not evs or not shots.get("events"):
+        return None
+    t0 = date.fromisoformat(job.date)
+    order = {"대형": 0, "중형": 1, "소형": 2}
+
+    def when(e):
+        n = (date.fromisoformat(e["date"][:10]) - t0).days
+        return "오늘" if n <= 0 else "내일" if n == 1 else f"{int(e['date'][5:7])}월 {int(e['date'][8:10])}일"
+    if sc_.get("events"):
+        t = sc_["events"]
+    else:
+        parts = []
+        for e in sorted(evs, key=lambda e: (order.get(e.get("scale"), 3), e["date"]))[:5]:
+            line = f"{when(e)}, {e['title']}."
+            if e.get("markets"):
+                line += f" {e['markets']}에 영향을 줄 수 있습니다."
+            if e.get("if_good"):
+                line += f" 기대대로 되면 {e['if_good']}."
+            if e.get("if_bad"):
+                line += f" 아니면 {e['if_bad']}."
+            parts.append(line)
+        t = "앞으로 일주일, 시장을 움직일 일정입니다. " + " ".join(parts)
+    return Scene("다가오는 이벤트", "📅 다가오는 이벤트", _cap(t, cap) if cap else t, (shots.get("events") or [])[:1])
 
 
 def plan_short(job: Job, shots: dict[str, list[str]]) -> None:
@@ -227,6 +258,9 @@ def plan_short(job: Job, shots: dict[str, list[str]]) -> None:
              f"{fc.get('band_low', 0):,.0f}에서 {fc.get('band_high', 0):,.0f}입니다.") if fc.get("band_low") else "오늘 시장 예상입니다."
     S.append(Scene(("오늘 국내 증시 예상" if job.slot == "am" else "오늘 밤 미국 증시 예상"), "③ 당일 예측",
                    _cap(t, SHORT_CAP["fc"]), one("fc")))
+    es = events_scene(job, V, RB, sc_, shots, SHORT_CAP["events"])
+    if es:
+        S.append(es)
 
     if sc_.get("sectors"):
         t = sc_["sectors"]
@@ -342,6 +376,9 @@ def plan_scenes(job: Job, shots: dict[str, list[str]], ticker_details: bool = Fa
         t = (f"{fc.get('market', '지수')} 예상입니다. 정량 기준선으로는 {q.get('driver', '')}, 기대 변화 {say_chg(q.get('expected_pct'))}, "
              f"범위는 {fc.get('band_low', 0):,.0f}에서 {fc.get('band_high', 0):,.0f}입니다.") if fc.get("band_low") else "예측 데이터가 없습니다."
     S.append(Scene(("오늘 국내 증시 예상" if job.slot == "am" else "오늘 밤 미국 증시 예상"), "③ 사회 흐름·당일 예측", t, one("fc")))
+    es = events_scene(job, V, RB, sc_, shots)
+    if es:
+        S.append(es)
 
     # ④ 13개 분야
     by60 = sorted([c for c in cats if c.get("ret_60d") is not None], key=lambda c: -c["ret_60d"])
@@ -441,7 +478,7 @@ SHOTS = {  # 키: (선택자, 여러 개)
     "sum": ("#sum", False), "hist_ai": (".hist-ai", False), "pctl": (".hist-key", False), "analog": (".analog", False),
     "regimes": (".regimes", False), "macro_ai": (".macro-ai", False), "mgrp": (".mgrp", True),
     "social": (".social", False), "fc": (".fc", False), "heat": (".heat", False), "cats": ("section.cat", True),
-    "or": (".or", False), "conc": (".conc", False), "plan": (".conc .plan", False),
+    "or": (".or", False), "conc": (".conc", False), "events": (".evs", False), "plan": (".conc .plan", False),
     "thermo": (".thermo", False), "boxes": (".scr .box", True), "cards": (".card", True),
 }
 

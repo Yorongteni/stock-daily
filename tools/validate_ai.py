@@ -6,6 +6,7 @@
 
 종료 코드 0 = 사용 가능(경고만 있을 수 있음), 1 = 필수 항목 누락 또는 출처(sources) 부족으로 사용 불가.
 출처: 원문 URL·게시일이 있는 기사 6개 이상, 그중 2개 이상은 브리핑 날짜 기준 이틀 안 (파일 이름의 날짜 기준).
+이벤트: upcoming_events 3개 이상 (날짜·이름·규모·영향 시장·이유, 브리핑 날짜부터 3주 안).
 """
 from __future__ import annotations
 
@@ -20,7 +21,9 @@ ALLOC_NAMES = {"kr_equity": "국내 주식", "us_equity": "미국 주식", "gold
 REQUIRED = ["headline", "stance", "history_context", "macro", "social", "forecast",
             "opportunities", "risks", "sectors", "allocation", "action_plan", "script",
             "easy", "chains", "glossary"]
-SCRIPT_KEYS = ["intro", "history", "macro", "social_forecast", "sectors", "opps_risks", "conclusion"]
+SCRIPT_KEYS = ["intro", "history", "macro", "social_forecast", "events", "sectors", "opps_risks", "conclusion"]
+EVENT_SCALES = {"대형", "중형", "소형"}
+MIN_EVENTS = 3
 STANCES = ["적극 매수 (주식 비중 늘리기)", "골라서 매수 (좋은 종목만 조금씩)", "관망 (지금 비중 유지)", "현금 확보·관망 (주식 비중 줄이기)"]
 OLD_STANCES = {"공격적 비중확대": STANCES[0], "선별적 매수": STANCES[1], "중립·관망": STANCES[2], "방어적 비중축소": STANCES[3]}
 
@@ -105,6 +108,43 @@ def check_sources(ai: dict, brief_date: str | None) -> tuple[list[str], list[str
     return probs, notes
 
 
+def check_events(ai: dict, brief_date: str | None) -> tuple[list[str], list[str]]:
+    """upcoming_events 검사 → (문제, 참고). 앞으로 일정을 미리 알려 주는 섹션이 비지 않게."""
+    from datetime import date, timedelta
+    probs, notes = [], []
+    ev = ai.get("upcoming_events")
+    if not isinstance(ev, list) or not ev:
+        return [f"'upcoming_events'(다가오는 이벤트 캘린더) 없음 — {MIN_EVENTS}개 이상 필요"], notes
+    bd = date.fromisoformat(brief_date) if brief_date else None
+    good, big, tomorrow = 0, 0, 0
+    for i, x in enumerate(ev, 1):
+        if not isinstance(x, dict):
+            probs.append(f"upcoming_events {i}번: 형식 오류")
+            continue
+        miss = [k for k in ("date", "title", "scale", "markets", "why") if not str(x.get(k) or "").strip()]
+        if miss:
+            probs.append(f"upcoming_events {i}번 '{str(x.get('title'))[:30]}': {', '.join(miss)} 없음")
+            continue
+        if str(x["scale"]).strip() not in EVENT_SCALES:
+            probs.append(f"upcoming_events {i}번: scale 은 대형/중형/소형 ({x['scale']})")
+            continue
+        m = _DATE.match(str(x["date"]).strip())
+        if not m:
+            probs.append(f"upcoming_events {i}번: 날짜 형식은 YYYY-MM-DD ({x['date']})")
+            continue
+        d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        if bd and not (bd <= d <= bd + timedelta(days=21)):
+            probs.append(f"upcoming_events {i}번: 브리핑 날짜부터 3주 안 일정이어야 함 ({d})")
+            continue
+        good += 1
+        big += x["scale"] == "대형"
+        tomorrow += bool(bd and (d - bd).days <= 1)
+    if good < MIN_EVENTS:
+        probs.append(f"유효한 이벤트 {good}개 — {MIN_EVENTS}개 이상 필요")
+    notes.append(f"이벤트 {good}개 (대형 {big}개, 오늘·내일 {tomorrow}개)")
+    return probs, notes
+
+
 def normalize(ai: dict, sectors: list[str] | None = None, brief_date: str | None = None,
               strict_sources: bool = False) -> tuple[dict, list[str], list[str]]:
     """(정리된 ai, 오류, 경고). 오류가 있으면 사용 불가.
@@ -113,6 +153,9 @@ def normalize(ai: dict, sectors: list[str] | None = None, brief_date: str | None
     sp_probs, sp_notes = check_sources(ai, brief_date)
     (errs if strict_sources else warns).extend(sp_probs)
     warns.extend(sp_notes)
+    ev_probs, ev_notes = check_events(ai, brief_date)
+    (errs if strict_sources else warns).extend(ev_probs)
+    warns.extend(ev_notes)
     ai = _walk(ai)
     for k in REQUIRED:
         if k not in ai or ai[k] in (None, "", [], {}):

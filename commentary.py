@@ -65,19 +65,25 @@ SCHEMA = """{
            "sectors": {"one": "", "why": "", "do": ""}, "opps_risks": {"one": "", "why": "", "do": ""}, "conclusion": {"one": "", "why": "", "do": ""}},
   "chains": [{"from": "출발 사건 (예: 미국 금리 상승)", "steps": ["중간 연결 1 (예: 돈 빌리는 비용 증가)", "중간 연결 2"], "so": "결과 (예: 반도체·성장주 주가 부담)", "now": "지금 이 고리가 어디까지 진행됐는지 (수치)"}],
   "glossary": [{"term": "오늘 리포트에 나온 용어", "meaning": "중학생도 알아듣는 뜻 (1문장)", "why": "오늘 이 용어가 왜 중요한지 (1문장)"}],
-  "script": {"intro": "", "history": "", "macro": "", "social_forecast": "", "sectors": "", "opps_risks": "", "conclusion": ""},
+  "script": {"intro": "", "history": "", "macro": "", "social_forecast": "", "events": "", "sectors": "", "opps_risks": "", "conclusion": ""},
   "spotlight": [{"category": "[스포트라이트 대상]의 분야명 그대로", "company": "대표 기업 이름 그대로",
                  "past_now": "[1단계 산업의 어제와 오늘] '이 분야는 2~3년 전 ~한 흐름 속에서 두각을 드러내기 시작해, 최근에는 ~와 맞물려 다시 주목받고 있습니다' 식의 시간 흐름 서술 + 3년·1년 수치 (3~4문장)",
                  "market_link": "[2단계 시장·사회 흐름과의 연결] 지금의 금리·환율·유가·공포지수 환경과 최신 뉴스(수출 통계·정책·규제·소비 트렌드)가 이 산업에 주는 구체적 영향 (3~4문장)",
                  "company_story": "[3단계 대표 기업과 3년 실적 검증] 무엇을 팔아 어떻게 돈을 버는지 쉬운 소개 + '왜 하필 이 기업인가'를 3년 매출·이익 성장, 업종 내 위치(PER·점유율·수주)로 증명 (3~4문장)",
                  "business": "대표 기업이 하는 일 1문장 (영상 화면용 요약)",
                  "risk": "[4단계 균형 잡힌 체크 포인트] 흐름이 꺾이거나 주의할 거시적·산업적 변수 (1~2문장)"}],
+  "upcoming_events": [{"date": "YYYY-MM-DD (한국 날짜)", "time_kst": "한국 시각 (미국 일정이면 '미국 X일 HH:MM ET = 한국 Y일 HH:MM')",
+                       "title": "이벤트 이름 (예: 한중 정상회담 — 문화 콘텐츠 협력 논의)", "scale": "대형 | 중형 | 소형",
+                       "status": "확정 | 예정 | 가능성(보도)", "markets": "영향받을 시장·분야·종목군 (예: 엔터·게임·화장품·면세)",
+                       "why": "왜 시장이 주목하나 — 이미 주가에 얼마나 반영됐는지 포함 (1~2문장, 근거 수치·기사)",
+                       "if_good": "기대대로 되면 → 어떤 분야가 어떻게", "if_bad": "기대에 못 미치면 → 어떤 분야가 어떻게",
+                       "prepare": "미리 할 대응 (예: 이미 급등한 종목 추격 금지, 발표 확인 후 분할)", "source": "확인한 기사 (sources 의 제목)"}],
   "sources": [{"title": "실제로 열어 읽은 기사·자료 제목 그대로", "publisher": "언론사·기관", "url": "https://… (기사 원문 주소)",
                "date": "기사 게시일 YYYY-MM-DD (기사에 적힌 날짜)", "used_for": "이 자료로 확인한 내용 (어느 섹션의 어떤 사실)"}]
 }
 분량: easy.summary 3개, chains 3~5개, glossary 8~12개, opportunities 3~4개, risks 3~4개, sectors 13개 전부, macro.assets 9개 이상(환율·달러·미국 10년·장단기 금리차·VIX·금·원유·구리·비트코인),
 social.themes 3~6개, history_context.analogs 1~2개, action_plan 3~5개, invalidation 2~3개, spotlight 3개([스포트라이트 대상] 순서 그대로),
-sources 6개 이상(그중 2개 이상은 브리핑 날짜 기준 이틀 안에 게시된 기사).
+upcoming_events 3~8개(앞으로 7일, 내일 일정은 빠짐없이, 대형 이벤트는 14일 앞까지), sources 6개 이상(그중 2개 이상은 브리핑 날짜 기준 이틀 안에 게시된 기사).
 allocation 6개 비중의 합은 100. neutral 은 평소 기준 비중(위 예시값 그대로 써도 됨)."""
 
 
@@ -225,6 +231,15 @@ def _time_anchor(collected_at: str) -> str:
     ])
 
 
+def _events_text(bundle: dict) -> str:
+    try:
+        import events
+        ev = bundle.get("events") or {}
+        return "" if ev.get("error") else events.brief_text(ev)
+    except Exception:  # noqa: BLE001
+        return ""
+
+
 def build_brief(bundle: dict, slot_cfg: dict) -> str:
     slot = bundle["slot"]
     data = "\n\n".join([
@@ -234,6 +249,7 @@ def build_brief(bundle: dict, slot_cfg: dict) -> str:
         _results_text(bundle.get("results") or {}),
         _sector_text(bundle.get("screens") or {}) + _val_hist_text(bundle.get("valuation_history") or {}),
         _spotlight_text(bundle),
+        _events_text(bundle),
         _news_text(bundle.get("news") or {}),
     ])
     tpl = (ROOT / "prompts" / "briefing.md").read_text(encoding="utf-8")
