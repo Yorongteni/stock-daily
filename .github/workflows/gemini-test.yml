@@ -35,12 +35,13 @@ jobs:
 
       - name: 진단 — 이 키로 쓸 수 있는 모델 · 검색 없이 호출
         continue-on-error: true
+        timeout-minutes: 8
         run: |
-          python - <<'PY'
+          python -u - <<'PY'
           import os
           from google import genai
           from google.genai import types
-          c = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          c = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options=types.HttpOptions(timeout=60_000))
           names = []
           try:
               for m in c.models.list():
@@ -49,14 +50,15 @@ jobs:
           except Exception as e:
               print("모델 목록 실패:", str(e)[:300])
           print("flash 모델:", ", ".join(names[:30]))
+          import sys
           for model in [m for m in ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite") if m in names]:
               for tool in (False, True):
                   try:
                       cfg = types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())]) if tool else None
                       r = c.models.generate_content(model=model, contents="한 단어로: 오늘 요일은?", config=cfg)
-                      print(f"✓ {model} 검색 {'켬' if tool else '끔'}: {(r.text or '').strip()[:40]}")
+                      print(f"✓ {model} 검색 {'켬' if tool else '끔'}: {(r.text or '').strip()[:40]}", flush=True)
                   except Exception as e:
-                      print(f"✗ {model} 검색 {'켬' if tool else '끔'}: {str(e)[:160]}")
+                      print(f"✗ {model} 검색 {'켬' if tool else '끔'}: {str(e)[:160]}", flush=True)
           PY
 
       - name: "[1단계] 제미나이 구글 검색 리서치"
