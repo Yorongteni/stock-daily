@@ -22,8 +22,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 KST = timezone(timedelta(hours=9))
 # 앞에서부터 시도. 모델이 없어졌거나(404) 이 키로 못 쓰면 다음 모델로 넘어간다.
-# (2026-11: gemini-2.5-flash 는 새 사용자에게 제공 중단 — 구글 안내에 따라 gemini-3.8-flash 로 넘어감)
-MODELS = [m.strip() for m in os.environ.get("GEMINI_MODEL", "gemini-2.5-flash,gemini-3.8-flash").split(",") if m.strip()]
+# (2026-11: gemini-2.5-flash 는 새 사용자에게 제공 중단 — 구글 안내에 따라 gemini-3.8-flash 등으로 넘어감)
+# 구글 검색(Grounding)은 무료 등급 할당량이 0 이면 모든 모델에서 429 — 그때는 결제(유료 등급) 설정이 필요하다.
+MODELS = [m.strip() for m in os.environ.get("GEMINI_MODEL", "gemini-2.5-flash,gemini-3.8-flash,gemini-3.5-flash,gemini-3.1-flash-lite").split(",") if m.strip()]
 MODEL = MODELS[0]
 LATEST = ROOT / "data" / "gemini_research.json"
 SCALES = {"대형", "중형", "소형"}
@@ -177,7 +178,9 @@ def run(day: str, slot: str = "am", save: bool = True, out_docs: Path | None = N
         except Exception as e:  # noqa: BLE001  (할당량 초과 429·일시 오류·JSON 형식 오류 모두)
             last = f"{type(e).__name__}: {str(e)[:1500]}"   # 할당량 오류는 뒤쪽에 원인(quotaMetric)이 있어 길게 남김
             print(f"  ✗ 제미나이 {model} {attempt}차 실패: {last[:160]}")
-            if ("404" in last or "NOT_FOUND" in last) and models:      # 모델 없음 → 다음 모델로 (시도 횟수는 새로)
+            busy = "503" in last or "UNAVAILABLE" in last
+            quota = "429" in last or "RESOURCE_EXHAUSTED" in last
+            if ("404" in last or "NOT_FOUND" in last or busy or quota) and models:   # 모델 없음·혼잡·할당량 → 다음 모델로
                 model, attempt = models.pop(0), 0
                 print(f"    → 다음 모델로: {model}")
                 continue
@@ -189,6 +192,9 @@ def run(day: str, slot: str = "am", save: bool = True, out_docs: Path | None = N
                 time.sleep(5 * attempt)
     if res is None or not res.get("ok"):
         res = {**base, "error": last or "알 수 없는 오류", "tried": tried}
+        if last and ("429" in last or "RESOURCE_EXHAUSTED" in last):
+            res["hint"] = ("구글 검색(Grounding) 할당량 없음 — Google AI Studio 에서 이 API 키 프로젝트에 결제(유료 등급)를 켜야 합니다. "
+                           "검색 없는 호출은 되지만, 팩트체크 목적상 검색 없이는 쓰지 않습니다.")
     if save:
         try:
             LATEST.parent.mkdir(parents=True, exist_ok=True)
