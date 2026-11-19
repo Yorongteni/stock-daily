@@ -21,7 +21,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 KST = timezone(timedelta(hours=9))
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+# 앞에서부터 시도. 모델이 없어졌거나(404) 이 키로 못 쓰면 다음 모델로 넘어간다.
+# (2026-11: gemini-2.5-flash 는 새 사용자에게 제공 중단 — 구글 안내에 따라 gemini-3.8-flash 로 넘어감)
+MODELS = [m.strip() for m in os.environ.get("GEMINI_MODEL", "gemini-2.5-flash,gemini-3.8-flash").split(",") if m.strip()]
+MODEL = MODELS[0]
 LATEST = ROOT / "data" / "gemini_research.json"
 SCALES = {"대형", "중형", "소형"}
 
@@ -154,21 +157,30 @@ def run(day: str, slot: str = "am", save: bool = True, out_docs: Path | None = N
     prompt = PROMPT.format(date=day, slot_name="모닝 브리핑(07:00)" if slot == "am" else "나이트 브리핑(22:00)", **a)
     client = genai.Client(api_key=key, http_options=types.HttpOptions(timeout=180_000))
     cfg = types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())], temperature=0.2)
-    last, res = None, None
-    for attempt in range(1, 4):
+    last, res, tried = None, None, []
+    models = list(MODELS)
+    model = models.pop(0)
+    attempt = 0
+    while attempt < 3:
+        attempt += 1
         try:
-            resp = client.models.generate_content(model=MODEL, contents=prompt, config=cfg)
+            tried.append(model)
+            resp = client.models.generate_content(model=model, contents=prompt, config=cfg)
             raw = _parse_json(resp.text)
             links, queries = _grounding(resp)
             data, drops = clean(raw, day)
-            res = {**base, "ok": True, **data, "dropped": drops, "search_queries": queries, "grounding": links[:40],
-                   "anchor": a}
+            res = {**base, "ok": True, "model": model, **data, "dropped": drops, "search_queries": queries,
+                   "grounding": links[:40], "anchor": a}
             if not queries and not links:
                 res["warning"] = "구글 검색 근거(grounding)가 비어 있음 — 검색 없이 답했을 수 있어 참고만"
             break
         except Exception as e:  # noqa: BLE001  (할당량 초과 429·일시 오류·JSON 형식 오류 모두)
             last = f"{type(e).__name__}: {str(e)[:300]}"
-            print(f"  ✗ 제미나이 {attempt}차 실패: {last}")
+            print(f"  ✗ 제미나이 {model} {attempt}차 실패: {last[:160]}")
+            if ("404" in last or "NOT_FOUND" in last) and models:      # 모델 없음 → 다음 모델로 (시도 횟수는 새로)
+                model, attempt = models.pop(0), 0
+                print(f"    → 다음 모델로: {model}")
+                continue
             if "429" in last or "RESOURCE_EXHAUSTED" in last or "quota" in last.lower():
                 if attempt >= 2:
                     break
@@ -176,7 +188,7 @@ def run(day: str, slot: str = "am", save: bool = True, out_docs: Path | None = N
             else:
                 time.sleep(5 * attempt)
     if res is None or not res.get("ok"):
-        res = {**base, "error": last or "알 수 없는 오류"}
+        res = {**base, "error": last or "알 수 없는 오류", "tried": tried}
     if save:
         try:
             LATEST.parent.mkdir(parents=True, exist_ok=True)
