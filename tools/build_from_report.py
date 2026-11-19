@@ -157,10 +157,14 @@ def events_scene(job, V: dict, RB: bool, sc_: dict, shots: dict, cap: int | None
             line = f"{when(e)}, {e['title']}."
             if e.get("markets"):
                 line += f" {e['markets']}에 영향을 줄 수 있습니다."
-            if e.get("if_good"):
-                line += f" 기대대로 되면 {e['if_good']}."
-            if e.get("if_bad"):
-                line += f" 아니면 {e['if_bad']}."
+            scs = [c for c in (e.get("scenarios") or []) if isinstance(c, dict) and c.get("if")]
+            if scs:
+                line += " " + " ".join(f"{c['if']}이면, {c.get('then', '')}." for c in scs[:3])
+            else:
+                if e.get("if_good"):
+                    line += f" 기대대로 되면 {e['if_good']}."
+                if e.get("if_bad"):
+                    line += f" 아니면 {e['if_bad']}."
             parts.append(line)
         t = "앞으로 일주일, 시장을 움직일 일정입니다. " + " ".join(parts)
     return Scene("다가오는 이벤트", "📅 다가오는 이벤트", _cap(t, cap) if cap else t, (shots.get("events") or [])[:1])

@@ -32,18 +32,24 @@ def _rule_events(start: date, end: date) -> list[dict]:
         out.append({"date": kr.isoformat(), "time_kst": "15:20 전후 마감 영향", "scale": "중형" if quarter else "소형",
                     "title": "국내 선물·옵션 동시 만기일" if quarter else "국내 옵션 만기일",
                     "markets": "코스피200 대형주·프로그램 매매", "status": "확정(규칙)",
-                    "note": "만기 당일 장 막판 프로그램 매물·환매로 대형주 변동이 커지기 쉽습니다."})
+                    "note": "만기 당일 장 막판 프로그램 매물·환매로 대형주 변동이 커지기 쉽습니다.",
+                    "scenarios": [{"if": "프로그램 매도 우위 (선물이 현물보다 싸짐)", "then": "장 막판 삼성전자·SK하이닉스 등 코스피200 대형주 매물 → 지수 하락 압력"},
+                                  {"if": "프로그램 매수 우위", "then": "장 막판 대형주 매수 유입 → 지수 하단 지지. 만기 다음 날 되돌림 가능"}]})
         us = _nth_weekday(y, m, 4, 3)          # 셋째 금요일
         out.append({"date": (us + timedelta(days=1)).isoformat(), "time_kst": "미국 금요일 장 마감 = 한국 토요일 새벽",
                     "scale": "중형" if quarter else "소형",
                     "title": ("미국 쿼드러플 위칭(선물·옵션 동시 만기)" if quarter else "미국 월간 옵션 만기") + f" (미국 {us.month}/{us.day})",
                     "markets": "S&P 500·나스닥 대형 기술주", "status": "확정(규칙)",
-                    "note": "만기 주간에는 옵션 포지션 정리로 지수 변동이 커지거나 특정 가격대에 묶이기 쉽습니다."})
+                    "note": "만기 주간에는 옵션 포지션 정리로 지수 변동이 커지거나 특정 가격대에 묶이기 쉽습니다.",
+                    "scenarios": [{"if": "만기 전", "then": "옵션이 많이 쌓인 가격대로 지수가 끌려가며 변동이 줄어들기 쉬움"},
+                                  {"if": "만기 뒤", "then": "묶여 있던 포지션이 풀리며 다음 주 초 방향성이 커질 수 있음 (나스닥·대형 기술주)"}]})
         nxt = date(y + (m == 12), 1 if m == 12 else m + 1, 1)
         out.append({"date": nxt.isoformat(), "time_kst": "09:00", "scale": "중형",
                     "title": f"{nxt.month - 1 if nxt.month > 1 else 12}월 수출입 동향 발표 (산업통상부)",
                     "markets": "반도체·자동차·조선 등 수출주, 원/달러", "status": "예정(매월 1일, 휴일이면 바뀔 수 있음)",
-                    "note": "반도체 수출 증가율이 코스피 수출주 방향의 단서가 됩니다."})
+                    "note": "반도체 수출 증가율이 코스피 수출주 방향의 단서가 됩니다.",
+                    "scenarios": [{"if": "반도체 수출 증가율이 예상보다 높음", "then": "삼성전자·SK하이닉스 등 반도체와 수출주 우호, 무역흑자로 원화 강세 요인"},
+                                  {"if": "수출 둔화·감소", "then": "반도체·자동차·조선 등 수출주 부담, 경기 둔화 우려로 코스피 약세 요인"}]})
     return [e for e in out if start.isoformat() <= e["date"] <= end.isoformat()]
 
 
@@ -70,7 +76,8 @@ def _gemini_events(gem: dict | None) -> list[dict]:
     return [{"date": e["date_kst"], "time_kst": e.get("time_kst", ""), "title": e["title"], "scale": e.get("scale", "중형"),
              "status": st.get(e.get("confirmed"), e.get("confirmed") or "예정"), "markets": ", ".join(e.get("sectors") or []),
              "note": e.get("why", ""), "source": f"제미나이 검색 · {e.get('source', '')} {e.get('source_date', '')}".strip(),
-             "url": e.get("url", "")} for e in gem.get("events") or [] if e.get("date_kst")]
+             "url": e.get("url", ""), "scenarios": [c for c in (e.get("scenarios") or []) if isinstance(c, dict) and c.get("if")]}
+            for e in gem.get("events") or [] if e.get("date_kst")]
 
 
 def collect(today: str, news: dict | None = None, days: int = 7, gemini: dict | None = None) -> dict:
@@ -99,6 +106,8 @@ def brief_text(ev: dict) -> str:
         lines.append(f"- {e['date']}({e['weekday']}, {dd}) {e.get('time_kst', '')} · {e['title']} · 규모 {e.get('scale', '')} · "
                      f"{e.get('status', '')} · 영향: {e.get('markets', '')} — {e.get('note', '')}"
                      + (f" [{e['source']}]" if e.get("source") else ""))
+        for sc in e.get("scenarios") or []:
+            lines.append(f"    · {sc.get('if', '')} → {sc.get('then', '')}")
     if not ev.get("calendar"):
         lines.append("- (없음)")
     lines.append("### 앞으로의 일을 다룬 뉴스 헤드라인 (예정·회담·발표 앞둠 등 — 날짜·사실은 원문으로 확인)")

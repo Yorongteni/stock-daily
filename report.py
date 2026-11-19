@@ -86,7 +86,7 @@ ul.clean{margin:4px 0 0;padding-left:18px} ul.clean li{margin:3px 0}
 .ev.big{border-left-color:var(--up)}.ev.mid{border-left-color:var(--warn)}.ev.small{border-left-color:var(--flat)}
 .ev .dd{font-weight:800;font-size:20px;line-height:1.1}.ev .dd small{display:block;font-size:12px;font-weight:500;color:var(--sub);margin-top:4px}
 .ev h4{margin:0 0 4px;font-size:15.5px}.ev .mk{font-size:13px;color:var(--sub);margin:2px 0}
-.ev .sc{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;font-size:13px}.ev .sc div{background:var(--bg);border-radius:4px;padding:6px 9px}
+.ev .sc{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:6px;font-size:13px}.ev .sc div{background:var(--bg);border-radius:4px;padding:6px 9px}
 @media(max-width:640px){.ev{grid-template-columns:1fr}.ev .sc{grid-template-columns:1fr}}
 .pill.acc{background:var(--acc-soft);color:var(--accent);border-color:transparent}
 .note{font-size:13px;color:var(--warn);background:var(--warn-soft);padding:8px 12px;border-radius:4px;margin:0 0 12px}
@@ -547,7 +547,8 @@ const LD = SC.leadership || {};
 <div class="evs">` + EV.map(e => `<div class="ev ${kcls(e.scale)}"><div class="dd">${dday(e.date)}<small>${esc(e.date.slice(5).replace("-", "/"))}(${wd(e.date)})${e.time_kst ? "<br>" + esc(e.time_kst) : ""}</small></div>
   <div><h4>${esc(e.title)} <span class="pill ${e.scale === "대형" ? "pos" : e.scale === "중형" ? "mid" : ""}">${esc(e.scale || "")}</span> <span class="pill">${esc(e.status || "")}</span></h4>
   ${e.markets ? `<div class="mk">영향: ${esc(e.markets)}</div>` : ""}${e.why || e.note ? `<p class="txt" style="margin:4px 0">${esc(e.why || e.note)}</p>` : ""}
-  ${e.if_good || e.if_bad ? `<div class="sc">${e.if_good ? `<div>✅ 되면: ${esc(e.if_good)}</div>` : ""}${e.if_bad ? `<div>⚠️ 안 되면: ${esc(e.if_bad)}</div>` : ""}</div>` : ""}
+  ${list(e.scenarios).length ? `<div class="sc">${e.scenarios.map(c => `<div><b>${esc(c.if)}</b> → ${esc(c.then)}</div>`).join("")}</div>`
+    : e.if_good || e.if_bad ? `<div class="sc">${e.if_good ? `<div>✅ 되면: ${esc(e.if_good)}</div>` : ""}${e.if_bad ? `<div>⚠️ 안 되면: ${esc(e.if_bad)}</div>` : ""}</div>` : ""}
   ${e.prepare ? `<div class="mk" style="margin-top:6px"><b>미리 할 대응</b> ${esc(e.prepare)}</div>` : ""}</div></div>`).join("") + `</div>`;
   }
 }

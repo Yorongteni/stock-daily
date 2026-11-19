@@ -125,6 +125,10 @@ def check_events(ai: dict, brief_date: str | None) -> tuple[list[str], list[str]
         if miss:
             probs.append(f"upcoming_events {i}번 '{str(x.get('title'))[:30]}': {', '.join(miss)} 없음")
             continue
+        scs = [c for c in (x.get("scenarios") or []) if isinstance(c, dict) and c.get("if") and c.get("then")]
+        if len(scs) < 2 and not (x.get("if_good") and x.get("if_bad")):
+            probs.append(f"upcoming_events {i}번 '{str(x.get('title'))[:30]}': 결과별 영향(scenarios) 2개 이상 필요")
+            continue
         if str(x["scale"]).strip() not in EVENT_SCALES:
             probs.append(f"upcoming_events {i}번: scale 은 대형/중형/소형 ({x['scale']})")
             continue

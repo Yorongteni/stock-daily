@@ -53,6 +53,7 @@ PROMPT = """당신은 한국 개인투자자용 시장 브리핑의 **리서치�
 {{
   "events": [{{"date_kst": "YYYY-MM-DD", "time_kst": "HH:MM 또는 미정", "title": "이벤트 이름", "scale": "대형|중형|소형",
               "confirmed": "확정|예정|보도", "sectors": ["영향 섹터"], "why": "시장이 주목하는 이유와 이미 반영된 움직임 (1~2문장)",
+              "scenarios": [{{"if": "결과 1", "then": "→ 어떤 시장·섹터가 어떻게"}}, {{"if": "결과 2", "then": "→ …"}}],
               "source": "언론사·기관", "source_date": "기사 게시일 YYYY-MM-DD", "url": "기사 주소(알면)"}}],
   "movers": [{{"sector": "섹터·테마", "direction": "급등|급락|강세|약세", "date_kst": "YYYY-MM-DD", "move": "기사에 나온 등락 (없으면 빈칸)",
               "cause": "구체적인 뉴스 원인 (1~2문장)", "names": ["대표 종목"], "source": "언론사", "source_date": "YYYY-MM-DD", "url": "기사 주소(알면)"}}],
