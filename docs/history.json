@@ -1468,16 +1468,16 @@
   }
  },
  "2026-11-20": {
-  "kospi": 1.39,
+  "kospi": -5.64,
   "sp500": -2.02,
-  "headline": "모닝 브리핑 · 오늘의 자세: 현금 확보·관망",
+  "headline": "코스피 5% 급락, 오늘 밤 미국도 약세 출발 예상",
   "stance": "현금 확보·관망 (주식 비중 줄이기)",
   "allocation": {
-   "kr_equity": 20,
-   "us_equity": 26,
-   "gold_commodities": 14,
+   "kr_equity": 15,
+   "us_equity": 25,
+   "gold_commodities": 10,
    "usd_cash": 20,
-   "krw_cash_bonds": 15,
+   "krw_cash_bonds": 25,
    "alternatives": 5
   },
   "lists": {
@@ -1528,9 +1528,9 @@
   },
   "valuation": {
    "kr": {
-    "pe_median": 18.94,
-    "pb_median": 2.24,
-    "earnings_yield": 5.28,
+    "pe_median": 18.55,
+    "pb_median": 2.18,
+    "earnings_yield": 5.39,
     "n": 55
    },
    "us": {
@@ -1546,6 +1546,12 @@
     "stance": "현금 확보·관망 (주식 비중 줄이기)",
     "headline": "모닝 브리핑 · 오늘의 자세: 현금 확보·관망",
     "built_at": "2026-11-20 07:53"
+   },
+   "pm": {
+    "ai": true,
+    "stance": "현금 확보·관망 (주식 비중 줄이기)",
+    "headline": "코스피 5% 급락, 오늘 밤 미국도 약세 출발 예상",
+    "built_at": "2026-11-20 21:14"
    }
   }
  }
