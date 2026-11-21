@@ -46,6 +46,8 @@ DEFAULTS = {
     "leverage": 3, "margin_usdt": 360.0, "tp_pct": 2.45, "sl_pct": 1.50, "win_roe": 7.0, "loss_roe": 4.5,
     "fee_roe": 0.3, "hold_hours": 24, "order_valid_hours": 6, "oi_trap": 2.0, "near_extreme": 0.5,
     "sl_min": 1.2, "sl_max": 1.8, "max_loss_roe": 5.5, "sl_buffer": 0.2, "be_trigger_pct": 1.2, "top_n": 30, "max_open": 2, "min_range24": 3.0, "mmr": 0.5,
+    # 2026-11-21 UNI 숏 손절 복기로 추가 (과매도 추격 숏 차단)
+    "chase_rsi": 28, "chase_dist": 3.5, "oi_min": 1.0, "btc_exhaust_rsi": 22,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
@@ -407,18 +409,23 @@ def setup(f: dict, side: str, cfg: dict, btc_chg24: float | None = None) -> dict
         else (-0.8 <= f["dist1h"] <= 1.8 and 42 <= f["rsi1h"] <= 64),
         "반등 캔들" if L else "꺾임 캔들": (f["bull"] or f["lower_wick"] >= 0.45) if L else (f["bear"] or f["upper_wick"] >= 0.45),
         "거래량 증가": f["vol_ratio"] >= 1.1,
-        "미결제약정 방향 일치": oi is not None and oi > 0 and ((c24 >= 0) if L else (c24 <= 0)) and not oi_trap,
+        "미결제약정 방향 일치": oi is not None and oi >= cfg["oi_min"] and ((c24 >= 0) if L else (c24 <= 0)) and not oi_trap,
         "비트코인 대비 강세" if L else "비트코인 대비 약세": rel is None or ((rel >= 0) if L else (rel <= 0)),
         "펀딩비 과열 아님": fr is None or (fr <= 0.03 if L else fr >= -0.03),
         "변동폭 충분": f["range24"] >= cfg["min_range24"],
     }
     rel_key = "비트코인 대비 강세" if L else "비트코인 대비 약세"
     s_ = sum(chk.values())
+    # 이미 진입 방향으로 많이 간 코인(4시간 등락이 같은 방향으로 큼)은 추격이라 감점 (예전 식은 방향이 반대여서 되돌림 중인 코인을 감점했음)
     score = (s_ + (0.6 if chk["거래량 증가"] else 0) + min(f["vol_ratio"], 3) * 0.3
              + (min(abs(oi or 0), 10) / 10 if chk["미결제약정 방향 일치"] else 0)
-             + (abs(c4) * -0.15 if (c4 < 0) == L else 0))
+             + (abs(c4) * -0.15 if (c4 > 0) == L else 0))
+    # 과매도 추격 숏 / 과매수 추격 롱: 1시간 RSI 극단 + 1시간 평균선에서 멀리 벗어난 자리 (11/21 UNI: RSI 23, 평균선 -5.8% → 10분 만에 손절)
+    chase = ((f["rsi1h"] <= cfg["chase_rsi"] and f["dist1h"] <= -cfg["chase_dist"]) if not L
+             else (f["rsi1h"] >= 100 - cfg["chase_rsi"] and f["dist1h"] >= cfg["chase_dist"]))
     blocks = [x for x, on in (("롱 신규 유입 반등(가격↑·미결제약정↑)" if not L else "숏 신규 유입 하락(가격↓·미결제약정↑)", oi_trap),
-                              ("24시간 고점 돌파 직전" if not L else "24시간 저점 이탈 직전", near_ext)) if on]
+                              ("24시간 고점 돌파 직전" if not L else "24시간 저점 이탈 직전", near_ext),
+                              ("과매도 추격 숏(1시간 RSI 극단·평균선에서 멀리 이탈)" if not L else "과매수 추격 롱(1시간 RSI 극단·평균선에서 멀리 이탈)", chase)) if on]
     ok = chk["4시간봉 추세"] and chk["변동폭 충분"] and chk[rel_key] and not blocks and s_ >= 6
     return {"side": side, "checks": chk, "passed": s_, "score": round(score, 2), "ok": ok, "blocks": blocks, "rel_btc": rel}
 
@@ -741,7 +748,13 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     ok = sorted([r for r in rows if r["ok"] and allowed(r) and r["symbol"] not in open_syms], key=lambda r: -r["score"])
     ranked = sorted(rows, key=lambda r: -r["score"])
     pick, block = None, ""
-    if len(log["positions"]) >= cfg["max_open"]:
+    # 시장 전체가 한쪽으로 지나치게 쏠린 날(비트코인 4시간 RSI 극단)은 그 방향 신규 원픽을 쉰다 — 11/21 비트코인 4시간 RSI 19일 때 숏 손절
+    btc_r4 = btc.get("rsi4h") or 50
+    exhausted = (bias["side"] == "SHORT" and btc_r4 <= cfg["btc_exhaust_rsi"]) or (bias["side"] == "LONG" and btc_r4 >= 100 - cfg["btc_exhaust_rsi"])
+    if exhausted:
+        block = (f"비트코인 4시간 RSI가 {btc_r4:.0f}로 {'과매도' if bias['side'] == 'SHORT' else '과매수'} 극단이에요. 이미 한쪽으로 많이 쏠려 "
+                 f"반대 방향 급반등이 나오기 쉬운 자리라 오늘은 새 원픽을 쉬어 갑니다 (11/21 유니스왑 숏 손절 복기로 추가한 규칙).")
+    elif len(log["positions"]) >= cfg["max_open"]:
         block = f"이미 대기·보유 포지션이 {len(log['positions'])}개라 오늘은 새 원픽을 쉬고 기존 포지션 관리에 집중합니다."
     elif not ok:
         side_ko = {"LONG": "롱", "SHORT": "숏", "NEUTRAL": "롱·숏"}[bias["side"]]

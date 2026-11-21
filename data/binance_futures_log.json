@@ -233,6 +233,34 @@
     "reviewed_at": "2026-11-21T03:49:24Z",
     "date": "2026-11-21"
    }
+  },
+  {
+   "id": "2026-11-21-UNIUSDT-real",
+   "symbol": "UNIUSDT",
+   "name": "유니스왑",
+   "direction": "SHORT",
+   "source": "manual",
+   "pick_time": "2026-11-21T05:18:00Z",
+   "limit": 4.287,
+   "entry": 4.287,
+   "entry_time": "2026-11-21T06:33:55Z",
+   "tp": 4.182,
+   "sl": 4.361,
+   "sl0": null,
+   "qty": 50.0,
+   "margin": 71.45,
+   "leverage": 3,
+   "be_moved": false,
+   "exit": 4.362,
+   "exit_time": "2026-11-21T06:44:29Z",
+   "result": "LOSS",
+   "result_ko": "로스값 손절",
+   "roe": -5.46,
+   "pnl_usdt": -3.8996,
+   "pnl_krw": -5205,
+   "fx": 1334.8,
+   "fees_usdt": 0.1388,
+   "reason": "실제 매매 (바이비트) — 11/21 14:18 단타 브리핑 원픽(진입 4.287 · TP 4.182 · SL 4.361)대로 지정가 숏 체결 후 10분 만에 손절 4.362. 복기: 1시간 RSI 23·1시간 평균선보다 5.8% 아래·24시간 저점 0.95% 위·비트코인 4시간 RSI 19의 과매도 추격 숏이었음 → 규칙 보강"
   }
  ],
  "last_events": {
