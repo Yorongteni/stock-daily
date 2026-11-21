@@ -391,6 +391,61 @@ def review_html(r: dict) -> str:
             + "</div>")
 
 
+CHECK_MEANING = {   # 원픽 조건을 쉬운 말로 (숏 기준 / 롱이면 반대)
+    "4시간봉 추세": "큰 흐름(4시간봉)이 그 방향으로 가는 중",
+    "1시간봉 반등": "짧은 흐름(1시간봉)에서 반대로 되돌림이 한 번 나온 뒤 다시 꺾임 — 좋은 진입 자리",
+    "1시간봉 눌림": "짧은 흐름(1시간봉)에서 눌림이 한 번 나온 뒤 다시 반등 — 좋은 진입 자리",
+    "꺾임 캔들": "마지막 1시간봉이 진입 방향으로 마감",
+    "거래량 증가": "최근 거래량이 평소보다 많아 움직임에 힘이 실림",
+    "미결제약정 방향 일치": "가격 움직임과 함께 새 포지션이 들어오는 중 (청산으로만 움직인 게 아님)",
+    "비트코인 대비 약세": "비트코인보다 더 약함 — 숏에 유리",
+    "비트코인 대비 강세": "비트코인보다 더 강함 — 롱에 유리",
+    "펀딩비 과열 아님": "한쪽으로 쏠린 과열이 아니라 반대 방향 급반등 위험이 낮음",
+    "변동폭 충분": "하루 움직임이 커서 목표가(±2.45%)에 닿을 여지가 있음",
+}
+
+
+def why_pick_html(fu: dict) -> str:
+    """🔍 왜 이 코인인가 — 원픽과 다음 후보들의 조건 비교, 결정적 차이, 약점."""
+    p = fu.get("pick")
+    if not p:
+        return ""
+    near = [n for n in (fu.get("near") or []) if n.get("side") == p["side"]][:4] or (fu.get("near") or [])[:4]
+    keys = list((p.get("checks") or {}).keys())
+    mark = lambda v: "✅" if v else "❌"  # noqa: E731
+    head = "".join(f"<th>{esc(n['name'])}</th>" for n in near)
+    rows = "".join(f"<tr><td title='{esc(CHECK_MEANING.get(k, ''))}'>{esc(k)}</td><td><b>{mark(p['checks'].get(k))}</b></td>"
+                   + "".join(f"<td>{mark(n['checks'].get(k))}</td>" for n in near) + "</tr>" for k in keys)
+    passed = sum(1 for v in p["checks"].values() if v)
+    rows += (f"<tr><td><b>충족 · 점수</b></td><td><b>{passed}/8 · {p['score']:.2f}</b></td>"
+             + "".join(f"<td>{n['passed']}/8 · {n['score']:.2f}</td>" for n in near) + "</tr>")
+    # 결정적 차이: 원픽은 갖췄는데 다음 후보 대부분이 못 갖춘 조건
+    key_diff = [k for k in keys if p["checks"].get(k) and near and sum(1 for n in near if not n["checks"].get(k)) > len(near) / 2]
+    weak = [k for k in keys if not p["checks"].get(k)]
+    pts = []
+    if key_diff:
+        pts.append("<b>결정적 차이:</b> " + " / ".join(f"{esc(k)} — {esc(CHECK_MEANING.get(k, ''))}" for k in key_diff))
+    else:
+        pts.append("<b>결정적 차이:</b> 조건 수는 비슷하고 점수(방향 일치·변동폭·거래량 가중) 차이로 앞섰어요.")
+    if weak:
+        pts.append("<b>못 채운 조건:</b> " + " / ".join(f"{esc(k)} ({esc(CHECK_MEANING.get(k, ''))})" for k in weak))
+    L = p["side"] == "LONG"
+    rsi = p.get("rsi1h")
+    if rsi is not None and ((not L and rsi < 30) or (L and rsi > 70)):
+        pts.append(f"<b>주의:</b> 1시간 RSI {rsi:.0f} — 이미 많이 움직인 자리라 반대 방향 급반등이 나오기 쉬워요. "
+                   "그래서 현재가가 아니라 되돌림 지정가로 기다리고, 규모는 줄이는 게 좋아요.")
+    oi = p.get("oi_chg24")
+    if oi is not None and p["checks"].get("미결제약정 방향 일치") and abs(oi) < 1:
+        pts.append(f"<b>주의:</b> 미결제약정 변화가 24시간 {oi:+.1f}%로 작아 '새 포지션 유입' 근거는 약한 편이에요.")
+    if near and p["score"] - near[0]["score"] < 1:
+        pts.append(f"<b>참고:</b> 2위 {esc(near[0]['name'])}와 점수 차이가 {p['score'] - near[0]['score']:.2f}점으로 작아요 — "
+                   "원픽이 체결되지 않거나 무효가 되면 다음 후보도 비슷한 자리예요.")
+    return (f"<div class='box'><h3>🔍 왜 {esc(p.get('name', p['symbol']))}인가 — 원픽 이유</h3>"
+            f"<div class='why'>거래대금 상위 {fu.get('universe', '')}종목을 8가지 조건으로 점수 매겨, 오늘 방향({'롱' if L else '숏'})에 맞는 조건을 가장 많이 갖춘 1개를 골랐어요.</div>"
+            f"<table><tr><th>조건</th><th>{esc(p.get('name', ''))} (원픽)</th>{head}</tr>{rows}</table>"
+            f"<ul>{''.join(f'<li>{x}</li>' for x in pts)}</ul></div>")
+
+
 def futures_part(fu: dict) -> str:
     if not fu:
         return "<div class='empty'>코인 파트 데이터가 없어요.</div>"
@@ -402,14 +457,11 @@ def futures_part(fu: dict) -> str:
 <ul>{''.join(f'<li>{esc(w)}</li>' for w in b['why'])}</ul><div class='src'>데이터: {esc(fu['source_label'])} · 기준 {esc(fu['data_time'])} (한국 시간) · 분석 {fu['universe']}종목</div></div>"""]
     if fu.get("pick"):
         out.append(coin_pick_html(fu["pick"], b))
+        out.append(why_pick_html(fu))
     else:
         rows = "".join(f"<li><b>{esc(n['name'])} ({esc(n['symbol'])})</b> {side_html(n['side'])} 충족 {n['passed']}/8{' · 제외: ' + ', '.join(n.get('blocks') or []) if n.get('blocks') else ''} · "
                        f"{esc(', '.join(k for k, v in n['checks'].items() if v) or '없음')}</li>" for n in fu.get("near") or [])
         out.append(f"<div class='empty'>⏸ {esc(fu['block'])}</div>" + (f"<div class='box'><h3>아깝게 빠진 후보</h3><ul>{rows}</ul></div>" if rows else ""))
-    if fu.get("pick") and fu.get("near"):
-        rows = "".join(f"<tr><td>{esc(n['name'])} <span class='tk'>{esc(n['symbol'])}</span></td><td>{side_html(n['side'])}</td><td>{n['passed']}/8</td>"
-                       f"<td>{pct(n['chg24'])}</td><td>{n['score']:.2f}</td></tr>" for n in fu["near"][:4])
-        out.append(f"<div class='box'><h3>다음 후보 (참고만)</h3><table><tr><th>코인</th><th>방향</th><th>충족</th><th>24시간</th><th>점수</th></tr>{rows}</table></div>")
     return "".join(out)
 
 
