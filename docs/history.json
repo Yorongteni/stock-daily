@@ -1554,5 +1554,87 @@
     "built_at": "2026-11-20 21:14"
    }
   }
+ },
+ "2026-11-23": {
+  "kospi": -5.21,
+  "sp500": -3.7,
+  "headline": "미국 AI 투매 여파, 코스피 4,700선 시험대",
+  "stance": "현금 확보·관망 (주식 비중 줄이기)",
+  "allocation": {
+   "kr_equity": 20,
+   "us_equity": 25,
+   "gold_commodities": 10,
+   "usd_cash": 20,
+   "krw_cash_bonds": 20,
+   "alternatives": 5
+  },
+  "lists": {
+   "value": [
+    "SMCI",
+    "GOOGL",
+    "064350.KS",
+    "NVDA",
+    "PYPL"
+   ],
+   "growth": [
+    "MU",
+    "PLTR",
+    "196170.KQ",
+    "SMCI",
+    "042660.KS"
+   ],
+   "overvalued": [
+    "CRWD",
+    "277810.KQ",
+    "003670.KS",
+    "323410.KS",
+    "TSLA"
+   ]
+  },
+  "names": {
+   "value": [
+    "슈퍼마이크로",
+    "알파벳",
+    "현대로템",
+    "엔비디아",
+    "페이팔"
+   ],
+   "growth": [
+    "마이크론",
+    "팔란티어",
+    "알테오젠",
+    "슈퍼마이크로",
+    "한화오션"
+   ],
+   "overvalued": [
+    "크라우드스트라이크",
+    "레인보우로보틱스",
+    "포스코퓨처엠",
+    "카카오뱅크",
+    "테슬라"
+   ]
+  },
+  "valuation": {
+   "kr": {
+    "pe_median": 18.55,
+    "pb_median": 2.18,
+    "earnings_yield": 5.39,
+    "n": 55
+   },
+   "us": {
+    "pe_median": 22.98,
+    "pb_median": 5.72,
+    "earnings_yield": 4.35,
+    "n": 90
+   }
+  },
+  "slots": {
+   "am": {
+    "ai": true,
+    "stance": "현금 확보·관망 (주식 비중 줄이기)",
+    "headline": "미국 AI 투매 여파, 코스피 4,700선 시험대",
+    "built_at": "2026-11-23 06:14"
+   }
+  }
  }
 }
