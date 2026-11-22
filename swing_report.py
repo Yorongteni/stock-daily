@@ -445,6 +445,12 @@ def why_pick_html(fu: dict) -> str:
             "B": "B · 보통 — 들어간다면 평소보다 작게",
             "C": "C · 약함 — 오늘은 쉬는 걸 권해요 (참고용)"}.get(g, "")
     gcol = {"A": "var(--good)", "B": "var(--wait)", "C": "var(--risk)"}.get(g, "var(--sub)")
+    ob = fu.get("other_best")
+    if ob:
+        miss = [k for k, v in (ob.get("checks") or {}).items() if not v]
+        pts.append(f"<b>{'롱' if ob['side'] == 'LONG' else '숏'} 쪽 최고 후보:</b> {esc(ob['name'])} — 조건 {ob['passed']}/8 · 점수 {ob['score']:.2f}"
+                   + (f" · 제외 이유: {esc(', '.join(ob.get('blocks') or []))}" if ob.get("blocks") else "")
+                   + (f" · 못 채운 조건: {esc(', '.join(miss))}" if miss else ""))
     return (f"<div class='box' style='border-left:6px solid {gcol}'><h3>🔍 왜 {esc(p.get('name', p['symbol']))} {'롱' if L else '숏'}인가 — 원픽 이유</h3>"
             + (f"<div style='font-size:17px;font-weight:800;color:{gcol};margin:4px 0 8px'>확실도 {esc(gtxt)}</div>" if g else "")
             + f"<div class='why'>거래대금 상위 {fu.get('universe', '')}종목의 롱·숏 양쪽을 8가지 조건으로 점수 매겨 가장 확실한 1개를 골랐어요"

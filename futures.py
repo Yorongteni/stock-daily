@@ -793,6 +793,9 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         })
         print(f"  ✓ {r['symbol']} {r['side']} 진입 {o['entry']} / TP {o['tp']} / SL {o['sl']}")
     near = [r for r in ranked if not (pick and r["symbol"] == pick["symbol"] and r["side"] == pick["side"])][:4]
+    # 반대 방향 최고 후보 (왜 롱/숏이 아닌지 보여 주기)
+    other_side = "LONG" if (pick["side"] if pick else bias["side"]) == "SHORT" else "SHORT"
+    other = next((r for r in ranked if r["side"] == other_side), None)
 
     log.update(updated_at=datetime.now(KST).strftime("%Y-%m-%d %H:%M"), last_run=today, rules={k: cfg[k] for k in DEFAULTS},
                source=src.name)
@@ -802,6 +805,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         "data_time": kst(btc["bar_time"]), "bias": bias, "btc": {k: btc[k] for k in ("close", "chg24", "ema20_4h", "ema50_4h", "rsi4h", "funding", "oi_chg24")},
         "nq": nq, "events": events, "holdings": holdings, "pick": pick, "near": near, "block": block,
         "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx), "reviews": reviews,
+        "other_best": other,
     }
 
 
