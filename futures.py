@@ -744,7 +744,9 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
                          "passed": st["passed"], "checks": st["checks"], "close": f["close"], "chg24": round(f["chg24"], 2),
                          "rsi1h": round(f["rsi1h"], 1), "funding": f.get("funding"), "oi_chg24": f.get("oi_chg24"),
                          "vol_ratio": round(f["vol_ratio"], 2), "range24": round(f["range24"], 1), "blocks": st["blocks"]})
-    allowed = (lambda r: r["side"] == bias["side"]) if bias["side"] != "NEUTRAL" else (lambda r: True)
+    # 롱·숏 양쪽을 모두 비교해 가장 확실한 1개 (2026-11-22: 숏만 보던 방식 → 방향 무관).
+    # 시장 방향과 같은 쪽은 +1.5점, 반대쪽은 -1.5점이고, 반대쪽(역추세)은 조건 7개 이상일 때만 후보로 둔다.
+    allowed = (lambda r: r["side"] == bias["side"] or bias["side"] == "NEUTRAL" or r["passed"] >= 7)
     ok = sorted([r for r in rows if r["ok"] and allowed(r) and r["symbol"] not in open_syms], key=lambda r: -r["score"])
     ranked = sorted(rows, key=lambda r: -r["score"])
     pick, block = None, ""
@@ -764,7 +766,13 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         r = ok[0]
         f = feats[r["symbol"]]
         o = make_order(f, r["side"], cfg, tick(r["symbol"]), fx)
+        aligned = r["side"] == bias["side"] or bias["side"] == "NEUTRAL"
+        nxt = ok[1]["score"] if len(ok) > 1 else None
+        # 확실한 정도: A = 조건 7개 이상 + 시장 방향과 같음 + 점수 9 이상 / B = 조건 7개 이상 또는 (6개 + 같은 방향 + 점수 8 이상) / C = 그 밖 (쉬기 권장)
+        grade = ("A" if r["passed"] >= 7 and aligned and r["score"] >= 9 else
+                 "B" if r["passed"] >= 7 or (r["passed"] >= 6 and aligned and r["score"] >= 8) else "C")
         pick = {**{k: v for k, v in f.items() if k != "spark"}, "side": r["side"], "score": r["score"], "checks": r["checks"],
+                "grade": grade, "aligned": aligned, "passed": r["passed"], "lead": None if nxt is None else round(r["score"] - nxt, 2),
                 "order": o, "story": story(f, r["side"], o, bias), "spark": f["spark"]}
         pick["order_until"] = iso(now + timedelta(hours=cfg["order_valid_hours"]))
         pick["valid_until"] = pick["order_until"]          # 예약 유효 (체결되면 그때부터 hold_hours)

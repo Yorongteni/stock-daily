@@ -440,8 +440,15 @@ def why_pick_html(fu: dict) -> str:
     if near and p["score"] - near[0]["score"] < 1:
         pts.append(f"<b>참고:</b> 2위 {esc(near[0]['name'])}와 점수 차이가 {p['score'] - near[0]['score']:.2f}점으로 작아요 — "
                    "원픽이 체결되지 않거나 무효가 되면 다음 후보도 비슷한 자리예요.")
-    return (f"<div class='box'><h3>🔍 왜 {esc(p.get('name', p['symbol']))}인가 — 원픽 이유</h3>"
-            f"<div class='why'>거래대금 상위 {fu.get('universe', '')}종목을 8가지 조건으로 점수 매겨, 오늘 방향({'롱' if L else '숏'})에 맞는 조건을 가장 많이 갖춘 1개를 골랐어요.</div>"
+    g = p.get("grade")
+    gtxt = {"A": "A · 확실한 편 — 조건 7개 이상 + 시장 방향과 같음 + 점수 9 이상",
+            "B": "B · 보통 — 들어간다면 평소보다 작게",
+            "C": "C · 약함 — 오늘은 쉬는 걸 권해요 (참고용)"}.get(g, "")
+    gcol = {"A": "var(--good)", "B": "var(--wait)", "C": "var(--risk)"}.get(g, "var(--sub)")
+    return (f"<div class='box' style='border-left:6px solid {gcol}'><h3>🔍 왜 {esc(p.get('name', p['symbol']))} {'롱' if L else '숏'}인가 — 원픽 이유</h3>"
+            + (f"<div style='font-size:17px;font-weight:800;color:{gcol};margin:4px 0 8px'>확실도 {esc(gtxt)}</div>" if g else "")
+            + f"<div class='why'>거래대금 상위 {fu.get('universe', '')}종목의 롱·숏 양쪽을 8가지 조건으로 점수 매겨 가장 확실한 1개를 골랐어요"
+              f"{' (시장 방향과 같은 쪽)' if p.get('aligned', True) else ' (시장 방향과 반대 — 조건 7개 이상이라 후보에 들어옴)'}.</div>"
             f"<table><tr><th>조건</th><th>{esc(p.get('name', ''))} (원픽)</th>{head}</tr>{rows}</table>"
             f"<ul>{''.join(f'<li>{x}</li>' for x in pts)}</ul></div>")
 
