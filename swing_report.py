@@ -459,6 +459,33 @@ def why_pick_html(fu: dict) -> str:
             f"<ul>{''.join(f'<li>{x}</li>' for x in pts)}</ul></div>")
 
 
+def _roe_txt(v) -> str:
+    return "" if v is None else f"{v:+.1f}%"
+
+
+def journal_html(js: dict) -> str:
+    """📒 원픽 복기 일지 — 실제 매매와 상관없이 모든 원픽의 결과와 조건별 승률."""
+    if not js or js.get("error") or not js.get("picks"):
+        return ""
+    t = js["total"]
+    h = (f"<div class='box'><h3>📒 원픽 복기 일지 (실제 매매와 별개)</h3>"
+         f"<div class='why'>단타 브리핑이 고른 원픽 {js['picks']}건을 모두 같은 규칙(지정가 진입·TP·SL·본전 이동·24시간 정리)으로 1시간봉에 대 봤어요. "
+         f"체결 {t['n']}건 · 익절 {t['win']}건 · 승률 {t['rate'] if t['rate'] is not None else '–'}% · 평균 {t['avg_roe3'] if t['avg_roe3'] is not None else '–'}% (3배) · "
+         f"미체결 {js['no_fill']}건 · 진행 중 {js['pending']}건. 같은 봉에서 TP·SL 이 다 닿으면 손절로 계산(보수적).</div>")
+    for name, rows in (js.get("by") or {}).items():
+        if not rows:
+            continue
+        h += (f"<div style='margin-top:8px'><b>{esc(name)}</b> " + " · ".join(
+            f"{esc(k)}: {v['win']}/{v['n']}승 ({v['avg_roe3']:+.1f}%)" for k, v in rows.items()) + "</div>")
+    rec = js.get("recent") or []
+    if rec:
+        h += ("<table style='margin-top:8px'><tr><th>원픽 시각</th><th>코인</th><th>등급</th><th>진입</th><th>결과</th><th>3배</th></tr>" + "".join(
+            f"<tr><td>{esc(str(x.get('picked_at', ''))[:16].replace('T', ' '))}</td><td>{esc(x.get('name') or x.get('symbol'))} {side_html(x['side'])}</td>"
+            f"<td>{esc(x.get('grade') or '–')}</td><td>{fpx(x.get('entry'))}</td><td>{esc(x.get('result_ko') or '진행 중')}</td>"
+            f"<td class='{cls(x.get('roe3'))}'>{_roe_txt(x.get('roe3'))}</td></tr>" for x in rec) + "</table>")
+    return h + "<div class='why'>표본이 쌓일수록 어떤 조건에서 이기고 지는지가 보여요. 규칙 조정은 이 통계로 근거를 확인한 뒤에만 합니다.</div></div>"
+
+
 def futures_part(fu: dict) -> str:
     if not fu:
         return "<div class='empty'>코인 파트 데이터가 없어요.</div>"
@@ -475,6 +502,7 @@ def futures_part(fu: dict) -> str:
         rows = "".join(f"<li><b>{esc(n['name'])} ({esc(n['symbol'])})</b> {side_html(n['side'])} 충족 {n['passed']}/8{' · 제외: ' + ', '.join(n.get('blocks') or []) if n.get('blocks') else ''} · "
                        f"{esc(', '.join(k for k, v in n['checks'].items() if v) or '없음')}</li>" for n in fu.get("near") or [])
         out.append(f"<div class='empty'>⏸ {esc(fu['block'])}</div>" + (f"<div class='box'><h3>아깝게 빠진 후보</h3><ul>{rows}</ul></div>" if rows else ""))
+    out.append(journal_html(fu.get("journal") or {}))
     return "".join(out)
 
 

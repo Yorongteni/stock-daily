@@ -93,7 +93,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          FILES="data/us_swing_portfolio.json data/trade_history.json data/binance_futures_log.json docs/swing"
+          FILES="data/us_swing_portfolio.json data/trade_history.json data/binance_futures_log.json data/pick_journal.json docs/swing"
           build_brief() {   # 데이터 수집이 네트워크 오류로 실패하면 3번까지 다시
             for t in 1 2 3; do python swing.py --date "$DATE" && return 0; echo "수집 재시도 $t"; sleep $((t*20)); done
             return 1

@@ -797,6 +797,18 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     other_side = "LONG" if (pick["side"] if pick else bias["side"]) == "SHORT" else "SHORT"
     other = next((r for r in ranked if r["side"] == other_side), None)
 
+    # 원픽 복기 일지: 실제로 샀든 안 샀든 모든 원픽을 남기고 1시간봉으로 결과를 매겨 조건별 통계를 쌓는다
+    try:
+        import pick_journal as pj
+        jr = pj.load()
+        if pick:
+            pj.add(jr, pick, {"btc": btc, "bias": bias}, iso(now))
+        pj.evaluate(jr, src, now)
+        pj.save(jr)
+        jstats = pj.stats(jr)
+    except Exception as e:  # noqa: BLE001
+        print(f"  ✗ 원픽 복기 일지 실패: {e}")
+        jstats = {"error": str(e)[:120]}
     log.update(updated_at=datetime.now(KST).strftime("%Y-%m-%d %H:%M"), last_run=today, rules={k: cfg[k] for k in DEFAULTS},
                source=src.name)
     save_json(LOG_P, log)
@@ -805,7 +817,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         "data_time": kst(btc["bar_time"]), "bias": bias, "btc": {k: btc[k] for k in ("close", "chg24", "ema20_4h", "ema50_4h", "rsi4h", "funding", "oi_chg24")},
         "nq": nq, "events": events, "holdings": holdings, "pick": pick, "near": near, "block": block,
         "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx), "reviews": reviews,
-        "other_best": other,
+        "other_best": other, "journal": jstats,
     }
 
 
