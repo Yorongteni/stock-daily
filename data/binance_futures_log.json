@@ -286,6 +286,34 @@
     "reviewed_at": "2026-11-21T08:00:21Z",
     "date": "2026-11-21"
    }
+  },
+  {
+   "id": "2026-11-22-ZECUSDT-real",
+   "symbol": "ZECUSDT",
+   "name": "지캐시",
+   "direction": "SHORT",
+   "source": "manual",
+   "pick_time": "2026-11-21T15:11:34Z",
+   "limit": 799.36,
+   "entry": 799.36,
+   "entry_time": "2026-11-21T21:12:52Z",
+   "tp": 779.78,
+   "sl": 810.35,
+   "sl0": null,
+   "qty": 1.0,
+   "margin": 266.45,
+   "leverage": 3,
+   "be_moved": null,
+   "exit": 779.95,
+   "exit_time": "2026-11-21T22:55:44Z",
+   "result": "CLOSE",
+   "result_ko": "직접 청산 (목표가 근처 익절)",
+   "roe": 7.1,
+   "pnl_usdt": 18.9069,
+   "pnl_krw": 25237,
+   "fx": 1334.8,
+   "fees_usdt": 0.503,
+   "reason": "실제 매매 (바이비트) — 11/22 00:11 단타 브리핑 원픽(진입 799.36 · TP 779.78 · SL 810.35)대로 지정가 숏 06:12 체결, 07:55 779.95 청산. 급반등(4시간 +6.4%, 1시간 평균선 +4.3%) 끝에서 24시간 고점 807 아래로 판 자리"
   }
  ],
  "last_events": {
