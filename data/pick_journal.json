@@ -408,6 +408,47 @@
    "status": "done",
    "result": "NO_FILL",
    "result_ko": "미체결"
+  },
+  {
+   "key": "UNIUSDT|SHORT|4.695|4.58|4.757",
+   "symbol": "UNIUSDT",
+   "name": "유니스왑",
+   "side": "SHORT",
+   "picked_at": "2026-11-22T23:03:51Z",
+   "valid_until": "2026-11-23T05:03:51Z",
+   "hold_hours": 24,
+   "entry": 4.695,
+   "tp": 4.58,
+   "sl": 4.757,
+   "be_trigger": 4.639,
+   "be_price": 4.69,
+   "grade": "A",
+   "score": 9.09,
+   "passed": 7,
+   "aligned": true,
+   "missing": [
+    "거래량 증가"
+   ],
+   "feats": {
+    "close": 4.679,
+    "chg24": -0.7845631891433413,
+    "chg4h": -0.4256224728665643,
+    "rsi1h": 50.316626663610535,
+    "dist1h": -0.1298404176382495,
+    "oi_chg24": 4.428720634751238,
+    "vol_ratio": 0.6947444525514895,
+    "funding": -0.0036684797010900004,
+    "range24": 4.573626843342603,
+    "hi24": 4.766,
+    "lo24": 4.552
+   },
+   "btc": {
+    "rsi4h": 47.639529123405254,
+    "chg24": 1.5895006802404197,
+    "above_ema20_4h": true
+   },
+   "bias": -1.0,
+   "status": "pending"
   }
  ]
 }
