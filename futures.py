@@ -441,8 +441,12 @@ def nasdaq_futures() -> dict | None:
         chg24 = float(hc.iloc[-1] / hc.iloc[-24] * 100 - 100) if len(hc) > 24 else float(c.iloc[-1] / c.iloc[-2] * 100 - 100)
         ma20 = float(c.rolling(20).mean().iloc[-1])
         last = float(hc.iloc[-1]) if len(hc) else float(c.iloc[-1])
+        last_t = hc.index[-1].to_pydatetime() if len(hc) else None
+        age_h = (now_utc() - last_t.astimezone(UTC)).total_seconds() / 3600 if last_t else 99
         return {"close": round(last, 2), "chg24": round(chg24, 2), "ma20": round(ma20, 2), "above20": last >= ma20,
-                "time": kst(hc.index[-1].to_pydatetime()) if len(hc) else None}
+                "time": kst(last_t) if last_t else None, "age_h": round(age_h, 1),
+                # 주말·휴장으로 시세가 멈춘 상태(마지막 1시간봉이 4시간 넘게 지남) — 금요일 하락폭이 주말 내내 숏 쪽으로 반영되던 문제 (11/22 복기)
+                "stale": age_h > 4}
     except Exception as e:  # noqa: BLE001
         print(f"  ✗ 나스닥 선물: {e}")
         return None
@@ -452,13 +456,15 @@ def market_bias(btc: dict, nq: dict | None) -> dict:
     s_btc = (1.0 if btc["close"] > btc["ema50_4h"] else -1.0) + (0.5 if btc["ema20_4h"] > btc["ema50_4h"] else -0.5)
     s_btc += 0.5 if btc["chg24"] > 1 else -0.5 if btc["chg24"] < -1 else 0
     s_nq = 0.0
-    if nq:
+    if nq and not nq.get("stale"):
         s_nq = (0.5 if nq["chg24"] > 0 else -0.5) + (0.5 if nq["above20"] else -0.5)
     total = round(s_btc + 0.6 * s_nq, 2)
     side = "LONG" if total >= 0.75 else "SHORT" if total <= -0.75 else "NEUTRAL"
     why = [f"비트코인 {btc['close']:,.0f}달러, 24시간 {btc['chg24']:+.1f}% · 4시간봉 50선 {'위' if btc['close'] > btc['ema50_4h'] else '아래'}"
            f"({'상승' if btc['ema20_4h'] > btc['ema50_4h'] else '하락'} 배열)"]
-    if nq:
+    if nq and nq.get("stale"):
+        why.append(f"나스닥100 선물은 휴장 중 (마지막 시세 {nq.get('time')}) — 방향 판단에서 뺌")
+    elif nq:
         why.append(f"나스닥100 선물 24시간 {nq['chg24']:+.1f}% · 20일 평균선 {'위' if nq['above20'] else '아래'}")
     ko = {"LONG": "🟢 롱 우위", "SHORT": "🔴 숏 우위", "NEUTRAL": "⚪ 중립 (양방향 모두 신중)"}[side]
     return {"side": side, "score": total, "btc_score": s_btc, "nq_score": s_nq, "label": ko, "why": why}
