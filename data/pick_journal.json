@@ -502,8 +502,14 @@
     "above_ema20_4h": false
    },
    "bias": -1.6,
-   "status": "pending",
-   "filled_at": "2026-11-23T04:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-23T04:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 561.64,
+   "exit_at": "2026-11-23T05:00:00+00:00",
+   "move_pct": -1.35,
+   "roe3": -4.34
   },
   {
    "key": "LITUSDT|SHORT|2.3415|2.2841|2.3735",
@@ -593,8 +599,14 @@
     "above_ema20_4h": false
    },
    "bias": -1.6,
-   "status": "pending",
-   "filled_at": "2026-11-23T04:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-23T04:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 198.97,
+   "exit_at": "2026-11-23T05:00:00+00:00",
+   "move_pct": -1.7,
+   "roe3": -5.39
   },
   {
    "key": "BNBUSDT|SHORT|559.04|545.34|565.75",
@@ -635,7 +647,8 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "pending",
+   "filled_at": "2026-11-23T05:00:00+00:00"
   },
   {
    "key": "HYPEUSDT|LONG|62.521|64.053|61.438",
@@ -710,6 +723,45 @@
    "btc": {
     "rsi4h": 50.68260769549853,
     "chg24": 3.248413659563411,
+    "above_ema20_4h": true
+   },
+   "bias": -1.6,
+   "status": "pending"
+  },
+  {
+   "key": "LITUSDT|SHORT|2.3883|2.3033|2.4308",
+   "symbol": "LITUSDT",
+   "name": "LIT",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T06:18:41Z",
+   "valid_until": "2026-11-23T07:18:41Z",
+   "hold_hours": 24,
+   "entry": 2.3883,
+   "tp": 2.3033,
+   "sl": 2.4308,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 0.933,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 2.3893,
+    "chg24": 4.660738534320359,
+    "chg4h": 1.8587202114507448,
+    "rsi1h": 57.06323539552045,
+    "dist1h": 1.5460280534808746,
+    "oi_chg24": 2.075474757548501,
+    "vol_ratio": 1.4878470905159649,
+    "funding": -0.00131752386956,
+    "range24": 6.139873603147367,
+    "hi24": 2.4296,
+    "lo24": 2.2829
+   },
+   "btc": {
+    "rsi4h": 50.68260769549853,
+    "chg24": 4.685364201188946,
     "above_ema20_4h": true
    },
    "bias": -1.6,
