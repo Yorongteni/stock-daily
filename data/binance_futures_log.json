@@ -341,6 +341,34 @@
     "reviewed_at": "2026-11-22T00:24:49Z",
     "date": "2026-11-22"
    }
+  },
+  {
+   "id": "2026-11-23-UNIUSDT-real",
+   "symbol": "UNIUSDT",
+   "name": "유니스왑",
+   "direction": "SHORT",
+   "source": "manual",
+   "pick_time": "2026-11-22T23:03:00Z",
+   "limit": 4.695,
+   "entry": 4.695,
+   "entry_time": "2026-11-23T00:33:33Z",
+   "tp": 4.58,
+   "sl": 4.757,
+   "sl0": null,
+   "qty": 50.0,
+   "margin": 78.25,
+   "leverage": 3,
+   "be_moved": false,
+   "exit": 4.759,
+   "exit_time": "2026-11-23T03:20:12Z",
+   "result": "LOSS",
+   "result_ko": "로스값 손절",
+   "roe": -4.28,
+   "pnl_usdt": -3.3516,
+   "pnl_krw": -4510,
+   "fx": 1345.6,
+   "fees_usdt": 0.1516,
+   "reason": "실제 매매 (바이비트) — 11/23 08:03 원픽(확실도 A) 숏 09:33 체결. 11시 4.628까지 내려 본전 이동 가격(4.639)에 닿았지만 SL을 옮기지 않았고, 12시 비트코인이 24시간 고점(61,645)을 뚫고 +2.3% 급등하며 유니스왑 4.797까지 튀어 손절 4.759"
   }
  ],
  "last_events": {
