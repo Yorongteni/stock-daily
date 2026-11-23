@@ -777,7 +777,19 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         # 확실한 정도: A = 조건 7개 이상 + 시장 방향과 같음 + 점수 9 이상 / B = 조건 7개 이상 또는 (6개 + 같은 방향 + 점수 8 이상) / C = 그 밖 (쉬기 권장)
         grade = ("A" if r["passed"] >= 7 and aligned and r["score"] >= 9 else
                  "B" if r["passed"] >= 7 or (r["passed"] >= 6 and aligned and r["score"] >= 8) else "C")
+        # 비트코인 역행 구간: 숏인데 비트코인이 4시간 20선 위 + 24시간 상승 (롱은 반대) → 비트코인 급등 한 번에 손절되기 쉬움.
+        # 급등 끝(1시간 평균선 +1.5% 이상 위)에서 파는 자리가 아니면 확실도를 한 단계 낮춘다 (11/23 유니스왑 숏: 비트코인 24시간 고점 돌파 급등에 손절).
+        L_ = r["side"] == "LONG"
+        btc_up = (btc.get("close") or 0) > (btc.get("ema20_4h") or 9e18) and (btc.get("chg24") or 0) > 0
+        btc_dn = (btc.get("close") or 9e18) < (btc.get("ema20_4h") or 0) and (btc.get("chg24") or 0) < 0
+        spike = (f.get("dist1h") or 0) * (-1 if L_ else 1) >= 1.5
+        regime_note = ""
+        if r["symbol"] != "BTCUSDT" and ((not L_ and btc_up) or (L_ and btc_dn)) and not spike:
+            grade = {"A": "B", "B": "C"}.get(grade, grade)
+            regime_note = (f"비트코인이 4시간 20선 {'위' if not L_ else '아래'}에서 24시간 {btc.get('chg24', 0):+.1f}% — 원픽과 반대로 가는 구간이라 "
+                           "비트코인 급변 한 번에 손절되기 쉬워 확실도를 한 단계 낮췄어요. 들어가면 절반 규모 + 본전 이동 가격에 닿으면 SL 을 꼭 본전으로.")
         pick = {**{k: v for k, v in f.items() if k != "spark"}, "side": r["side"], "score": r["score"], "checks": r["checks"],
+                "regime_note": regime_note,
                 "grade": grade, "aligned": aligned, "passed": r["passed"], "lead": None if nxt is None else round(r["score"] - nxt, 2),
                 "order": o, "story": story(f, r["side"], o, bias), "spark": f["spark"]}
         pick["order_until"] = iso(now + timedelta(hours=cfg["order_valid_hours"]))

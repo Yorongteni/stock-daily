@@ -434,6 +434,8 @@ def why_pick_html(fu: dict) -> str:
     if rsi is not None and ((not L and rsi < 30) or (L and rsi > 70)):
         pts.append(f"<b>주의:</b> 1시간 RSI {rsi:.0f} — 이미 많이 움직인 자리라 반대 방향 급반등이 나오기 쉬워요. "
                    "그래서 현재가가 아니라 되돌림 지정가로 기다리고, 규모는 줄이는 게 좋아요.")
+    if p.get("regime_note"):
+        pts.append(f"<b>주의 (확실도 한 단계 낮춤):</b> {esc(p['regime_note'])}")
     oi = p.get("oi_chg24")
     if oi is not None and p["checks"].get("미결제약정 방향 일치") and abs(oi) < 1:
         pts.append(f"<b>주의:</b> 미결제약정 변화가 24시간 {oi:+.1f}%로 작아 '새 포지션 유입' 근거는 약한 편이에요.")
