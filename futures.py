@@ -773,6 +773,13 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
             r["ok"] = False
             r["blocks"] = list(r.get("blocks") or []) + ["지금 1시간봉이 이미 24시간 " + ("고점" if r["side"] == "SHORT" else "저점") + " 돌파"]
     ok = sorted([r for r in rows if r["ok"] and allowed(r) and r["symbol"] not in open_syms], key=lambda r: -r["score"])
+    # 진행 중인 1시간봉이 이미 그 후보의 SL 가격을 지나갔으면(급변 중) 후보에서 뺀다 — 끝난 봉 기준 타점이 무너진 상태
+    def _sl_hit(r_):
+        f_ = feats[r_["symbol"]]
+        o_ = make_order(f_, r_["side"], cfg, tick(r_["symbol"]), fx)
+        return ((f_.get("live_hi") or 0) >= o_["sl"]) if r_["side"] == "SHORT" else (0 < (f_.get("live_lo") or 0) <= o_["sl"])
+    live_skip = [r_ for r_ in ok[:10] if _sl_hit(r_)]
+    ok = [r_ for r_ in ok if r_ not in live_skip]
     ranked = sorted(rows, key=lambda r: -r["score"])
     pick, block = None, ""
     # 시장 전체가 한쪽으로 지나치게 쏠린 날(비트코인 4시간 RSI 극단)은 그 방향 신규 원픽을 쉰다 — 11/21 비트코인 4시간 RSI 19일 때 숏 손절
@@ -783,6 +790,9 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
                  f"반대 방향 급반등이 나오기 쉬운 자리라 오늘은 새 원픽을 쉬어 갑니다 (11/21 유니스왑 숏 손절 복기로 추가한 규칙).")
     elif len(log["positions"]) >= cfg["max_open"]:
         block = f"이미 대기·보유 포지션이 {len(log['positions'])}개라 오늘은 새 원픽을 쉬고 기존 포지션 관리에 집중합니다."
+    elif not ok and live_skip:
+        block = ("지금 진행 중인 1시간봉에서 후보 코인들(" + ", ".join(r_["name"] for r_ in live_skip[:4]) + ")이 이미 손절 가격을 지나갔어요 — 급변 중이에요. "
+                 "끝난 봉 기준 타점이 무너진 상태라 이번엔 쉬고, 지금 1시간봉이 끝난 뒤(정각 이후) 다시 브리핑하세요.")
     elif not ok:
         side_ko = {"LONG": "롱", "SHORT": "숏", "NEUTRAL": "롱·숏"}[bias["side"]]
         block = (f"오늘은 시장 방향({bias['label'].split(' ', 1)[1]})에 맞는 {side_ko} 조건(4시간봉 추세 + 1시간봉 타점 + 거래량·미결제약정)을 "
