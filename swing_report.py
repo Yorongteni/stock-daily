@@ -567,6 +567,38 @@ def journal_html(js: dict) -> str:
     return h + "<div class='why'>표본이 쌓일수록 어떤 조건에서 이기고 지는지가 보여요. 규칙 조정은 이 통계로 근거를 확인한 뒤에만 합니다.</div></div>"
 
 
+def btc_panel_html(g: dict) -> str:
+    """① 비트코인 상황판."""
+    P = g.get("panel") or {}
+    arrow = {1: "🟢 상승", -1: "🔴 하락", 0: "⚪ 엇갈림", None: "–"}
+    frames = "".join(f"<tr><td>{esc(r['tf'])}</td><td><b>{arrow.get(r.get('trend'), '–')}</b></td><td>{esc(r['detail'])}</td></tr>"
+                     for r in P.get("frames") or [])
+    def n(v, f="{:+.1f}%"):
+        return "–" if v is None else f.format(v)
+    oi = (f"약 {P['oi_usd'] / 1e8:,.1f}억 달러 · 4시간 {n(P.get('oi_chg4h'))} · 24시간 {n(P.get('oi_chg24'))}" if P.get("oi_usd") else "–")
+    fr = P.get("funding")
+    fr_read = ("" if fr is None else " (롱 쏠림·과열)" if fr >= 0.03 else " (숏 쏠림)" if fr <= -0.01 else " (보통)")
+    ls = P.get("ls_ratio")
+    ls_read = "" if ls is None else (" — 롱 계정이 많음 (개인 롱 쏠림)" if ls >= 1.5 else " — 숏 계정이 많음" if ls <= 0.8 else " — 비슷함")
+    lv = []
+    for lab, k in (("24시간 고점", "hi24"), ("24시간 저점", "lo24"), ("7일 고점", "hi7"), ("7일 저점", "lo7"), ("20일선", "e20d"), ("50일선", "e50d")):
+        if P.get(k):
+            lv.append(f"{lab} {P[k]:,.0f}")
+    ev = " / ".join(f"{e['date'][5:].replace('-', '/')} {esc(e['title'])} ({esc(e.get('time', ''))}, D-{e.get('d_day')})" for e in P.get("events") or [])
+    return (f"<div class='box' style='border-left:6px solid var(--accent,#1F5FBF)'><h3>① 비트코인 먼저 — 상황판</h3>"
+            f"<div class='big' style='font-size:20px;font-weight:800'>원픽 방향: {esc(g['label'])}</div>"
+            f"<div class='why'>비트코인 {fpx(P.get('price') or g['close'])} · 24시간 {n(P.get('chg24'))} · 4시간 {n(P.get('chg4h'))}</div>"
+            f"<table style='margin-top:6px'><tr><th>시간 단위</th><th>방향</th><th>근거</th></tr>{frames}</table>"
+            f"<ul style='margin-top:6px'>"
+            f"<li><b>미결제약정(OKX BTC 무기한):</b> {oi}" + (f"<br>→ {esc(P['oi_read'])}" if P.get("oi_read") else "") + "</li>"
+            f"<li><b>펀딩비:</b> {'–' if fr is None else f'{fr:+.4f}%'}{fr_read}</li>"
+            f"<li><b>롱·숏 계정 비율:</b> {'–' if ls is None else f'{ls:.2f}'}{ls_read}</li>"
+            f"<li><b>주요 가격:</b> {esc(' · '.join(lv) or '–')}</li>"
+            + (f"<li><b>다가오는 큰 일정:</b> {ev}</li>" if ev else "") +
+            "</ul><div class='why'>원픽 방향은 백테스트로 검증된 <b>4시간 추세</b>만 씁니다 (일봉만 보면 손해, 1시간은 뒤 기간 손해였어요). "
+            "일봉·1시간·미결제약정·펀딩비·롱숏 비율·일정은 판단을 돕는 참고 정보예요 — 과거 데이터가 짧아 아직 규칙으로 검증하지 못했어요.</div></div>")
+
+
 def futures_part(fu: dict) -> str:
     if not fu:
         return "<div class='empty'>코인 파트 데이터가 없어요.</div>"
@@ -578,11 +610,7 @@ def futures_part(fu: dict) -> str:
 <ul>{''.join(f'<li>{esc(w)}</li>' for w in b['why'])}</ul><div class='src'>데이터: {esc(fu['source_label'])} · 기준 {esc(fu['data_time'])} (한국 시간) · 분석 {fu['universe']}종목</div></div>"""]
     g = fu.get("btc_gate")
     if g:
-        out.append(f"<div class='box' style='border-left:6px solid var(--accent,#1F5FBF)'><h3>① 비트코인 먼저 — 4시간 추세</h3>"
-                   f"<div class='big' style='font-size:20px;font-weight:800'>{esc(g['label'])}</div>"
-                   f"<div class='why'>비트코인 {fpx(g['close'])} · 4시간 20선 {fpx(g['ema20_4h'])} · 50선 {fpx(g['ema50_4h'])}. "
-                   "가격·20선이 50선 위면 상승 배열, 아래면 하락 배열이에요. 원픽은 이 방향과 같은 신호만 고릅니다 "
-                   "(백테스트: 비트코인 방향을 따른 신호가 앞·뒤 기간 모두 플러스, 무시하면 앞 기간 마이너스).</div></div>")
+        out.append(btc_panel_html(g))
     if fu.get("pick"):
         p1 = fu["pick"]
         out.append(f"<h3 style='margin:14px 0 4px'>🥇 1순위 원픽 · {'🟢 롱' if p1['side'] == 'LONG' else '🔴 숏'} · 확실도 {esc(p1.get('grade') or '–')}"

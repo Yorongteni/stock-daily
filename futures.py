@@ -216,7 +216,7 @@ class OKX:
         return out
 
     def klines(self, sym: str, interval: str, limit: int = 200) -> pd.DataFrame:
-        bar = {"1h": "1H", "4h": "4H", "15m": "15m"}[interval]
+        bar = {"1h": "1H", "4h": "4H", "15m": "15m", "1d": "1Dutc"}[interval]
         rows = self._data("/api/v5/market/candles", {"instId": self.inst(sym), "bar": bar, "limit": min(limit, 300)})
         return _df([r[:6] for r in rows])
 
@@ -726,6 +726,53 @@ def sweep_story(f: dict, side: str, sig: dict, o: dict) -> list[str]:
             "다만 기간에 따라 약한 마이너스 구간도 있어 우위는 작아요. 규모는 작게."]
 
 
+def btc_panel(src, btc: dict, today: str) -> dict:
+    """① 비트코인 상황판 (참고용) — 일봉·4시간·1시간 방향, 미결제약정, 펀딩비, 롱숏 비율, 주요 가격, 다가오는 일정.
+    원픽 방향은 백테스트로 검증된 4시간 추세만 쓰고, 나머지는 판단을 돕는 정보로만 보여 준다."""
+    P = {"price": btc.get("live") or btc["close"]}
+    px = P["price"]
+    def tr(c, e20, e50):
+        return 1 if c > e50 and e20 > e50 else -1 if c < e50 and e20 < e50 else 0
+    rows = []
+    try:
+        d = src.klines("BTCUSDT", "1d", 120)
+        d = d.iloc[:-1] if len(d) > 60 else d                       # 끝난 일봉만
+        e20d, e50d = float(ema(d["Close"], 20).iloc[-1]), float(ema(d["Close"], 50).iloc[-1])
+        rows.append({"tf": "일봉", "trend": tr(px, e20d, e50d), "detail": f"20일선 {e20d:,.0f} · 50일선 {e50d:,.0f}"})
+        P.update(e20d=e20d, e50d=e50d, hi7=float(d["High"].tail(7).max()), lo7=float(d["Low"].tail(7).min()))
+    except Exception as e:  # noqa: BLE001
+        rows.append({"tf": "일봉", "trend": None, "detail": f"데이터 없음 ({str(e)[:40]})"})
+    rows.append({"tf": "4시간 (원픽 기준)", "trend": btc.get("trend4", 0),
+                 "detail": f"20선 {btc['ema20_4h']:,.0f} · 50선 {btc['ema50_4h']:,.0f}"})
+    rows.append({"tf": "1시간", "trend": 1 if px > btc["ema20_1h"] else -1, "detail": f"20선 {btc['ema20_1h']:,.0f} · RSI {btc['rsi1h']:.0f}"})
+    P["frames"] = rows
+    P.update(hi24=btc["hi24"], lo24=btc["lo24"], chg24=btc["chg24"], chg4h=btc["chg4h"], funding=btc.get("funding"))
+    B = "https://www.okx.com/api/v5/rubik/stat/contracts"
+    try:     # 미결제약정 (OKX BTC-USDT 무기한, 1시간 단위)
+        r = sorted(_get(f"{B}/open-interest-history", {"instId": "BTC-USDT-SWAP", "period": "1H", "limit": 25})["data"], key=lambda x: int(x[0]))
+        oi = [float(x[3]) for x in r]                                  # USD 기준
+        P.update(oi_usd=oi[-1], oi_chg4h=(oi[-1] / oi[-5] - 1) * 100, oi_chg24=(oi[-1] / oi[0] - 1) * 100)
+        up_p, up_oi = btc["chg24"] > 0, P["oi_chg24"] > 0
+        P["oi_read"] = ("가격↑ · 미결제약정↑ → 새 롱이 들어오며 오르는 중 (추세 힘 있음, 다만 쏠리면 롱 청산 급락 위험)" if up_p and up_oi else
+                        "가격↑ · 미결제약정↓ → 숏이 손절(청산)하며 오르는 중 (숏 커버링 — 힘이 오래가지 않을 수 있음)" if up_p else
+                        "가격↓ · 미결제약정↑ → 새 숏이 들어오며 내리는 중 (하락 힘 있음, 쏠리면 숏 스퀴즈 급등 위험)" if up_oi else
+                        "가격↓ · 미결제약정↓ → 롱이 정리(청산)되며 내리는 중 (롱 청산 — 끝나면 반등 여지)")
+    except Exception as e:  # noqa: BLE001
+        P["oi_err"] = str(e)[:60]
+    try:     # 롱·숏 계정 비율
+        r = sorted(_get(f"{B}/long-short-account-ratio", {"ccy": "BTC", "period": "1H"})["data"], key=lambda x: int(x[0]))
+        P["ls_ratio"] = float(r[-1][1])
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        import events
+        P["events"] = [{"date": e["date"], "title": e["title"], "time": e.get("time_kst", ""), "d_day": e.get("d_day")}
+                       for e in events.collect(today, {}, 7)["calendar"] if e.get("scale") == "대형"][:4]
+    except Exception:  # noqa: BLE001
+        P["events"] = []
+    return P
+
+
 def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias: dict) -> tuple[list[dict], list[dict]]:
     """모든 후보 코인의 15분봉에서 스윕 신호를 찾아 (신호 목록, 원픽 후보 목록) 반환.
     ① 비트코인 4시간 추세를 먼저 본다 — 상승 배열이면 롱 신호만, 하락 배열이면 숏 신호만, 엇갈리면 쉼
@@ -980,6 +1027,10 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         btc_gate = {"trend4": b4, "allowed": {1: "LONG", -1: "SHORT"}.get(b4),
                     "close": btc.get("live") or btc["close"], "ema20_4h": btc["ema20_4h"], "ema50_4h": btc["ema50_4h"],
                     "label": {1: "🟢 상승 배열 → 롱 신호만", -1: "🔴 하락 배열 → 숏 신호만", 0: "⚪ 엇갈림 → 쉬기"}[b4]}
+        try:
+            btc_gate["panel"] = btc_panel(src, btc, today)
+        except Exception as e:  # noqa: BLE001
+            print(f"  ✗ 비트코인 상황판: {e}")
         if sp:
             pick, block = sp[0], ""
         elif b4 == 0:
