@@ -491,6 +491,47 @@
    },
    "bias": -1.6,
    "status": "pending"
+  },
+  {
+   "key": "LITUSDT|SHORT|2.3415|2.2841|2.3735",
+   "symbol": "LITUSDT",
+   "name": "LIT",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T03:50:11Z",
+   "valid_until": "2026-11-23T09:50:11Z",
+   "hold_hours": 24,
+   "entry": 2.3415,
+   "tp": 2.2841,
+   "sl": 2.3735,
+   "be_trigger": 2.3134,
+   "be_price": 2.3392,
+   "grade": "B",
+   "score": 9.36,
+   "passed": 7,
+   "aligned": true,
+   "missing": [
+    "미결제약정 방향 일치"
+   ],
+   "feats": {
+    "close": 2.33,
+    "chg24": 1.1548146218633377,
+    "chg4h": -0.5081344207694514,
+    "rsi1h": 47.63723471835917,
+    "dist1h": -0.4896967891179882,
+    "oi_chg24": 1.0527607893872748,
+    "vol_ratio": 1.1163933632581176,
+    "funding": 0.005,
+    "range24": 6.416309012875544,
+    "hi24": 2.4108,
+    "lo24": 2.2613
+   },
+   "btc": {
+    "rsi4h": 50.55628233002516,
+    "chg24": 1.8693018829218744,
+    "above_ema20_4h": false
+   },
+   "bias": -1.6,
+   "status": "pending"
   }
  ]
 }
