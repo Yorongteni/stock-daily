@@ -638,7 +638,10 @@ def make_order(f: dict, side: str, cfg: dict, tick: float | None, fx: float = 14
             "loss_roe": ss["loss_roe"], "win_roe": cfg["win_roe"], "liq": liq, "leverage": lev, "margin": mg,
             "notional": round(mg * lev, 2), "qty": qty_for(mg * lev, entry), "fx": round(fx, 1),
             "win_usdt": win, "loss_usdt": loss, "win_krw": int(round(win * fx)), "loss_krw": int(round(loss * fx)),
-            "be_trigger": bt, "be_price": bp, "be_trigger_roe": round(cfg["be_trigger_pct"] * lev, 1)}
+            "be_trigger": bt, "be_price": bp, "be_trigger_roe": round(cfg["be_trigger_pct"] * lev, 1),
+            # 화면을 못 보는 사람용 자동 본전 방어: 거래소 '트레일링 스톱' — 발동가 = 본전 이동가, 간격 = 발동가와 본전의 차이
+            #  → 발동 순간 스톱이 본전에 서고, 더 유리하게 가면 같이 따라감 (본전 이동을 손으로 안 해도 됨)
+            "trail_act": bt, "trail_dist": rp(abs(bt - bp), tick) if bt and bp else None}
 
 
 def story(f: dict, side: str, o: dict, bias: dict) -> list[str]:

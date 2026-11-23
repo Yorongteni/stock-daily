@@ -362,6 +362,10 @@ def coin_pick_html(p: dict, bias: dict) -> str:
   <em>SL 트리거는 '마크 가격(Mark)' 기준 권장 · 진입과 동시에 TP/SL을 함께 걸어 두기</em></div>
  <div class='orow ddl'><span>예약 유효 · 시간 정리</span><b class='sm'>{esc(p['valid_until_kst'])}까지 체결 안 되면 취소</b><em>체결 전 1시간봉이 24시간 {'저점' if L else '고점'} {fpx(p.get('lo24') if L else p.get('hi24'))} {'아래' if L else '위'}에서 마감해도 취소 · 체결되면 그때부터 {p.get('hold_hours', 24)}시간 안에 TP·SL에 안 닿으면 시장가 정리 (TIME_EXIT)</em></div>
  <div class='be'>🛡 <b>본절 방어 기준가</b> 가격이 <b>{fpx(o.get('be_trigger'))}</b>({'+' if L else '-'}1.2%, 레버리지 수익 +{o.get('be_trigger_roe', 3.6)}%)에 닿으면 SL을 본전 <b>{fpx(o.get('be_price'))}</b>(수수료 포함 본전)로 옮겨 손실 없이 잠그세요.</div>
+ <div class='be'>🤖 <b>화면을 못 볼 때 (자동 본전 방어)</b> 체결 뒤 포지션 TP/SL 설정에서 <b>트레일링 스톱</b>을 켜고
+  발동 가격 <b>{fpx(o.get('trail_act'))}</b> · 간격 <b>{fpx(o.get('trail_dist'))}</b> 을 넣어 두세요.
+  가격이 발동 가격에 닿는 순간 스톱이 본전 {fpx(o.get('be_price'))}에 자동으로 서고, 더 {'오르면' if L else '내리면'} 따라갑니다.
+  기존 TP {fpx(o['tp'])} · SL {fpx(o['sl'])} 는 그대로 함께 둡니다 (바이비트·바이낸스 모두 지원).</div>
  <div class='ohint'>참고 청산가(격리 {o['leverage']}배): 약 {fpx(o['liq'])} — 로스값이 훨씬 먼저 오므로 SL만 지키면 청산까지 가지 않아요.</div>
 </div>"""
 
