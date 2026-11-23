@@ -647,8 +647,14 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending",
-   "filled_at": "2026-11-23T05:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-23T05:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 565.75,
+   "exit_at": "2026-11-23T13:00:00+00:00",
+   "move_pct": -1.2,
+   "roe3": -3.9
   },
   {
    "key": "HYPEUSDT|LONG|62.521|64.053|61.438",
@@ -687,7 +693,9 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
   },
   {
    "key": "LITUSDT|SHORT|2.3916|2.3132|2.4308",
@@ -818,8 +826,14 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending",
-   "filled_at": "2026-11-23T08:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-23T08:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 40.93,
+   "exit_at": "2026-11-23T11:00:00+00:00",
+   "move_pct": -1.04,
+   "roe3": -3.41
   },
   {
    "key": "PUMPUSDT|SHORT|0.002582|0.002474|0.002636",
@@ -858,8 +872,14 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending",
-   "filled_at": "2026-11-23T09:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-23T09:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 0.002636,
+   "exit_at": "2026-11-23T13:00:00+00:00",
+   "move_pct": -2.09,
+   "roe3": -6.57
   },
   {
    "key": "LITUSDT|SHORT|2.4402|2.3584|2.4811",
@@ -898,7 +918,14 @@
     "above_ema20_4h": true
    },
    "bias": -2.1,
-   "status": "pending"
+   "status": "done",
+   "filled_at": "2026-11-23T12:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 2.4811,
+   "exit_at": "2026-11-23T13:00:00+00:00",
+   "move_pct": -1.68,
+   "roe3": -5.33
   },
   {
    "key": "LITUSDT|SHORT|2.4349|2.3425|2.4811",
@@ -950,7 +977,14 @@
     "trend4": -1,
     "covering": true
    },
-   "status": "pending"
+   "status": "done",
+   "filled_at": "2026-11-23T12:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 2.4811,
+   "exit_at": "2026-11-23T13:00:00+00:00",
+   "move_pct": -1.9,
+   "roe3": -5.99
   }
  ]
 }

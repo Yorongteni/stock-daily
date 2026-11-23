@@ -43,7 +43,9 @@ def main():
     cfg = yaml.safe_load(open(ROOT / "config.yaml", encoding="utf-8"))
     now = datetime.now(timezone.utc)
     today = now.astimezone(KST).date().isoformat()
-    fu = F.run(today, cfg, _fx(), now=now, force_source="okx")
+    import contextlib
+    with contextlib.redirect_stdout(sys.stderr):          # 진행 로그는 stderr 로 — stdout 은 요약 JSON 만
+        fu = F.run(today, cfg, _fx(), now=now, force_source="okx")
     g = fu.get("btc_gate") or {}
     P = g.get("panel") or {}
 
