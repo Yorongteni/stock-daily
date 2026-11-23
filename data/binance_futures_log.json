@@ -396,6 +396,35 @@
     "reviewed_at": "2026-11-23T03:47:09Z",
     "date": "2026-11-23"
    }
+  },
+  {
+   "id": "2026-11-23-LITUSDT-real",
+   "symbol": "LITUSDT",
+   "name": "LIT",
+   "direction": "SHORT",
+   "source": "manual",
+   "engine": "sweep",
+   "pick_time": "2026-11-23T06:18:00Z",
+   "limit": 2.3883,
+   "entry": 2.3883,
+   "entry_time": "2026-11-23T06:29:05Z",
+   "tp": 2.3033,
+   "sl": 2.4308,
+   "sl0": null,
+   "qty": 250.0,
+   "margin": 59.71,
+   "leverage": 10,
+   "be_moved": false,
+   "exit": 2.431,
+   "exit_time": "2026-11-23T07:09:37Z",
+   "result": "LOSS",
+   "result_ko": "로스값 손절",
+   "roe": -18.53,
+   "pnl_usdt": -11.0618,
+   "pnl_krw": -14922,
+   "fx": 1349.0,
+   "fees_usdt": 0.3868,
+   "reason": "실제 매매 (바이비트) — 스윕 엔진 첫 원픽(15:18) 지정가 2.3883 숏 15:29 체결. 비트코인은 61,500 근처 보합·약세였는데 LIT 만 혼자 2.447까지 올라 40분 만에 SL 2.4308 손절. 권장 226.1개·3배 대신 250개·10배로 들어감 (손실 금액은 수량 기준이라 거의 같고, 10배는 청산가만 가까워짐)"
   }
  ],
  "last_events": {
