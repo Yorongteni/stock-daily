@@ -363,8 +363,14 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending",
-   "filled_at": "2026-11-22T14:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-22T14:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 1732.75,
+   "exit_at": "2026-11-23T03:00:00+00:00",
+   "move_pct": -1.2,
+   "roe3": -3.9
   },
   {
    "key": "BCHUSDT|SHORT|199.19|194.31|201.58",
@@ -448,8 +454,14 @@
     "above_ema20_4h": true
    },
    "bias": -1.0,
-   "status": "pending",
-   "filled_at": "2026-11-23T00:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-23T00:00:00+00:00",
+   "result": "BE",
+   "result_ko": "본전 정리",
+   "exit": 4.69,
+   "exit_at": "2026-11-23T03:00:00+00:00",
+   "move_pct": 0.11,
+   "roe3": 0.02
   },
   {
    "key": "BNBUSDT|SHORT|554.18|540.6|561.64",
@@ -571,6 +583,86 @@
     "rsi4h": 50.55628233002516,
     "chg24": 1.8693018829218744,
     "above_ema20_4h": false
+   },
+   "bias": -1.6,
+   "status": "pending"
+  },
+  {
+   "key": "BNBUSDT|SHORT|559.04|545.34|565.75",
+   "symbol": "BNBUSDT",
+   "name": "BNB",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T04:08:19Z",
+   "valid_until": "2026-11-23T10:08:19Z",
+   "hold_hours": 24,
+   "entry": 559.04,
+   "tp": 545.34,
+   "sl": 565.75,
+   "be_trigger": 552.33,
+   "be_price": 558.48,
+   "grade": "B",
+   "score": 9.57,
+   "passed": 7,
+   "aligned": true,
+   "missing": [
+    "미결제약정 방향 일치"
+   ],
+   "feats": {
+    "close": 557.81,
+    "chg24": 3.08434358367829,
+    "chg4h": -0.2253742822902467,
+    "rsi1h": 56.80165002462969,
+    "dist1h": 0.5504871239765174,
+    "oi_chg24": 1.6612005690685105,
+    "vol_ratio": 1.679497825699417,
+    "funding": 0.00172154557989,
+    "range24": 4.818845126476757,
+    "hi24": 563.39,
+    "lo24": 536.51
+   },
+   "btc": {
+    "rsi4h": 50.68260769549853,
+    "chg24": 3.2448447179846767,
+    "above_ema20_4h": true
+   },
+   "bias": -1.6,
+   "status": "pending"
+  },
+  {
+   "key": "HYPEUSDT|LONG|62.521|64.053|61.438",
+   "symbol": "HYPEUSDT",
+   "name": "하이퍼리퀴드",
+   "side": "LONG",
+   "picked_at": "2026-11-23T04:08:19Z",
+   "valid_until": "2026-11-23T10:08:19Z",
+   "hold_hours": 24,
+   "entry": 62.521,
+   "tp": 64.053,
+   "sl": 61.438,
+   "be_trigger": 63.271,
+   "be_price": 62.584,
+   "grade": "B",
+   "score": 9.52,
+   "passed": 8,
+   "aligned": false,
+   "missing": [],
+   "feats": {
+    "close": 62.734,
+    "chg24": 4.122821576763485,
+    "chg4h": -0.5674253471121489,
+    "rsi1h": 55.56865645736339,
+    "dist1h": 0.7132252881103307,
+    "oi_chg24": 5.5738057179392175,
+    "vol_ratio": 1.1968554506697937,
+    "funding": -0.00071956181396,
+    "range24": 6.065291548442642,
+    "hi24": 63.337,
+    "lo24": 59.532
+   },
+   "btc": {
+    "rsi4h": 50.68260769549853,
+    "chg24": 3.2448447179846767,
+    "above_ema20_4h": true
    },
    "bias": -1.6,
    "status": "pending"
