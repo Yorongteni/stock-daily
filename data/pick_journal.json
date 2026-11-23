@@ -899,6 +899,58 @@
    },
    "bias": -2.1,
    "status": "pending"
+  },
+  {
+   "key": "LITUSDT|SHORT|2.4349|2.3425|2.4811",
+   "symbol": "LITUSDT",
+   "name": "LIT",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T11:57:24Z",
+   "valid_until": "2026-11-23T12:27:24Z",
+   "hold_hours": 24,
+   "entry": 2.4349,
+   "tp": 2.3425,
+   "sl": 2.4811,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 0.758,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 2.4535,
+    "chg24": 4.899739193638027,
+    "chg4h": 1.442983544199123,
+    "rsi1h": 65.753751598787,
+    "dist1h": 2.7516758111898465,
+    "oi_chg24": 6.071287026159133,
+    "vol_ratio": 1.2319173017359928,
+    "funding": -0.01467498138019,
+    "range24": 7.581006725086627,
+    "hi24": 2.4799,
+    "lo24": 2.2939
+   },
+   "btc": {
+    "rsi4h": 51.66456984133859,
+    "chg24": 0.9007395234182525,
+    "above_ema20_4h": true
+   },
+   "bias": -1.5,
+   "engine": "sweep",
+   "cancel_level": 2.4535,
+   "sweep_score": 0.758,
+   "btc_ctx": {
+    "price": 61370.7,
+    "chg24": 0.9007395234182525,
+    "oi_chg24": -0.9691615490178385,
+    "oi_chg4h": -0.44925527060355464,
+    "funding": -0.0003036389907,
+    "ls_ratio": 2.2,
+    "trend4": -1,
+    "covering": true
+   },
+   "status": "pending"
   }
  ]
 }

@@ -50,6 +50,11 @@ def add(j: dict, pick: dict, fu_ctx: dict, gen_iso: str) -> None:
         "feats": {k: pick.get(k) for k in FEATS},
         "btc": {"rsi4h": b.get("rsi4h"), "chg24": b.get("chg24"), "above_ema20_4h": (b.get("close") or 0) > (b.get("ema20_4h") or 9e18)},
         "bias": (fu_ctx.get("bias") or {}).get("score"),
+        # 스윕 엔진 (2026-11-23~): 복기용 맥락 — 비트코인 4시간 추세·미결제약정 구간·신호 깊이·무효 기준선
+        "engine": pick.get("engine", "score"), "cancel_level": pick.get("cancel_level"),
+        "sweep_score": pick.get("score") if pick.get("engine") == "sweep" else None,
+        "btc_ctx": {k: (fu_ctx.get("panel") or {}).get(k) for k in ("price", "chg24", "oi_chg24", "oi_chg4h", "funding", "ls_ratio")}
+                   | {"trend4": b.get("trend4"), "covering": fu_ctx.get("covering")},
         "status": "pending",
     })
 
@@ -74,6 +79,10 @@ def judge(x: dict, df) -> None:
         if fill is None:
             if t > tv:
                 x.update(status="done", result="NO_FILL", result_ko="미체결")
+                return
+            cl = x.get("cancel_level")
+            if cl and ((c > cl) if not L else (c < cl)) and not ((h >= x["entry"]) if not L else (l <= x["entry"])):
+                x.update(status="done", result="INVALID", result_ko="체결 전 신호 무효")
                 return
             if (h >= x["entry"]) if not L else (l <= x["entry"]):
                 fill = t
@@ -118,8 +127,15 @@ def _bucket(v, edges, labels):
     return labels[-1]
 
 
+def _oi_regime(c: dict) -> str:
+    if c.get("oi_chg24") is None or c.get("chg24") is None:
+        return "없음"
+    up_p, up_o = c["chg24"] > 0, c["oi_chg24"] > 0
+    return "가격↑OI↑" if up_p and up_o else "가격↑OI↓(숏커버)" if up_p else "가격↓OI↑" if up_o else "가격↓OI↓(롱청산)"
+
+
 def stats(j: dict) -> dict:
-    done = [x for x in j["picks"] if x.get("status") == "done" and x.get("result") != "NO_FILL"]
+    done = [x for x in j["picks"] if x.get("status") == "done" and x.get("result") not in ("NO_FILL", "INVALID")]
     def agg(rows):
         n = len(rows)
         w = sum(1 for x in rows if x["result"] == "WIN")
@@ -132,6 +148,8 @@ def stats(j: dict) -> dict:
         "1시간 RSI": lambda x: _bucket(x["feats"].get("rsi1h"), [30, 45, 60], ["30 미만", "30~45", "45~60", "60 이상"]),
         "비트코인 4시간 RSI": lambda x: _bucket(x["btc"].get("rsi4h"), [30, 45, 60], ["30 미만", "30~45", "45~60", "60 이상"]),
         "미결제약정 24시간": lambda x: _bucket(x["feats"].get("oi_chg24"), [1, 3], ["+1% 미만", "+1~3%", "+3% 이상"]),
+        "엔진": lambda x: x.get("engine") or "score",
+        "비트코인 미결제약정 구간": lambda x: _oi_regime(x.get("btc_ctx") or {}),
     }
     out = {"total": agg(done), "picks": len(j["picks"]),
            "no_fill": sum(1 for x in j["picks"] if x.get("result") == "NO_FILL"),

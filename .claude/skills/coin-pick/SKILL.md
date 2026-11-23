@@ -1,0 +1,32 @@
+---
+name: coin-pick
+description: 사용자가 "단타 원픽 추천", "원픽", "단타 추천"처럼 코인 원픽만 물으면 리포트 없이 지금 시세로 원픽을 계산해 채팅으로만 답하고, 원픽 일지(복기)는 내부에 쌓아 커밋한다.
+---
+
+# 코인 단타 원픽 — 채팅 전용 (리포트 안 만듦)
+
+사용자 원칙 (2026-11-23): **리포트는 "리포트 만들어줘"라고 할 때만** (swing-brief 스킬).
+"단타 원픽 추천"은 여기서 대화로만 답한다. **복기는 사용자가 묻지 않아도 내부적으로 전부 쌓는다** — 지금 손익보다 시스템 완성이 목표.
+
+## 1. 실행
+```bash
+cd /home/user/stock-daily && git pull -q --rebase origin main && python3 tools/coin_pick.py 2>/dev/null
+```
+약 1분. OKX 공개 API(curl)로 지금 시세 → 엔진(futures.run, engine=sweep) → 요약 JSON.
+
+## 2. 답하는 순서 (채팅, 짧게)
+1. **① 비트코인 먼저**: `btc.label`(4시간 추세 = 원픽 방향), 일봉·1시간 방향, 미결제약정 4h·24h + `oi_read`, 숏 커버링이면 롱 금지(`covering`), 롱숏 비율, 주요 가격.
+2. **② 원픽** (`pick`, 반대 방향 `pick2` 있으면 함께): 표로 진입 지정가·수량·격리 3배·TP·SL·유효 시각(30분),
+   **무효선 `cancel_level`** ("체결 전 15분봉이 이 가격 위(숏)/아래(롱)에서 마감하면 주문 취소"), 왜 이 자리인지(`sweep`) 2~3줄.
+3. 원픽이 없으면 `block` 그대로 — "지금은 쉬기". 억지로 다른 코인을 권하지 않는다.
+4. 약한 자리면 솔직히 (예: 숏 커버링 구간의 숏은 백테스트상 본전 근처, 신호 깊이 0.1% 미만).
+- 복기·일지 통계는 사용자가 "복기 데이터 줘"라고 할 때만 말한다.
+
+## 3. 내부 복기 (매번, 말하지 않고)
+```bash
+git add data/pick_journal.json data/binance_futures_log.json && git commit -q -m "원픽 일지: <시각> <코인> <방향>" && git pull -q --rebase origin main && git push -q origin HEAD:main
+```
+- 원픽 일지(data/pick_journal.json)는 매 실행마다 지난 원픽 결과(익절·손절·미체결·체결 전 무효)를 1시간봉으로 매기고,
+  비트코인 4시간 추세·미결제약정 구간·신호 깊이를 함께 남긴다 → 4주 단위로 `python3 tools/bt_coin.py` 백테스트와 비교해 규칙을 다듬는다.
+- 사용자가 실제 체결·청산을 알려 주면 data/binance_futures_log.json 의 history 에 `<날짜>-<심볼>-real` 로 추가 (수수료·배율 포함).
+- 규칙 변경은 반드시 백테스트(tools/bt_coin.py)로 앞·뒤 기간 모두 확인한 뒤에만.

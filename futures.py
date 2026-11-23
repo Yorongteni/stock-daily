@@ -49,7 +49,7 @@ DEFAULTS = {
     # 2026-11-21 UNI 숏 손절 복기로 추가 (과매도 추격 숏 차단)
     "chase_rsi": 28, "chase_dist": 3.5, "oi_min": 1.0, "btc_exhaust_rsi": 22,
     # 2026-11-23 백테스트(tools/bt_coin.py)로 바꾼 원픽 엔진: 유동성 스윕 + 15분봉 구조 전환, 시장가 진입, 손익비 2
-    "engine": "sweep", "sweep_valid_min": 60, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
+    "engine": "sweep", "sweep_valid_min": 30, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
@@ -720,7 +720,7 @@ def sweep_story(f: dict, side: str, sig: dict, o: dict) -> list[str]:
             f"그 근처에 모여 있던 손절 주문을 털어 냈어요 (유동성 스윕).",
             f"그 뒤 가격이 다시 {fmt_px(sig['level'])} {'위' if L else '아래'}로 돌아와 마감했고, 찌른 뒤 생긴 작은 {w2} {fmt_px(sig['mss_level'])}를 "
             f"마감으로 {'넘어섰어요' if L else '깨뜨렸어요'} — 15분봉 흐름이 {'위' if L else '아래'}로 바뀐 신호 (구조 전환).",
-            f"비트코인 4시간 추세와 같은 방향이고 이 코인의 4시간 추세도 반대가 아니라 이 신호를 씁니다. 진입 지정가는 신호를 확정한 15분봉 종가 {fmt_px(o['entry'])}(1시간 유효), 손절은 찌른 끝 바로 밖 "
+            f"비트코인 4시간 추세와 같은 방향이고 이 코인의 4시간 추세도 반대가 아니라 이 신호를 씁니다. 진입 지정가는 신호를 확정한 15분봉 종가 {fmt_px(o['entry'])}({o['valid_min']}분 유효 · 그 전에 15분봉이 기준선 {fmt_px(sig['level'])} {'아래' if L else '위'}에서 마감하면 무효), 손절은 찌른 끝 바로 밖 "
             f"{fmt_px(o['sl'])}({o['sl_dist']:.2f}%), 목표는 손절폭의 {o['rr']:.0f}배인 {fmt_px(o['tp'])}예요.",
             "근거: 2026-07~11 상위 30코인 백테스트(시장가·수수료 포함)에서 시험한 방법 중 가장 일관된 성적 — 신호 1회 평균 +0.2%(3배 기준), "
             "다만 기간에 따라 약한 마이너스 구간도 있어 우위는 작아요. 규모는 작게."]
@@ -805,7 +805,9 @@ def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias:
                   "sweep": {k: (iso(v) if isinstance(v, datetime) else v) for k, v in sig.items()},
                   "order": o, "story": sweep_story(f, side, sig, o), "spark": f["spark"], "kind": "스윕",
                   "regime_note": "", "hold_hours": cfg["hold_hours"], "order_hours": 0,
-                  "order_until": iso(now + timedelta(minutes=o["valid_min"])), "valid_until": iso(now + timedelta(minutes=o["valid_min"]))}
+                  "order_until": iso(now + timedelta(minutes=o["valid_min"])), "valid_until": iso(now + timedelta(minutes=o["valid_min"])),
+                  # 체결 전 15분봉이 이 기준선 반대쪽(숏: 위, 롱: 아래)에서 마감하면 신호가 깨진 것 → 주문 무효
+                  "cancel_level": sig["level"]}
             picks.append(pk)
     picks.sort(key=lambda p: -p["score"])
     return sigs, picks
@@ -1074,7 +1076,8 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         jr = pj.load()
         for _p in (pick, pick2):
             if _p:
-                pj.add(jr, _p, {"btc": btc, "bias": bias}, iso(now))
+                pj.add(jr, _p, {"btc": btc, "bias": bias, "panel": (btc_gate or {}).get("panel"),
+                                "covering": (btc_gate or {}).get("covering")}, iso(now))
         pj.evaluate(jr, src, now)
         pj.save(jr)
         jstats = pj.stats(jr)
