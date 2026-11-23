@@ -726,7 +726,8 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "pending",
+   "filled_at": "2026-11-23T06:00:00+00:00"
   },
   {
    "key": "LITUSDT|SHORT|2.3883|2.3033|2.4308",
@@ -762,6 +763,45 @@
    "btc": {
     "rsi4h": 50.68260769549853,
     "chg24": 4.685364201188946,
+    "above_ema20_4h": true
+   },
+   "bias": -1.6,
+   "status": "pending"
+  },
+  {
+   "key": "LTCUSDT|SHORT|40.51|39.67|40.93",
+   "symbol": "LTCUSDT",
+   "name": "라이트코인",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T07:33:04Z",
+   "valid_until": "2026-11-23T08:33:04Z",
+   "hold_hours": 24,
+   "entry": 40.51,
+   "tp": 39.67,
+   "sl": 40.93,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 0.049,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 40.57,
+    "chg24": 4.025641025641022,
+    "chg4h": 2.191435768261954,
+    "rsi1h": 60.64235287041226,
+    "dist1h": 1.2648888436217698,
+    "oi_chg24": 2.1448686312917298,
+    "vol_ratio": 0.957282149886794,
+    "funding": -0.0039160475233800006,
+    "range24": 5.028346068523538,
+    "hi24": 40.91,
+    "lo24": 38.87
+   },
+   "btc": {
+    "rsi4h": 50.68260769549853,
+    "chg24": 3.8995061561358284,
     "above_ema20_4h": true
    },
    "bias": -1.6,
