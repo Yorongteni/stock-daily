@@ -502,7 +502,8 @@
     "above_ema20_4h": false
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "pending",
+   "filled_at": "2026-11-23T04:00:00+00:00"
   },
   {
    "key": "LITUSDT|SHORT|2.3415|2.2841|2.3735",
@@ -543,7 +544,14 @@
     "above_ema20_4h": false
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "done",
+   "filled_at": "2026-11-23T04:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 2.3735,
+   "exit_at": "2026-11-23T04:00:00+00:00",
+   "move_pct": -1.37,
+   "roe3": -4.4
   },
   {
    "key": "BCHUSDT|SHORT|195.65|190.86|198.97",
@@ -585,7 +593,8 @@
     "above_ema20_4h": false
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "pending",
+   "filled_at": "2026-11-23T04:00:00+00:00"
   },
   {
    "key": "BNBUSDT|SHORT|559.04|545.34|565.75",
@@ -662,6 +671,45 @@
    "btc": {
     "rsi4h": 50.68260769549853,
     "chg24": 3.2448447179846767,
+    "above_ema20_4h": true
+   },
+   "bias": -1.6,
+   "status": "pending"
+  },
+  {
+   "key": "LITUSDT|SHORT|2.3916|2.3132|2.4308",
+   "symbol": "LITUSDT",
+   "name": "LIT",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T05:54:42Z",
+   "valid_until": "2026-11-23T06:09:42Z",
+   "hold_hours": 24,
+   "entry": 2.3916,
+   "tp": 2.3132,
+   "sl": 2.4308,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 0.319,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 2.3952,
+    "chg24": 5.292772991032194,
+    "chg4h": 1.302656064963628,
+    "rsi1h": 58.24203802788494,
+    "dist1h": 1.9627138985350623,
+    "oi_chg24": 2.9026966111978636,
+    "vol_ratio": 1.4200601273149234,
+    "funding": -0.0008748876254399999,
+    "range24": 6.241649966599875,
+    "hi24": 2.4108,
+    "lo24": 2.2613
+   },
+   "btc": {
+    "rsi4h": 50.68260769549853,
+    "chg24": 3.248413659563411,
     "above_ema20_4h": true
    },
    "bias": -1.6,
