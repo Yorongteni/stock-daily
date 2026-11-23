@@ -69,5 +69,8 @@ git pull --rebase -q origin main && git push origin HEAD:main
 
 ## 5. 사용자에게 보고
 
+- **롱·숏 양쪽을 반드시 함께 보고합니다.** 원픽 방향 최고 후보와 `futures.other_best`(반대 방향 최고 후보)를 나란히,
+  반대쪽이 왜 밀렸는지(4시간 추세·시장 방향·제외 규칙·못 채운 조건)를 씁니다. 한쪽만 말하지 않습니다.
+
 채팅으로 짧게: 리포트 링크(https://yorongteni.github.io/stock-daily/swing/swing_<날짜>.html), 시장 방향,
 보유 포지션별 이번 주 핵심 대응(가격 포함), 추천 타점 요약, 주의 일정.

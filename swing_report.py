@@ -461,8 +461,32 @@ def why_pick_html(fu: dict) -> str:
             + (f"<div style='font-size:17px;font-weight:800;color:{gcol};margin:4px 0 8px'>확실도 {esc(gtxt)}</div>" if g else "")
             + f"<div class='why'>거래대금 상위 {fu.get('universe', '')}종목의 롱·숏 양쪽을 8가지 조건으로 점수 매겨 가장 확실한 1개를 골랐어요"
               f"{' (시장 방향과 같은 쪽)' if p.get('aligned', True) else ' (시장 방향과 반대 — 조건 7개 이상이라 후보에 들어옴)'}.</div>"
-            f"<table><tr><th>조건</th><th>{esc(p.get('name', ''))} (원픽)</th>{head}</tr>{rows}</table>"
+            + _side_compare(p, fu)
+            + f"<table><tr><th>조건</th><th>{esc(p.get('name', ''))} (원픽)</th>{head}</tr>{rows}</table>"
             f"<ul>{''.join(f'<li>{x}</li>' for x in pts)}</ul></div>")
+
+
+def _side_compare(p: dict, fu: dict) -> str:
+    """⚖ 롱·숏 양쪽 최고 후보를 나란히 — 원픽과 반대 방향이 왜 밀렸는지 맨 위에서 보이게."""
+    ob = fu.get("other_best")
+    if not ob:
+        return ""
+    ko = lambda s: "롱" if s == "LONG" else "숏"
+    miss = [k for k, v in (ob.get("checks") or {}).items() if not v]
+    why = []
+    if "4시간봉 추세" in miss:
+        why.append(f"4시간봉 추세가 {'하락' if ob['side'] == 'LONG' else '상승'} 배열이라 필수 조건 탈락")
+    if not (fu.get("bias") or {}).get("side") in (ob["side"], "NEUTRAL"):
+        why.append(f"시장 방향({(fu.get('bias') or {}).get('label', '')})과 반대라 -1.5점, 조건 7개 이상 필요")
+    if ob.get("blocks"):
+        why.append("제외 규칙: " + ", ".join(ob["blocks"]))
+    other_miss = [k for k in miss if k != "4시간봉 추세"]
+    if other_miss:
+        why.append("못 채운 조건: " + ", ".join(other_miss))
+    return (f"<div class='why' style='background:var(--card2,#f4f6fa);padding:8px 10px;border-radius:8px;margin:6px 0'>"
+            f"<b>⚖ 롱·숏 양쪽 비교</b><br>"
+            f"· {ko(p['side'])} 최고: <b>{esc(p.get('name', ''))}</b> 조건 {p.get('passed')}/8 · 점수 {p['score']:.2f} → <b>원픽</b><br>"
+            f"· {ko(ob['side'])} 최고: <b>{esc(ob['name'])}</b> 조건 {ob['passed']}/8 · 점수 {ob['score']:.2f} → 밀린 이유: {esc(' / '.join(why) or '점수 차이')}</div>")
 
 
 def _roe_txt(v) -> str:
