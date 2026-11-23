@@ -726,8 +726,14 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending",
-   "filled_at": "2026-11-23T06:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-23T06:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 2.4308,
+   "exit_at": "2026-11-23T07:00:00+00:00",
+   "move_pct": -1.64,
+   "roe3": -5.22
   },
   {
    "key": "LITUSDT|SHORT|2.3883|2.3033|2.4308",
@@ -766,7 +772,14 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "done",
+   "filled_at": "2026-11-23T07:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 2.4308,
+   "exit_at": "2026-11-23T07:00:00+00:00",
+   "move_pct": -1.78,
+   "roe3": -5.64
   },
   {
    "key": "LTCUSDT|SHORT|40.51|39.67|40.93",
@@ -802,6 +815,45 @@
    "btc": {
     "rsi4h": 50.68260769549853,
     "chg24": 3.8995061561358284,
+    "above_ema20_4h": true
+   },
+   "bias": -1.6,
+   "status": "pending"
+  },
+  {
+   "key": "PUMPUSDT|SHORT|0.002582|0.002474|0.002636",
+   "symbol": "PUMPUSDT",
+   "name": "PUMP",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T08:02:20Z",
+   "valid_until": "2026-11-23T09:02:20Z",
+   "hold_hours": 24,
+   "entry": 0.002582,
+   "tp": 0.002474,
+   "sl": 0.002636,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 0.883,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 0.002582,
+    "chg24": 10.672953279039874,
+    "chg4h": 1.8138801261829798,
+    "rsi1h": 60.53652376356747,
+    "dist1h": 1.6165610808979158,
+    "oi_chg24": 8.079838190395883,
+    "vol_ratio": 1.21646106075133,
+    "funding": -0.0005137388128999999,
+    "range24": 11.773818745158792,
+    "hi24": 0.002635,
+    "lo24": 0.002331
+   },
+   "btc": {
+    "rsi4h": 51.66456984133859,
+    "chg24": 3.8774699212838186,
     "above_ema20_4h": true
    },
    "bias": -1.6,
