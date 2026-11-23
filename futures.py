@@ -720,15 +720,19 @@ def sweep_story(f: dict, side: str, sig: dict, o: dict) -> list[str]:
             f"그 근처에 모여 있던 손절 주문을 털어 냈어요 (유동성 스윕).",
             f"그 뒤 가격이 다시 {fmt_px(sig['level'])} {'위' if L else '아래'}로 돌아와 마감했고, 찌른 뒤 생긴 작은 {w2} {fmt_px(sig['mss_level'])}를 "
             f"마감으로 {'넘어섰어요' if L else '깨뜨렸어요'} — 15분봉 흐름이 {'위' if L else '아래'}로 바뀐 신호 (구조 전환).",
-            f"4시간봉 큰 추세가 반대 방향이 아니라 이 신호를 씁니다. 진입 지정가는 신호를 확정한 15분봉 종가 {fmt_px(o['entry'])}(1시간 유효), 손절은 찌른 끝 바로 밖 "
+            f"비트코인 4시간 추세와 같은 방향이고 이 코인의 4시간 추세도 반대가 아니라 이 신호를 씁니다. 진입 지정가는 신호를 확정한 15분봉 종가 {fmt_px(o['entry'])}(1시간 유효), 손절은 찌른 끝 바로 밖 "
             f"{fmt_px(o['sl'])}({o['sl_dist']:.2f}%), 목표는 손절폭의 {o['rr']:.0f}배인 {fmt_px(o['tp'])}예요.",
             "근거: 2026-07~11 상위 30코인 백테스트(시장가·수수료 포함)에서 시험한 방법 중 가장 일관된 성적 — 신호 1회 평균 +0.2%(3배 기준), "
             "다만 기간에 따라 약한 마이너스 구간도 있어 우위는 작아요. 규모는 작게."]
 
 
 def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias: dict) -> tuple[list[dict], list[dict]]:
-    """모든 후보 코인의 15분봉에서 스윕 신호를 찾아 (신호 목록, 원픽 후보 목록) 반환."""
+    """모든 후보 코인의 15분봉에서 스윕 신호를 찾아 (신호 목록, 원픽 후보 목록) 반환.
+    ① 비트코인 4시간 추세를 먼저 본다 — 상승 배열이면 롱 신호만, 하락 배열이면 숏 신호만, 엇갈리면 쉼
+    (2026-11-23 백테스트: 비트코인 방향만 따른 스윕은 앞·뒤 기간 모두 플러스, 신호 1회 평균 +0.97% vs 무관 +0.22%)."""
     picks, sigs = [], []
+    bt4 = (feats.get("BTCUSDT") or {}).get("trend4", 0)
+    allowed = {1: ("LONG",), -1: ("SHORT",)}.get(bt4, ())
     for sym, f in feats.items():
         try:
             m = closed(src.klines(sym, "15m", 200), 0.25, now)
@@ -738,8 +742,13 @@ def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias:
             sig = sweep_signal(m, f, side, cfg)
             if not sig:
                 continue
+            if side not in allowed:
+                sigs.append({"symbol": sym, "name": f["name"], "side": side, "score": round(sig["score"], 3), "usable": False,
+                             "why": "비트코인 4시간 추세와 반대 방향"})
+                continue
             o = sweep_order(f, side, sig, cfg, tick(sym), fx)
-            sigs.append({"symbol": sym, "name": f["name"], "side": side, "score": round(sig["score"], 3), "usable": bool(o)})
+            sigs.append({"symbol": sym, "name": f["name"], "side": side, "score": round(sig["score"], 3), "usable": bool(o),
+                         "why": "" if o else "손절폭이 0.4~3% 밖"})
             if not o:
                 continue
             chk = {"4시간 추세가 반대 아님": True, f"24시간 {'저점' if side == 'LONG' else '고점'} 스윕": True,
@@ -963,12 +972,24 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     # 반대 방향 원픽 (사용자가 롱·숏 두 개를 함께 걸어 결정·순위를 확인) — 같은 규칙으로 고른 반대쪽 1위
     pick2 = None
     sweep_sigs = None
+    btc_gate = None
     if cfg.get("engine") == "sweep":
         # 2026-11-23: 원픽 엔진을 유동성 스윕 + 구조 전환으로 교체 (tools/bt_coin.py 백테스트 — 기존 방식은 무작위와 비슷하게 손해)
         sweep_sigs, sp = run_sweep(src, feats, cfg, tick, fx, now, bias)
-        pick, block = (sp[0], "") if sp else (None, (
-            "지금은 유동성 스윕 + 구조 전환 자리가 나온 코인이 없어요. 백테스트에서 우위가 확인된 자리가 아닐 때는 들어가지 않고 쉬는 게 원칙이에요. "
-            "이 신호는 물어볼 때 5번 중 1번꼴로 나와요 — 1~2시간 뒤 다시 브리핑해 보세요."))
+        b4 = btc.get("trend4", 0)
+        btc_gate = {"trend4": b4, "allowed": {1: "LONG", -1: "SHORT"}.get(b4),
+                    "close": btc.get("live") or btc["close"], "ema20_4h": btc["ema20_4h"], "ema50_4h": btc["ema50_4h"],
+                    "label": {1: "🟢 상승 배열 → 롱 신호만", -1: "🔴 하락 배열 → 숏 신호만", 0: "⚪ 엇갈림 → 쉬기"}[b4]}
+        if sp:
+            pick, block = sp[0], ""
+        elif b4 == 0:
+            pick, block = None, ("① 비트코인 4시간봉이 엇갈려(가격과 20·50선 배열이 한 방향이 아님) 방향을 정할 수 없어요. "
+                                 "비트코인 방향이 정해지기 전에는 알트코인 단타도 쉬는 게 백테스트상 유리했어요.")
+        else:
+            pick, block = None, (f"① 비트코인 4시간 추세는 {'상승' if b4 == 1 else '하락'} 배열이라 {'롱' if b4 == 1 else '숏'}만 봐요. "
+                                 f"② 그 방향으로 유동성 스윕 + 구조 전환이 나온 코인이 지금은 없어요"
+                                 + (f" (반대 방향 신호 {sum(1 for x in sweep_sigs if x.get('why') == '비트코인 4시간 추세와 반대 방향')}개는 제외)" if sweep_sigs else "")
+                                 + ". 자리가 아닐 때는 쉬는 게 원칙이에요 — 1~2시간 뒤 다시 브리핑해 보세요.")
         opp = [p_ for p_ in sp if pick and p_["side"] != pick["side"]]
         if opp:
             pick2 = opp[0]
@@ -1004,7 +1025,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     return {
         "source": src.name, "source_label": src.label, "source_errors": src_errs, "generated_at": kst(now, "%Y-%m-%d %H:%M"),
         "data_time": kst(btc["bar_time"]), "bias": bias, "btc": {k: btc[k] for k in ("close", "chg24", "ema20_4h", "ema50_4h", "rsi4h", "funding", "oi_chg24")},
-        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "pick2": pick2, "near": near, "engine": cfg.get("engine"), "sweep_signals": sweep_sigs, "block": block,
+        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "pick2": pick2, "near": near, "engine": cfg.get("engine"), "sweep_signals": sweep_sigs, "btc_gate": btc_gate, "block": block,
         "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx), "reviews": reviews,
         "other_best": other, "journal": jstats,
     }

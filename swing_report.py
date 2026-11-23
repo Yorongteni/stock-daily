@@ -449,11 +449,12 @@ def sweep_why_html(fu: dict) -> str:
         return ""
     sig = fu.get("sweep_signals") or []
     rows = "".join(f"<li>{esc(x['name'])} {side_html(x['side'])} 되돌림 깊이 {x['score']:.2f}%"
-                   + ("" if x.get("usable") else " · 손절폭이 0.4~3% 밖이라 제외") + "</li>" for x in sorted(sig, key=lambda x: -x["score"])[:6])
+                   + ("" if x.get("usable") else f" · 제외: {esc(x.get('why') or '')}") + "</li>" for x in sorted(sig, key=lambda x: -x["score"])[:6])
     return (f"<div class='box' style='border-left:6px solid var(--wait)'><h3>🔍 왜 {esc(p.get('name', p['symbol']))} {'롱' if p['side'] == 'LONG' else '숏'}인가</h3>"
             f"<div class='why'>거래대금 상위 {fu.get('universe', '')}개 코인의 15분봉에서 롱·숏 양쪽으로 '유동성 스윕 + 구조 전환'이 지금 막 나온 코인만 골랐어요. "
             f"지금 신호가 난 곳은 {len(sig)}개이고, 털어 낸 자리에서 가장 크게 되돌아온(되돌림 깊이 1위) 것이 원픽이에요.</div>"
             + (f"<ul>{rows}</ul>" if rows else "")
+            + "<div class='why'><b>순서:</b> ① 비트코인 4시간 추세로 방향 결정 → ② 그 방향으로 15분봉 유동성 스윕 + 구조 전환이 막 나온 코인 → ③ 털어 낸 자리에서 가장 크게 되돌아온 것.</div>"
             + "<div class='why'><b>이 방법을 쓰는 이유:</b> 2026-07~11 OKX 상위 30코인 백테스트(4시간마다 시장가 진입·수수료 포함)에서 "
               "기존 방식(1회 평균 -0.45%, 3배 기준)·무작위(-0.59%)와 달리 신호 1회 평균 +0.2%로 시험한 7가지 중 가장 일관됐어요. "
               "다만 우위가 작고 기간에 따라 약한 마이너스 구간도 있었어요 → <b>규모는 작게, 신호가 없으면 쉬기</b>.</div></div>")
@@ -575,6 +576,13 @@ def futures_part(fu: dict) -> str:
     nq = fu.get("nq") or {}
     out = [f"""<div class='box'><div class='bias'><b>오늘의 방향</b> {side_html(b['side'])} <span class='why'>점수 {b['score']:+.2f} (비트코인 {b['btc_score']:+.1f} · 나스닥 선물 {b['nq_score']:+.1f}×0.6)</span></div>
 <ul>{''.join(f'<li>{esc(w)}</li>' for w in b['why'])}</ul><div class='src'>데이터: {esc(fu['source_label'])} · 기준 {esc(fu['data_time'])} (한국 시간) · 분석 {fu['universe']}종목</div></div>"""]
+    g = fu.get("btc_gate")
+    if g:
+        out.append(f"<div class='box' style='border-left:6px solid var(--accent,#1F5FBF)'><h3>① 비트코인 먼저 — 4시간 추세</h3>"
+                   f"<div class='big' style='font-size:20px;font-weight:800'>{esc(g['label'])}</div>"
+                   f"<div class='why'>비트코인 {fpx(g['close'])} · 4시간 20선 {fpx(g['ema20_4h'])} · 50선 {fpx(g['ema50_4h'])}. "
+                   "가격·20선이 50선 위면 상승 배열, 아래면 하락 배열이에요. 원픽은 이 방향과 같은 신호만 고릅니다 "
+                   "(백테스트: 비트코인 방향을 따른 신호가 앞·뒤 기간 모두 플러스, 무시하면 앞 기간 마이너스).</div></div>")
     if fu.get("pick"):
         p1 = fu["pick"]
         out.append(f"<h3 style='margin:14px 0 4px'>🥇 1순위 원픽 · {'🟢 롱' if p1['side'] == 'LONG' else '🔴 숏'} · 확실도 {esc(p1.get('grade') or '–')}"
