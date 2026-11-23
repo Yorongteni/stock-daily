@@ -348,7 +348,9 @@ def closed(df: pd.DataFrame, hours: int, now: datetime) -> pd.DataFrame:
 
 
 def coin_feats(src, sym: str, now: datetime) -> dict | None:
-    h1 = closed(src.klines(sym, "1h", 200), 1, now)
+    raw1 = src.klines(sym, "1h", 200)
+    h1 = closed(raw1, 1, now)
+    live = raw1[raw1.index > h1.index[-1]] if len(h1) else raw1.iloc[0:0]      # 아직 안 끝난 지금 1시간봉
     h4 = closed(src.klines(sym, "4h", 200), 4, now)
     if len(h1) < 60 or len(h4) < 60:
         return None
@@ -363,7 +365,10 @@ def coin_feats(src, sym: str, now: datetime) -> dict | None:
     v = h1["Volume"]
     trend4 = (1 if c4.iloc[-1] > e50_4.iloc[-1] and e20_4.iloc[-1] > e50_4.iloc[-1] else
               -1 if c4.iloc[-1] < e50_4.iloc[-1] and e20_4.iloc[-1] < e50_4.iloc[-1] else 0)
+    lv = live.iloc[-1] if len(live) else None
     f = {
+        "live": float(lv.Close) if lv is not None else None, "live_hi": float(lv.High) if lv is not None else None,
+        "live_lo": float(lv.Low) if lv is not None else None,
         "symbol": sym, "coin": coin(sym), "name": coin_name(sym), "close": c, "bar_time": iso(h1.index[-1].to_pydatetime() + timedelta(hours=1)),
         "chg24": float(c / c1.iloc[-25] * 100 - 100), "chg4h": float(c / c1.iloc[-5] * 100 - 100),
         "range24": float((t24["High"].max() - t24["Low"].min()) / c * 100),
@@ -756,6 +761,17 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     # 롱·숏 양쪽을 모두 비교해 가장 확실한 1개 (2026-11-22: 숏만 보던 방식 → 방향 무관).
     # 시장 방향과 같은 쪽은 +1.5점, 반대쪽은 -1.5점이고, 반대쪽(역추세)은 조건 7개 이상일 때만 후보로 둔다.
     allowed = (lambda r: r["side"] == bias["side"] or bias["side"] == "NEUTRAL" or r["passed"] >= 7)
+    # 지금 진행 중인 1시간봉이 이미 24시간 고점(숏)·저점(롱)을 넘었으면 그 원픽은 무효 — 끝난 봉만 보면 놓침
+    # (11/23 12:47 BNB 숏: 끝난 11시봉 기준 원픽이었지만 12시봉에서 비트코인 급등으로 이미 563 → SL 561.6 위)
+    def _live_broken(r):
+        f_ = feats[r["symbol"]]
+        if r["side"] == "SHORT":
+            return f_.get("live_hi") is not None and f_["live_hi"] >= f_["hi24"]
+        return f_.get("live_lo") is not None and f_["live_lo"] <= f_["lo24"]
+    for r in rows:
+        if _live_broken(r):
+            r["ok"] = False
+            r["blocks"] = list(r.get("blocks") or []) + ["지금 1시간봉이 이미 24시간 " + ("고점" if r["side"] == "SHORT" else "저점") + " 돌파"]
     ok = sorted([r for r in rows if r["ok"] and allowed(r) and r["symbol"] not in open_syms], key=lambda r: -r["score"])
     ranked = sorted(rows, key=lambda r: -r["score"])
     pick, block = None, ""
@@ -783,8 +799,9 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         # 비트코인 역행 구간: 숏인데 비트코인이 4시간 20선 위 + 24시간 상승 (롱은 반대) → 비트코인 급등 한 번에 손절되기 쉬움.
         # 급등 끝(1시간 평균선 +1.5% 이상 위)에서 파는 자리가 아니면 확실도를 한 단계 낮춘다 (11/23 유니스왑 숏: 비트코인 24시간 고점 돌파 급등에 손절).
         L_ = r["side"] == "LONG"
-        btc_up = (btc.get("close") or 0) > (btc.get("ema20_4h") or 9e18) and (btc.get("chg24") or 0) > 0
-        btc_dn = (btc.get("close") or 9e18) < (btc.get("ema20_4h") or 0) and (btc.get("chg24") or 0) < 0
+        bnow = btc.get("live") or btc.get("close") or 0          # 비트코인은 지금 가격(진행 중 봉)까지 봄
+        btc_up = bnow > (btc.get("ema20_4h") or 9e18) and (btc.get("chg24") or 0) > 0
+        btc_dn = 0 < bnow < (btc.get("ema20_4h") or 0) and (btc.get("chg24") or 0) < 0
         spike = (f.get("dist1h") or 0) * (-1 if L_ else 1) >= 1.5
         regime_note = ""
         if r["symbol"] != "BTCUSDT" and ((not L_ and btc_up) or (L_ and btc_dn)) and not spike:
