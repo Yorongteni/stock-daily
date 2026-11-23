@@ -396,7 +396,7 @@ def coin_feats(src, sym: str, now: datetime) -> dict | None:
     return f
 
 
-def setup(f: dict, side: str, cfg: dict, btc_chg24: float | None = None) -> dict:
+def setup(f: dict, side: str, cfg: dict, btc_chg24: float | None = None, btc_f: dict | None = None) -> dict:
     """한 방향(LONG/SHORT)의 타점 점검표와 점수.
     2026-11-18 XRP 숏 손절 복기로 보강: 미결제약정은 가격 방향과 함께, 비트코인 대비 상대 강도, 24시간 고점·저점 돌파 직전 자리 제외."""
     L = side == "LONG"
@@ -408,8 +408,16 @@ def setup(f: dict, side: str, cfg: dict, btc_chg24: float | None = None) -> dict
     # 숏: 24시간 고점 바로 아래 + 4시간 20봉선 회복 / 롱: 24시간 저점 바로 위 + 4시간 20봉선 이탈 → 돌파·이탈 직전이라 제외
     near_ext = ((f["close"] >= f["hi24"] * (1 - cfg["near_extreme"] / 100) and f["close"] > f["ema20_4h"]) if not L
                 else (f["close"] <= f["lo24"] * (1 + cfg["near_extreme"] / 100) and f["close"] < f["ema20_4h"]))
+    trend_ok = f["trend4"] == (1 if L else -1)
+    # 반등 롱 / 반락 숏 (2026-11-23 추가): 4시간 큰 추세는 반대지만, 비트코인이 지금 4시간 20선 위(롱)·아래(숏)로 돌아섰고
+    # 24시간도 같은 방향 + 그 코인도 4시간 20선을 회복(롱)·이탈(숏) → 단기 방향 전환 자리로 '4시간봉 추세' 조건을 대신한다.
+    rebound = False
+    if not trend_ok and btc_f and f.get("coin") != "BTC":
+        bnow = btc_f.get("live") or btc_f["close"]
+        rebound = ((bnow > btc_f["ema20_4h"] and btc_f["chg24"] > 0 and f["close"] > f["ema20_4h"]) if L
+                   else (bnow < btc_f["ema20_4h"] and btc_f["chg24"] < 0 and f["close"] < f["ema20_4h"]))
     chk = {
-        "4시간봉 추세": f["trend4"] == (1 if L else -1),
+        "4시간봉 추세": trend_ok or rebound,
         "1시간봉 눌림" if L else "1시간봉 반등": (-1.8 <= f["dist1h"] <= 0.8 and 36 <= f["rsi1h"] <= 58) if L
         else (-0.8 <= f["dist1h"] <= 1.8 and 42 <= f["rsi1h"] <= 64),
         "반등 캔들" if L else "꺾임 캔들": (f["bull"] or f["lower_wick"] >= 0.45) if L else (f["bear"] or f["upper_wick"] >= 0.45),
@@ -432,7 +440,8 @@ def setup(f: dict, side: str, cfg: dict, btc_chg24: float | None = None) -> dict
                               ("24시간 고점 돌파 직전" if not L else "24시간 저점 이탈 직전", near_ext),
                               ("과매도 추격 숏(1시간 RSI 극단·평균선에서 멀리 이탈)" if not L else "과매수 추격 롱(1시간 RSI 극단·평균선에서 멀리 이탈)", chase)) if on]
     ok = chk["4시간봉 추세"] and chk["변동폭 충분"] and chk[rel_key] and not blocks and s_ >= 6
-    return {"side": side, "checks": chk, "passed": s_, "score": round(score, 2), "ok": ok, "blocks": blocks, "rel_btc": rel}
+    return {"side": side, "checks": chk, "passed": s_, "score": round(score, 2), "ok": ok, "blocks": blocks, "rel_btc": rel,
+            "kind": "반등" if rebound else "추세"}
 
 
 # ───────────────────────── 시장 방향 ─────────────────────────
@@ -752,15 +761,17 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     open_syms = {p["symbol"] for p in log["positions"]}
     for s, f in feats.items():
         for side in ("LONG", "SHORT"):
-            st = setup(f, side, cfg, None if s == "BTCUSDT" else feats["BTCUSDT"]["chg24"])
+            st = setup(f, side, cfg, None if s == "BTCUSDT" else feats["BTCUSDT"]["chg24"], feats["BTCUSDT"])
             align = 1.5 if side == bias["side"] else -1.5 if bias["side"] != "NEUTRAL" else 0
+            if st["kind"] == "반등":
+                align = 0          # 반등·반락 자리는 큰 방향과 반대인 게 정상이라 감점하지 않음 (대신 확실도 최대 B)
             rows.append({"symbol": s, "name": f["name"], "side": side, "score": round(st["score"] + align, 2), "ok": st["ok"],
                          "passed": st["passed"], "checks": st["checks"], "close": f["close"], "chg24": round(f["chg24"], 2),
                          "rsi1h": round(f["rsi1h"], 1), "funding": f.get("funding"), "oi_chg24": f.get("oi_chg24"),
-                         "vol_ratio": round(f["vol_ratio"], 2), "range24": round(f["range24"], 1), "blocks": st["blocks"]})
+                         "vol_ratio": round(f["vol_ratio"], 2), "range24": round(f["range24"], 1), "blocks": st["blocks"], "kind": st["kind"]})
     # 롱·숏 양쪽을 모두 비교해 가장 확실한 1개 (2026-11-22: 숏만 보던 방식 → 방향 무관).
     # 시장 방향과 같은 쪽은 +1.5점, 반대쪽은 -1.5점이고, 반대쪽(역추세)은 조건 7개 이상일 때만 후보로 둔다.
-    allowed = (lambda r: r["side"] == bias["side"] or bias["side"] == "NEUTRAL" or r["passed"] >= 7)
+    allowed = (lambda r: r["side"] == bias["side"] or bias["side"] == "NEUTRAL" or r["passed"] >= 7 or r["kind"] == "반등")
     # 지금 진행 중인 1시간봉이 이미 24시간 고점(숏)·저점(롱)을 넘었으면 그 원픽은 무효 — 끝난 봉만 보면 놓침
     # (11/23 12:47 BNB 숏: 끝난 11시봉 기준 원픽이었지만 12시봉에서 비트코인 급등으로 이미 563 → SL 561.6 위)
     def _live_broken(r):
@@ -780,6 +791,40 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         return ((f_.get("live_hi") or 0) >= o_["sl"]) if r_["side"] == "SHORT" else (0 < (f_.get("live_lo") or 0) <= o_["sl"])
     live_skip = [r_ for r_ in ok[:10] if _sl_hit(r_)]
     ok = [r_ for r_ in ok if r_ not in live_skip]
+    def _mk_pick(r, pool):
+        f = feats[r["symbol"]]
+        o = make_order(f, r["side"], cfg, tick(r["symbol"]), fx)
+        aligned = r["side"] == bias["side"] or bias["side"] == "NEUTRAL"
+        nxt = pool[1]["score"] if len(pool) > 1 else None
+        # 확실한 정도: A = 조건 7개 이상 + 시장 방향과 같음 + 점수 9 이상 / B = 조건 7개 이상 또는 (6개 + 같은 방향 + 점수 8 이상) / C = 그 밖 (쉬기 권장)
+        grade = ("A" if r["passed"] >= 7 and aligned and r["score"] >= 9 else
+                 "B" if r["passed"] >= 7 or (r["passed"] >= 6 and aligned and r["score"] >= 8) else "C")
+        # 비트코인 역행 구간: 숏인데 비트코인이 4시간 20선 위 + 24시간 상승 (롱은 반대) → 비트코인 급등 한 번에 손절되기 쉬움.
+        # 급등 끝(1시간 평균선 +1.5% 이상 위)에서 파는 자리가 아니면 확실도를 한 단계 낮춘다 (11/23 유니스왑 숏: 비트코인 24시간 고점 돌파 급등에 손절).
+        L_ = r["side"] == "LONG"
+        bnow = btc.get("live") or btc.get("close") or 0          # 비트코인은 지금 가격(진행 중 봉)까지 봄
+        btc_up = bnow > (btc.get("ema20_4h") or 9e18) and (btc.get("chg24") or 0) > 0
+        btc_dn = 0 < bnow < (btc.get("ema20_4h") or 0) and (btc.get("chg24") or 0) < 0
+        spike = (f.get("dist1h") or 0) * (-1 if L_ else 1) >= 1.5
+        regime_note = ""
+        if r["symbol"] != "BTCUSDT" and ((not L_ and btc_up) or (L_ and btc_dn)) and not spike:
+            grade = {"A": "B", "B": "C"}.get(grade, grade)
+            regime_note = (f"비트코인이 4시간 20선 {'위' if not L_ else '아래'}에서 24시간 {btc.get('chg24', 0):+.1f}% — 원픽과 반대로 가는 구간이라 "
+                           "비트코인 급변 한 번에 손절되기 쉬워 확실도를 한 단계 낮췄어요. 들어가면 절반 규모 + 본전 이동 가격에 닿으면 SL 을 꼭 본전으로.")
+        if r.get("kind") == "반등" and grade == "A":
+            grade = "B"            # 반등·반락(역추세) 자리는 확실도 최대 B
+        pick = {**{k: v for k, v in f.items() if k != "spark"}, "side": r["side"], "score": r["score"], "checks": r["checks"],
+                "regime_note": regime_note,
+                "grade": grade, "aligned": aligned, "passed": r["passed"], "lead": None if nxt is None else round(r["score"] - nxt, 2),
+                "order": o, "story": story(f, r["side"], o, bias), "spark": f["spark"],
+            "kind": r.get("kind", "추세"),
+        }
+        pick["order_until"] = iso(now + timedelta(hours=cfg["order_valid_hours"]))
+        pick["valid_until"] = pick["order_until"]
+        pick["hold_hours"] = cfg["hold_hours"]
+        pick["order_hours"] = cfg["order_valid_hours"]
+        return pick, o, f
+
     ranked = sorted(rows, key=lambda r: -r["score"])
     pick, block = None, ""
     # 시장 전체가 한쪽으로 지나치게 쏠린 날(비트코인 4시간 RSI 극단)은 그 방향 신규 원픽을 쉰다 — 11/21 비트코인 4시간 RSI 19일 때 숏 손절
@@ -799,29 +844,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
                  "충분히 갖춘 코인이 없어요. 억지로 진입하지 않고 쉬어 갑니다.")
     else:
         r = ok[0]
-        f = feats[r["symbol"]]
-        o = make_order(f, r["side"], cfg, tick(r["symbol"]), fx)
-        aligned = r["side"] == bias["side"] or bias["side"] == "NEUTRAL"
-        nxt = ok[1]["score"] if len(ok) > 1 else None
-        # 확실한 정도: A = 조건 7개 이상 + 시장 방향과 같음 + 점수 9 이상 / B = 조건 7개 이상 또는 (6개 + 같은 방향 + 점수 8 이상) / C = 그 밖 (쉬기 권장)
-        grade = ("A" if r["passed"] >= 7 and aligned and r["score"] >= 9 else
-                 "B" if r["passed"] >= 7 or (r["passed"] >= 6 and aligned and r["score"] >= 8) else "C")
-        # 비트코인 역행 구간: 숏인데 비트코인이 4시간 20선 위 + 24시간 상승 (롱은 반대) → 비트코인 급등 한 번에 손절되기 쉬움.
-        # 급등 끝(1시간 평균선 +1.5% 이상 위)에서 파는 자리가 아니면 확실도를 한 단계 낮춘다 (11/23 유니스왑 숏: 비트코인 24시간 고점 돌파 급등에 손절).
-        L_ = r["side"] == "LONG"
-        bnow = btc.get("live") or btc.get("close") or 0          # 비트코인은 지금 가격(진행 중 봉)까지 봄
-        btc_up = bnow > (btc.get("ema20_4h") or 9e18) and (btc.get("chg24") or 0) > 0
-        btc_dn = 0 < bnow < (btc.get("ema20_4h") or 0) and (btc.get("chg24") or 0) < 0
-        spike = (f.get("dist1h") or 0) * (-1 if L_ else 1) >= 1.5
-        regime_note = ""
-        if r["symbol"] != "BTCUSDT" and ((not L_ and btc_up) or (L_ and btc_dn)) and not spike:
-            grade = {"A": "B", "B": "C"}.get(grade, grade)
-            regime_note = (f"비트코인이 4시간 20선 {'위' if not L_ else '아래'}에서 24시간 {btc.get('chg24', 0):+.1f}% — 원픽과 반대로 가는 구간이라 "
-                           "비트코인 급변 한 번에 손절되기 쉬워 확실도를 한 단계 낮췄어요. 들어가면 절반 규모 + 본전 이동 가격에 닿으면 SL 을 꼭 본전으로.")
-        pick = {**{k: v for k, v in f.items() if k != "spark"}, "side": r["side"], "score": r["score"], "checks": r["checks"],
-                "regime_note": regime_note,
-                "grade": grade, "aligned": aligned, "passed": r["passed"], "lead": None if nxt is None else round(r["score"] - nxt, 2),
-                "order": o, "story": story(f, r["side"], o, bias), "spark": f["spark"]}
+        pick, o, f = _mk_pick(r, ok)
         pick["order_until"] = iso(now + timedelta(hours=cfg["order_valid_hours"]))
         pick["valid_until"] = pick["order_until"]          # 예약 유효 (체결되면 그때부터 hold_hours)
         pick["hold_hours"] = cfg["hold_hours"]
@@ -840,6 +863,14 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
                     "checks": r["checks"]},
         })
         print(f"  ✓ {r['symbol']} {r['side']} 진입 {o['entry']} / TP {o['tp']} / SL {o['sl']}")
+    # 반대 방향 원픽 (사용자가 롱·숏 두 개를 함께 걸어 결정·순위를 확인) — 같은 규칙으로 고른 반대쪽 1위
+    pick2 = None
+    if pick:
+        pool2 = [r_ for r_ in ok if r_["side"] != pick["side"] and r_["symbol"] != pick["symbol"]]
+        if pool2:
+            pick2, _o2, _f2 = _mk_pick(pool2[0], pool2)
+            pick2["rank_note"] = f"반대 방향 1위 — 원픽 {pick['name']} {'롱' if pick['side'] == 'LONG' else '숏'}보다 점수 {pick['score'] - pick2['score']:.2f}점 낮음"
+            print(f"  ✓ 반대 방향 {pick2['symbol']} {pick2['side']} ({pick2['grade']}) 진입 {_o2['entry']}")
     near = [r for r in ranked if not (pick and r["symbol"] == pick["symbol"] and r["side"] == pick["side"])][:4]
     # 반대 방향 최고 후보 (왜 롱/숏이 아닌지 보여 주기)
     other_side = "LONG" if (pick["side"] if pick else bias["side"]) == "SHORT" else "SHORT"
@@ -849,8 +880,9 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     try:
         import pick_journal as pj
         jr = pj.load()
-        if pick:
-            pj.add(jr, pick, {"btc": btc, "bias": bias}, iso(now))
+        for _p in (pick, pick2):
+            if _p:
+                pj.add(jr, _p, {"btc": btc, "bias": bias}, iso(now))
         pj.evaluate(jr, src, now)
         pj.save(jr)
         jstats = pj.stats(jr)
@@ -863,7 +895,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     return {
         "source": src.name, "source_label": src.label, "source_errors": src_errs, "generated_at": kst(now, "%Y-%m-%d %H:%M"),
         "data_time": kst(btc["bar_time"]), "bias": bias, "btc": {k: btc[k] for k in ("close", "chg24", "ema20_4h", "ema50_4h", "rsi4h", "funding", "oi_chg24")},
-        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "near": near, "block": block,
+        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "pick2": pick2, "near": near, "block": block,
         "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx), "reviews": reviews,
         "other_best": other, "journal": jstats,
     }

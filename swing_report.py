@@ -171,6 +171,9 @@ def charts_js(d: dict) -> str:
     if fu.get("pick"):
         o = fu["pick"]["order"]
         cline("fpc", fu["pick"]["spark"], [("진입", o["entry"], "#1F5FBF"), ("목표", o["tp"], "#1E8E3E"), ("손절", o["sl"], "#C5221F")])
+    if fu.get("pick2"):
+        o = fu["pick2"]["order"]
+        cline("fpc2", fu["pick2"]["spark"], [("진입", o["entry"], "#1F5FBF"), ("목표", o["tp"], "#1E8E3E"), ("손절", o["sl"], "#C5221F")])
     fcv = (fu.get("record") or {}).get("curve") or []
     if fcv:
         out.append(f"""new Chart(document.getElementById('fcum'),{{type:'line',data:{{labels:{json.dumps([c['date'] for c in fcv])},
@@ -334,7 +337,7 @@ def coin_holding_html(h: dict) -> str:
 </div>"""
 
 
-def coin_pick_html(p: dict, bias: dict) -> str:
+def coin_pick_html(p: dict, bias: dict, cid: str = "fpc") -> str:
     o = p["order"]
     L = p["side"] == "LONG"
     chk = "".join(f"<span class='ck {'on' if v else ''}'>{'✔' if v else '·'} {esc(k)}</span>" for k, v in (p.get("checks") or {}).items())
@@ -345,7 +348,7 @@ def coin_pick_html(p: dict, bias: dict) -> str:
  <div class='hh'><div><b class='nm'>{esc(p['name'])}</b> <span class='tk'>{esc(p['symbol'])}</span> {side_html(p['side'])}</div>
   <div class='meta'>현재가 {fpx(p['close'])} · 24시간 {pct(p['chg24'])} · 1시간 RSI {p['rsi1h']:.0f} · 펀딩비 {fr} · 미결제약정 24h {oi} · 거래량 평소의 {p['vol_ratio']:.1f}배</div></div>
  <ol class='story'>{''.join(f'<li>{esc(s)}</li>' for s in p['story'])}</ol>
- <div class='chartbox'><canvas id='fpc'></canvas></div>
+ <div class='chartbox'><canvas id='{cid}'></canvas></div>
  <div class='checks'>{chk}</div>
 </div>
 <div class='order'>
@@ -526,8 +529,19 @@ def futures_part(fu: dict) -> str:
     out = [f"""<div class='box'><div class='bias'><b>오늘의 방향</b> {side_html(b['side'])} <span class='why'>점수 {b['score']:+.2f} (비트코인 {b['btc_score']:+.1f} · 나스닥 선물 {b['nq_score']:+.1f}×0.6)</span></div>
 <ul>{''.join(f'<li>{esc(w)}</li>' for w in b['why'])}</ul><div class='src'>데이터: {esc(fu['source_label'])} · 기준 {esc(fu['data_time'])} (한국 시간) · 분석 {fu['universe']}종목</div></div>"""]
     if fu.get("pick"):
-        out.append(coin_pick_html(fu["pick"], b))
+        p1 = fu["pick"]
+        out.append(f"<h3 style='margin:14px 0 4px'>🥇 1순위 원픽 · {'🟢 롱' if p1['side'] == 'LONG' else '🔴 숏'} · 확실도 {esc(p1.get('grade') or '–')}"
+                   f"{' · 반등/반락 자리(역추세)' if p1.get('kind') == '반등' else ''}</h3>")
+        out.append(coin_pick_html(p1, b))
         out.append(why_pick_html(fu))
+        p2 = fu.get("pick2")
+        if p2:
+            out.append(f"<h3 style='margin:18px 0 4px'>🥈 2순위 · 반대 방향 원픽 · {'🟢 롱' if p2['side'] == 'LONG' else '🔴 숏'} · 확실도 {esc(p2.get('grade') or '–')}"
+                       f"{' · 반등/반락 자리(역추세)' if p2.get('kind') == '반등' else ''}</h3>"
+                       f"<div class='why'>{esc(p2.get('rank_note', ''))}. 롱·숏을 함께 걸어 결정과 순위를 확인하는 용도예요 — 각각 증거금을 절반으로 나누는 걸 권해요.</div>")
+            out.append(coin_pick_html(p2, b, "fpc2"))
+            if p2.get("regime_note"):
+                out.append(f"<div class='why'>⚠ {esc(p2['regime_note'])}</div>")
     else:
         rows = "".join(f"<li><b>{esc(n['name'])} ({esc(n['symbol'])})</b> {side_html(n['side'])} 충족 {n['passed']}/8{' · 제외: ' + ', '.join(n.get('blocks') or []) if n.get('blocks') else ''} · "
                        f"{esc(', '.join(k for k, v in n['checks'].items() if v) or '없음')}</li>" for n in fu.get("near") or [])
@@ -604,6 +618,8 @@ def write(d: dict, out: Path) -> Path:
     if fu.get("pick"):
         from pricefmt import kst
         fu["pick"]["valid_until_kst"] = kst(fu["pick"]["valid_until"]) + " (한국 시간)"
+        if fu.get("pick2"):
+            fu["pick2"]["valid_until_kst"] = kst(fu["pick2"]["valid_until"]) + " (한국 시간)"
     S = out / "swing"
     S.mkdir(parents=True, exist_ok=True)
     hold_n, pick_n = len(d["holdings"]), len(d["picks"])
