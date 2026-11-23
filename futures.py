@@ -1023,14 +1023,25 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     if cfg.get("engine") == "sweep":
         # 2026-11-23: 원픽 엔진을 유동성 스윕 + 구조 전환으로 교체 (tools/bt_coin.py 백테스트 — 기존 방식은 무작위와 비슷하게 손해)
         sweep_sigs, sp = run_sweep(src, feats, cfg, tick, fx, now, bias)
+        try:
+            panel = btc_panel(src, btc, today)
+        except Exception as e:  # noqa: BLE001
+            print(f"  ✗ 비트코인 상황판: {e}")
+            panel = {}
+        # 비트코인 '숏 커버링 반등'(24시간 가격↑ · 미결제약정↓)에서는 롱 금지 — 백테스트(7~11월, 4시간 OI)에서 이 구간 롱 스윕은
+        # 비트코인 방향 필터 적용 시 10건 0승(평균 -4.8%), 미적용 17건 승률 12%(앞·뒤 기간 모두 손해)
+        covering = panel.get("oi_chg24") is not None and (panel.get("chg24") or 0) > 0 and panel["oi_chg24"] < 0
+        if covering:
+            for x in sweep_sigs:
+                if x["side"] == "LONG" and x.get("usable"):
+                    x.update(usable=False, why="비트코인 숏 커버링 반등(가격↑·미결제약정↓) — 롱 금지")
+            sp = [p_ for p_ in sp if p_["side"] != "LONG"]
         b4 = btc.get("trend4", 0)
         btc_gate = {"trend4": b4, "allowed": {1: "LONG", -1: "SHORT"}.get(b4),
                     "close": btc.get("live") or btc["close"], "ema20_4h": btc["ema20_4h"], "ema50_4h": btc["ema50_4h"],
                     "label": {1: "🟢 상승 배열 → 롱 신호만", -1: "🔴 하락 배열 → 숏 신호만", 0: "⚪ 엇갈림 → 쉬기"}[b4]}
-        try:
-            btc_gate["panel"] = btc_panel(src, btc, today)
-        except Exception as e:  # noqa: BLE001
-            print(f"  ✗ 비트코인 상황판: {e}")
+        btc_gate["panel"] = panel
+        btc_gate["covering"] = covering
         if sp:
             pick, block = sp[0], ""
         elif b4 == 0:

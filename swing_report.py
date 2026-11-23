@@ -590,13 +590,14 @@ def btc_panel_html(g: dict) -> str:
             f"<div class='why'>비트코인 {fpx(P.get('price') or g['close'])} · 24시간 {n(P.get('chg24'))} · 4시간 {n(P.get('chg4h'))}</div>"
             f"<table style='margin-top:6px'><tr><th>시간 단위</th><th>방향</th><th>근거</th></tr>{frames}</table>"
             f"<ul style='margin-top:6px'>"
-            f"<li><b>미결제약정(OKX BTC 무기한):</b> {oi}" + (f"<br>→ {esc(P['oi_read'])}" if P.get("oi_read") else "") + "</li>"
+            f"<li><b>미결제약정(OKX BTC 무기한):</b> {oi}" + (f"<br>→ {esc(P['oi_read'])}" if P.get("oi_read") else "")
+            + ("<br><b>⛔ 규칙: 숏 커버링 반등 중이라 롱 원픽은 내지 않아요</b> (백테스트: 이 구간 롱은 거의 다 손절)" if g.get("covering") else "") + "</li>"
             f"<li><b>펀딩비:</b> {'–' if fr is None else f'{fr:+.4f}%'}{fr_read}</li>"
             f"<li><b>롱·숏 계정 비율:</b> {'–' if ls is None else f'{ls:.2f}'}{ls_read}</li>"
             f"<li><b>주요 가격:</b> {esc(' · '.join(lv) or '–')}</li>"
             + (f"<li><b>다가오는 큰 일정:</b> {ev}</li>" if ev else "") +
             "</ul><div class='why'>원픽 방향은 백테스트로 검증된 <b>4시간 추세</b>만 씁니다 (일봉만 보면 손해, 1시간은 뒤 기간 손해였어요). "
-            "일봉·1시간·미결제약정·펀딩비·롱숏 비율·일정은 판단을 돕는 참고 정보예요 — 과거 데이터가 짧아 아직 규칙으로 검증하지 못했어요.</div></div>")
+            "미결제약정은 '숏 커버링 반등에서 롱 금지' 한 가지만 규칙으로 써요 (7~11월 백테스트). 일봉·1시간·펀딩비·롱숏 비율·일정은 참고 정보예요.</div></div>")
 
 
 def futures_part(fu: dict) -> str:
