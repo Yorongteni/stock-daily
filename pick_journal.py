@@ -52,9 +52,10 @@ def add(j: dict, pick: dict, fu_ctx: dict, gen_iso: str) -> None:
         "bias": (fu_ctx.get("bias") or {}).get("score"),
         # 스윕 엔진 (2026-11-23~): 복기용 맥락 — 비트코인 4시간 추세·미결제약정 구간·신호 깊이·무효 기준선
         "engine": pick.get("engine", "score"), "cancel_level": pick.get("cancel_level"),
-        "sweep_score": pick.get("score") if pick.get("engine") == "sweep" else None,
+        "sweep_score": pick.get("score") if pick.get("engine") == "sweep" else None, "btc_corr": pick.get("btc_corr"),
         "btc_ctx": {k: (fu_ctx.get("panel") or {}).get(k) for k in ("price", "chg24", "oi_chg24", "oi_chg4h", "funding", "ls_ratio")}
-                   | {"trend4": b.get("trend4"), "covering": fu_ctx.get("covering")},
+                   | {"trend4": b.get("trend4"), "covering": fu_ctx.get("covering"), "above_ema20_1h": (b.get("live") or b.get("close") or 0) > (b.get("ema20_1h") or 9e18),
+                      "chg4h": b.get("chg4h"), "above_ema20_4h": (b.get("live") or b.get("close") or 0) > (b.get("ema20_4h") or 9e18)},
         "status": "pending",
     })
 
@@ -150,6 +151,7 @@ def stats(j: dict) -> dict:
         "미결제약정 24시간": lambda x: _bucket(x["feats"].get("oi_chg24"), [1, 3], ["+1% 미만", "+1~3%", "+3% 이상"]),
         "엔진": lambda x: x.get("engine") or "score",
         "비트코인 미결제약정 구간": lambda x: _oi_regime(x.get("btc_ctx") or {}),
+        "비트코인과 상관(72시간)": lambda x: _bucket(x.get("btc_corr"), [0.4, 0.6, 0.8], ["0.4 미만", "0.4~0.6", "0.6~0.8", "0.8 이상"]),
     }
     out = {"total": agg(done), "picks": len(j["picks"]),
            "no_fill": sum(1 for x in j["picks"] if x.get("result") == "NO_FILL"),

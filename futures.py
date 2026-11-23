@@ -800,7 +800,15 @@ def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias:
                 continue
             chk = {"4시간 추세가 반대 아님": True, f"24시간 {'저점' if side == 'LONG' else '고점'} 스윕": True,
                    "다시 돌아와 마감": True, "15분봉 구조 전환": True, "손절폭 0.4~3%": True}
+            # 복기용: 비트코인과 얼마나 같이 움직이는지 (최근 72시간 1시간 수익률 상관) — 규칙에는 아직 안 씀 (11/23 백테스트에서 일관된 개선 없음)
+            try:
+                a_ = pd.Series(f["spark"]["close"]).pct_change()
+                b_ = pd.Series(feats["BTCUSDT"]["spark"]["close"]).pct_change()
+                corr = round(float(a_.corr(b_)), 2) if sym != "BTCUSDT" else 1.0
+            except Exception:  # noqa: BLE001
+                corr = None
             pk = {**{k: v for k, v in f.items() if k != "spark"}, "engine": "sweep", "side": side, "score": round(sig["score"], 3),
+                  "btc_corr": corr,
                   "checks": chk, "passed": 5, "grade": "B", "aligned": side == bias["side"] or bias["side"] == "NEUTRAL",
                   "sweep": {k: (iso(v) if isinstance(v, datetime) else v) for k, v in sig.items()},
                   "order": o, "story": sweep_story(f, side, sig, o), "spark": f["spark"], "kind": "스윕",
