@@ -49,7 +49,7 @@ DEFAULTS = {
     # 2026-11-21 UNI 숏 손절 복기로 추가 (과매도 추격 숏 차단)
     "chase_rsi": 28, "chase_dist": 3.5, "oi_min": 1.0, "btc_exhaust_rsi": 22,
     # 2026-11-23 백테스트(tools/bt_coin.py)로 바꾼 원픽 엔진: 유동성 스윕 + 15분봉 구조 전환, 시장가 진입, 손익비 2
-    "engine": "sweep", "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
+    "engine": "sweep", "sweep_valid_min": 60, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
@@ -682,12 +682,14 @@ def sweep_signal(m15: pd.DataFrame, f: dict, side: str, cfg: dict) -> dict | Non
     if not (swept and back and mss):
         return None
     return {"level": lvl, "extreme": float(ext[i]), "sweep_time": recent.index[i].to_pydatetime(), "mss_level": mss_lvl,
-            "last_close": float(last.Close), "score": abs(float(last.Close) - lvl) / lvl * 100}
+            "last_close": float(last.Close), "confirm_time": recent.index[-1].to_pydatetime() + timedelta(minutes=15),
+            "score": abs(float(last.Close) - lvl) / lvl * 100}
 
 
 def sweep_order(f: dict, side: str, sig: dict, cfg: dict, tick: float | None, fx: float) -> dict | None:
     L = side == "LONG"
-    entry = rp(f.get("live") or sig["last_close"], tick)              # 시장가: 지금 가격
+    # 진입 지정가 = 신호를 확정한 15분봉 종가 (복기·개선을 위해 진입가를 고정해 기록). 백테스트의 '다음 봉 시가 진입'과 거의 같은 값.
+    entry = rp(sig["last_close"], tick)
     sl = rp(sig["extreme"] * (1 - 0.0005) if L else sig["extreme"] * (1 + 0.0005), tick)
     d = abs(entry - sl) / entry * 100
     if not 0.4 <= d <= 3.0 or (L and sl >= entry) or (not L and sl <= entry):
@@ -700,7 +702,8 @@ def sweep_order(f: dict, side: str, sig: dict, cfg: dict, tick: float | None, fx
     win_roe = round((abs(tp - entry) / entry * 100 - fee_pct) * lev, 2)
     win, loss = round(mg * win_roe / 100, 2), round(-mg * loss_roe / 100, 2)
     liq = rp(entry * (1 - 1 / lev + cfg["mmr"] / 100) if L else entry * (1 + 1 / lev - cfg["mmr"] / 100), tick)
-    return {"entry": entry, "market": True, "off_pct": 0.0, "tp": tp, "tp_pct": round(abs(tp - entry) / entry * 100, 2), "sl": sl,
+    return {"entry": entry, "market": True, "limit_basis": f"신호를 확정한 15분봉({kst(sig['confirm_time'], '%H:%M')}) 종가",
+            "valid_min": int(cfg.get("sweep_valid_min", 60)), "off_pct": 0.0, "tp": tp, "tp_pct": round(abs(tp - entry) / entry * 100, 2), "sl": sl,
             "sl_dist": round(d, 2), "sl_basis": f"{kst(sig['sweep_time'], '%d일 %H:%M')} 15분봉이 찌른 {'저점' if L else '고점'} {fmt_px(sig['extreme'])} 바로 {'아래' if L else '위'}",
             "loss_roe": loss_roe, "win_roe": win_roe, "liq": liq, "leverage": lev, "margin": mg, "notional": round(mg * lev, 2),
             "qty": qty_for(mg * lev, entry), "fx": round(fx, 1), "win_usdt": win, "loss_usdt": loss,
@@ -717,7 +720,7 @@ def sweep_story(f: dict, side: str, sig: dict, o: dict) -> list[str]:
             f"그 근처에 모여 있던 손절 주문을 털어 냈어요 (유동성 스윕).",
             f"그 뒤 가격이 다시 {fmt_px(sig['level'])} {'위' if L else '아래'}로 돌아와 마감했고, 찌른 뒤 생긴 작은 {w2} {fmt_px(sig['mss_level'])}를 "
             f"마감으로 {'넘어섰어요' if L else '깨뜨렸어요'} — 15분봉 흐름이 {'위' if L else '아래'}로 바뀐 신호 (구조 전환).",
-            f"4시간봉 큰 추세가 반대 방향이 아니라 이 신호를 씁니다. 지금 가격 {fmt_px(o['entry'])}에 시장가로 들어가고, 손절은 찌른 끝 바로 밖 "
+            f"4시간봉 큰 추세가 반대 방향이 아니라 이 신호를 씁니다. 진입 지정가는 신호를 확정한 15분봉 종가 {fmt_px(o['entry'])}(1시간 유효), 손절은 찌른 끝 바로 밖 "
             f"{fmt_px(o['sl'])}({o['sl_dist']:.2f}%), 목표는 손절폭의 {o['rr']:.0f}배인 {fmt_px(o['tp'])}예요.",
             "근거: 2026-07~11 상위 30코인 백테스트(시장가·수수료 포함)에서 시험한 방법 중 가장 일관된 성적 — 신호 1회 평균 +0.2%(3배 기준), "
             "다만 기간에 따라 약한 마이너스 구간도 있어 우위는 작아요. 규모는 작게."]
@@ -746,7 +749,7 @@ def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias:
                   "sweep": {k: (iso(v) if isinstance(v, datetime) else v) for k, v in sig.items()},
                   "order": o, "story": sweep_story(f, side, sig, o), "spark": f["spark"], "kind": "스윕",
                   "regime_note": "", "hold_hours": cfg["hold_hours"], "order_hours": 0,
-                  "order_until": iso(now + timedelta(minutes=15)), "valid_until": iso(now + timedelta(minutes=15))}
+                  "order_until": iso(now + timedelta(minutes=o["valid_min"])), "valid_until": iso(now + timedelta(minutes=o["valid_min"]))}
             picks.append(pk)
     picks.sort(key=lambda p: -p["score"])
     return sigs, picks

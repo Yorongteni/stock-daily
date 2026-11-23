@@ -355,23 +355,23 @@ def coin_pick_html(p: dict, bias: dict, cid: str = "fpc") -> str:
 
 
 def _market_order_html(p: dict) -> str:
-    """스윕 엔진: 지금 시장가 진입 + TP/SL 동시 입력 (본전 이동·트레일링 없음 — 백테스트한 규칙 그대로)."""
+    """스윕 엔진: 진입 지정가(신호 확정 15분봉 종가, 1시간 유효) + TP/SL 동시 입력 (본전 이동·트레일링 없음 — 백테스트한 규칙 그대로)."""
     o = p["order"]
     L = p["side"] == "LONG"
     return f"""
 <div class='order'>
  <div class='oh'><div class='onm'>{esc(p['symbol'])} <span>{'🟢 LONG (오르면 수익)' if L else '🔴 SHORT (내리면 수익)'}</span></div>
   <div class='oq'>격리 {o['leverage']}배<small>증거금 {o['margin']:,.0f} USDT · 포지션 {o['notional']:,.0f} USDT · 수량 {o['qty']}</small></div></div>
- {tri_html("진입 (지금 시장가)", fpx(o['entry']), f"브리핑 시각 가격 · {esc(p.get('valid_until_kst', ''))}까지(15분) 이 근처일 때만 진입, 지나면 새 브리핑",
+ {tri_html("진입 지정가 (Entry)", fpx(o['entry']), f"{esc(o.get('limit_basis', ''))} · 지금 가격 {fpx(p.get('live'))} · {esc(p.get('valid_until_kst', ''))}까지({o.get('valid_min', 60)}분) 안 닿으면 취소",
            f"목표 (TP · 손절폭 {o['rr']:.0f}배 · {'+' if L else '-'}{o['tp_pct']}%)", fpx(o['tp']),
            f"예상 수익 <b>+약 {o.get('win_krw', 0):,}원</b> · {usdt(o['win_usdt'], True)} (+{o.get('win_roe')}%, 수수료 뺀 값)",
            f"손절 (SL · {'-' if L else '+'}{o.get('sl_dist'):.2f}%)", fpx(o['sl']),
            f"최대 손실 <b>-약 {abs(o.get('loss_krw', 0)):,}원</b> · {usdt(o['loss_usdt'], True)} (-{o.get('loss_roe')}%, 수수료 포함)")}
  <div class='orow'><span>손절 근거</span><b class='sm'>{esc(o.get('sl_basis', ''))}</b>
   <em>털어 낸 끝을 다시 넘으면 이 신호는 틀린 것 — 넓히지 않습니다</em></div>
- <div class='orow'><span>거래소 입력</span><b class='sm'>격리 · 3x · <b>시장가</b> {'롱(매수)' if L else '숏(매도)'} {o['qty']}개 · TP/SL 체크 → TP {fpx(o['tp'])} / SL {fpx(o['sl'])}</b>
-  <em>주문 창에서 TP/SL 을 함께 넣으면 화면을 안 봐도 됩니다 · SL 트리거는 '마크 가격' 권장</em></div>
- <div class='orow ddl'><span>시간 정리</span><b class='sm'>진입 뒤 {p.get('hold_hours', 24)}시간 안에 TP·SL 이 안 나면 시장가 정리</b>
+ <div class='orow'><span>거래소 입력</span><b class='sm'>격리 · 3x · <b>지정가 {fpx(o['entry'])}</b> {'롱(매수)' if L else '숏(매도)'} {o['qty']}개 · TP/SL 체크 → TP {fpx(o['tp'])} / SL {fpx(o['sl'])}</b>
+  <em>주문 창에서 TP/SL 을 함께 넣으면 화면을 안 봐도 됩니다 · 지금 가격이 이미 지정가보다 {'낮으면' if L else '높으면'} 바로 체결돼요 · SL 트리거는 '마크 가격' 권장</em></div>
+ <div class='orow ddl'><span>시간 정리</span><b class='sm'>체결 뒤 {p.get('hold_hours', 24)}시간 안에 TP·SL 이 안 나면 시장가 정리</b>
   <em>본전 이동·트레일링은 쓰지 않아요 — 백테스트한 규칙(TP·SL·24시간) 그대로가 근거라서</em></div>
  <div class='ohint'>참고 청산가(격리 {o['leverage']}배): 약 {fpx(o['liq'])} — 손절이 훨씬 먼저 와요.</div>
 </div>"""
