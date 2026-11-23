@@ -450,6 +450,47 @@
    "bias": -1.0,
    "status": "pending",
    "filled_at": "2026-11-23T00:00:00+00:00"
+  },
+  {
+   "key": "BNBUSDT|SHORT|554.18|540.6|561.64",
+   "symbol": "BNBUSDT",
+   "name": "BNB",
+   "side": "SHORT",
+   "picked_at": "2026-11-23T03:47:09Z",
+   "valid_until": "2026-11-23T09:47:09Z",
+   "hold_hours": 24,
+   "entry": 554.18,
+   "tp": 540.6,
+   "sl": 561.64,
+   "be_trigger": 547.53,
+   "be_price": 553.63,
+   "grade": "A",
+   "score": 9.45,
+   "passed": 7,
+   "aligned": true,
+   "missing": [
+    "미결제약정 방향 일치"
+   ],
+   "feats": {
+    "close": 553.11,
+    "chg24": 1.8431228134781747,
+    "chg4h": -0.682336463701489,
+    "rsi1h": 49.93938949618154,
+    "dist1h": -0.2389244179103467,
+    "oi_chg24": 1.0357634634508672,
+    "vol_ratio": 1.5138594549763604,
+    "funding": 0.00095538606551,
+    "range24": 4.462041908481145,
+    "hi24": 561.19,
+    "lo24": 536.51
+   },
+   "btc": {
+    "rsi4h": 50.55628233002516,
+    "chg24": 1.8693018829218744,
+    "above_ema20_4h": false
+   },
+   "bias": -1.6,
+   "status": "pending"
   }
  ]
 }
