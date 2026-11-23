@@ -69,6 +69,9 @@ git pull --rebase -q origin main && git push origin HEAD:main
 
 ## 5. 사용자에게 보고
 
+- **원픽만 설명합니다.** 복기(끝난 매매·원픽 일지·지난 판정)는 브리핑에서 말하지 않습니다 — 데이터(data/pick_journal.json,
+  data/binance_futures_log.json)에는 계속 쌓이고, 사용자가 "복기 데이터 줘"라고 할 때만 꺼내서 보여 줍니다.
+
 - **롱·숏 양쪽을 반드시 함께 보고합니다.** 원픽 방향 최고 후보와 `futures.other_best`(반대 방향 최고 후보)를 나란히,
   반대쪽이 왜 밀렸는지(4시간 추세·시장 방향·제외 규칙·못 채운 조건)를 씁니다. 한쪽만 말하지 않습니다.
 

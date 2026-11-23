@@ -546,7 +546,6 @@ def futures_part(fu: dict) -> str:
         rows = "".join(f"<li><b>{esc(n['name'])} ({esc(n['symbol'])})</b> {side_html(n['side'])} 충족 {n['passed']}/8{' · 제외: ' + ', '.join(n.get('blocks') or []) if n.get('blocks') else ''} · "
                        f"{esc(', '.join(k for k, v in n['checks'].items() if v) or '없음')}</li>" for n in fu.get("near") or [])
         out.append(f"<div class='empty'>⏸ {esc(fu['block'])}</div>" + (f"<div class='box'><h3>아깝게 빠진 후보</h3><ul>{rows}</ul></div>" if rows else ""))
-    out.append(journal_html(fu.get("journal") or {}))
     return "".join(out)
 
 
@@ -641,12 +640,8 @@ def write(d: dict, out: Path) -> Path:
     intro += "<h3 style='margin:22px 0 6px'>🚨 보유 포지션 긴급 점검 — 오늘 밤 탈출·대응 지정가</h3>"
     intro += urgent or "<div class='empty'>지금 물려 있거나 정리 안 된 포지션이 없어요. 오늘은 새 타점에 집중합니다.</div>"
     evs = "".join(event_html(e) for e in d["events"]) + "".join(coin_event_html(e) for e in fu.get("events") or [])
-    revs = fu.get("reviews") or []
-    if revs:
-        intro += "<h3 style='margin:22px 0 6px'>🔍 매매 복기 — 끝난 코인 매매를 시세로 다시 보기</h3>" + "".join(review_html(r) for r in revs)
+    # 복기(끝난 매매 다시 보기 · 지난 판정 · 원픽 일지)는 리포트에서 뺀다 — 데이터에는 계속 쌓고, 사용자가 요청할 때만 꺼내 보여 준다 (2026-11-23)
     intro += weekly_html(d, out)
-    intro += "<h3 style='margin:22px 0 6px'>📋 지난 판정 결과 (실제 매매)</h3>"
-    intro += evs or "<div class='ev'>어제 판정할 추천·보유 종목이 없었어요.</div>"
     parts.append(f"<div class='part'>공통 인트로 · 어제 매매 성적표 & 보유 포지션 긴급 점검"
                  f"<small>미국 {esc((d.get('data_date') or '')[5:].replace('-', '/'))} 종가 · 코인 {esc(fu.get('data_time') or '–')} 1시간봉 기준</small></div>{intro}")
     # ── 1부 미국 주식
