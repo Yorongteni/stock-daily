@@ -75,7 +75,9 @@ def _coin_plan(sym: str, side: str, levels: dict, today: str, ev: dict, open_: b
     d0 = Date.fromisoformat(today)
     rows = [{"date": today, "label": f"{_md(d0)} 지금 ~ {hold_h}시간",
              "action": ((f"보유 중: TP {tp} / SL {sl} 유지" if open_ else
-                         f"지정가 {en} {'롱' if L else '숏'} 예약 ({order_h}시간 유효) — 체결되면 TP {tp} / SL {sl} 동시 설정")
+                         (f"지금 시장가 {'롱' if L else '숏'} (브리핑 가격 {en} 근처일 때만, 15분 안) — 주문 창에서 TP {tp} / SL {sl} 동시 입력"
+                          if levels.get("market") else
+                          f"지정가 {en} {'롱' if L else '숏'} 예약 ({order_h}시간 유효) — 체결되면 TP {tp} / SL {sl} 동시 설정"))
                         + (f" · 가격이 {bt}에 닿으면 SL 을 본전 {bp}로 이동" if bt else "")
                         + f" · 체결 뒤 {hold_h}시간 안에 TP·SL 이 안 나면 시장가 정리"),
              "watch": ""}]
@@ -121,7 +123,7 @@ def build(d: dict) -> list[dict]:
         o = pk["order"]
         out.append({"kind": "이번 추천 원픽 (기록 안 함)", "market": "바이낸스 3배", "name": f"{pk.get('name')} ({pk['symbol']}) {pk['side']}",
                     "summary": f"진입 {o['entry']} · TP {o['tp']} · SL {o['sl']} · 증거금 {o['margin']:.0f} USDT",
-                    "days": _coin_plan(pk["symbol"], pk["side"], {"tp": o["tp"], "sl": o["sl"], "entry": o["entry"],
+                    "days": _coin_plan(pk["symbol"], pk["side"], {"tp": o["tp"], "sl": o["sl"], "entry": o["entry"], "market": o.get("market"),
                                                                  "be_trigger": o.get("be_trigger"), "be_price": o.get("be_price")},
                                        today, ev, False, pk.get("hold_hours", 24), pk.get("order_hours", 6))})
     return out

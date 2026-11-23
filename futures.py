@@ -48,6 +48,8 @@ DEFAULTS = {
     "sl_min": 1.2, "sl_max": 1.8, "max_loss_roe": 5.5, "sl_buffer": 0.2, "be_trigger_pct": 1.2, "top_n": 30, "max_open": 2, "min_range24": 3.0, "mmr": 0.5,
     # 2026-11-21 UNI 숏 손절 복기로 추가 (과매도 추격 숏 차단)
     "chase_rsi": 28, "chase_dist": 3.5, "oi_min": 1.0, "btc_exhaust_rsi": 22,
+    # 2026-11-23 백테스트(tools/bt_coin.py)로 바꾼 원픽 엔진: 유동성 스윕 + 15분봉 구조 전환, 시장가 진입, 손익비 2
+    "engine": "sweep", "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
@@ -214,7 +216,7 @@ class OKX:
         return out
 
     def klines(self, sym: str, interval: str, limit: int = 200) -> pd.DataFrame:
-        bar = {"1h": "1H", "4h": "4H"}[interval]
+        bar = {"1h": "1H", "4h": "4H", "15m": "15m"}[interval]
         rows = self._data("/api/v5/market/candles", {"instId": self.inst(sym), "bar": bar, "limit": min(limit, 300)})
         return _df([r[:6] for r in rows])
 
@@ -658,6 +660,98 @@ def make_order(f: dict, side: str, cfg: dict, tick: float | None, fx: float = 14
             "trail_act": bt, "trail_dist": rp(abs(bt - bp), tick) if bt and bp else None}
 
 
+# ───────────────── 유동성 스윕 + 구조 전환 엔진 (백테스트로 채택) ─────────────────
+def sweep_signal(m15: pd.DataFrame, f: dict, side: str, cfg: dict) -> dict | None:
+    """끝난 15분봉 m15 로 판단. 최근 rec 봉(3시간) 안에 그 전 base 봉(24시간)의 저점(롱)·고점(숏)을 찔렀다가
+    되돌아와 마감하고, 찌른 뒤 작은 고점(저점)을 마감으로 넘겼으면 신호. 4시간 추세가 반대면 제외."""
+    rec, base = int(cfg["sweep_recent"]), int(cfg["sweep_base"])
+    L = side == "LONG"
+    if len(m15) < rec + base or f.get("trend4") == (-1 if L else 1):
+        return None
+    bs, recent = m15.iloc[-(rec + base):-rec], m15.iloc[-rec:]
+    lvl = float(bs.Low.min() if L else bs.High.max())
+    ext = recent.Low.values if L else recent.High.values
+    i = int(ext.argmin() if L else ext.argmax())
+    if i >= len(recent) - 1:
+        return None
+    last, mid = recent.iloc[-1], recent.iloc[i:-1]
+    swept = ext[i] < lvl if L else ext[i] > lvl
+    back = last.Close > lvl if L else last.Close < lvl
+    mss_lvl = float(mid.High.max() if L else mid.Low.min())
+    mss = last.Close > mss_lvl if L else last.Close < mss_lvl
+    if not (swept and back and mss):
+        return None
+    return {"level": lvl, "extreme": float(ext[i]), "sweep_time": recent.index[i].to_pydatetime(), "mss_level": mss_lvl,
+            "last_close": float(last.Close), "score": abs(float(last.Close) - lvl) / lvl * 100}
+
+
+def sweep_order(f: dict, side: str, sig: dict, cfg: dict, tick: float | None, fx: float) -> dict | None:
+    L = side == "LONG"
+    entry = rp(f.get("live") or sig["last_close"], tick)              # 시장가: 지금 가격
+    sl = rp(sig["extreme"] * (1 - 0.0005) if L else sig["extreme"] * (1 + 0.0005), tick)
+    d = abs(entry - sl) / entry * 100
+    if not 0.4 <= d <= 3.0 or (L and sl >= entry) or (not L and sl <= entry):
+        return None
+    risk = abs(entry - sl)
+    tp = rp(entry + cfg["sweep_rr"] * risk if L else entry - cfg["sweep_rr"] * risk, tick)
+    lev, mg = cfg["leverage"], cfg["sweep_margin"]
+    fee_pct = 0.21                                                     # 왕복 수수료+슬리피지 (가격 %)
+    loss_roe = round((d + fee_pct) * lev, 2)
+    win_roe = round((abs(tp - entry) / entry * 100 - fee_pct) * lev, 2)
+    win, loss = round(mg * win_roe / 100, 2), round(-mg * loss_roe / 100, 2)
+    liq = rp(entry * (1 - 1 / lev + cfg["mmr"] / 100) if L else entry * (1 + 1 / lev - cfg["mmr"] / 100), tick)
+    return {"entry": entry, "market": True, "off_pct": 0.0, "tp": tp, "tp_pct": round(abs(tp - entry) / entry * 100, 2), "sl": sl,
+            "sl_dist": round(d, 2), "sl_basis": f"{kst(sig['sweep_time'], '%d일 %H:%M')} 15분봉이 찌른 {'저점' if L else '고점'} {fmt_px(sig['extreme'])} 바로 {'아래' if L else '위'}",
+            "loss_roe": loss_roe, "win_roe": win_roe, "liq": liq, "leverage": lev, "margin": mg, "notional": round(mg * lev, 2),
+            "qty": qty_for(mg * lev, entry), "fx": round(fx, 1), "win_usdt": win, "loss_usdt": loss,
+            "win_krw": int(round(win * fx)), "loss_krw": int(round(loss * fx)), "rr": cfg["sweep_rr"],
+            "be_trigger": None, "be_price": None, "trail_act": None, "trail_dist": None}
+
+
+def sweep_story(f: dict, side: str, sig: dict, o: dict) -> list[str]:
+    L = side == "LONG"
+    w, w2 = ("저점", "고점") if L else ("고점", "저점")
+    return [f"그 전 24시간 15분봉 {w}은 {fmt_px(sig['level'])}였어요. {kst(sig['sweep_time'], '%H:%M')} 봉이 그 아래로 {fmt_px(sig['extreme'])}까지 찔러 "
+            f"그 근처에 모여 있던 손절 주문을 털어 냈어요 (유동성 스윕)." if L else
+            f"그 전 24시간 15분봉 {w}은 {fmt_px(sig['level'])}였어요. {kst(sig['sweep_time'], '%H:%M')} 봉이 그 위로 {fmt_px(sig['extreme'])}까지 찔러 "
+            f"그 근처에 모여 있던 손절 주문을 털어 냈어요 (유동성 스윕).",
+            f"그 뒤 가격이 다시 {fmt_px(sig['level'])} {'위' if L else '아래'}로 돌아와 마감했고, 찌른 뒤 생긴 작은 {w2} {fmt_px(sig['mss_level'])}를 "
+            f"마감으로 {'넘어섰어요' if L else '깨뜨렸어요'} — 15분봉 흐름이 {'위' if L else '아래'}로 바뀐 신호 (구조 전환).",
+            f"4시간봉 큰 추세가 반대 방향이 아니라 이 신호를 씁니다. 지금 가격 {fmt_px(o['entry'])}에 시장가로 들어가고, 손절은 찌른 끝 바로 밖 "
+            f"{fmt_px(o['sl'])}({o['sl_dist']:.2f}%), 목표는 손절폭의 {o['rr']:.0f}배인 {fmt_px(o['tp'])}예요.",
+            "근거: 2026-07~11 상위 30코인 백테스트(시장가·수수료 포함)에서 시험한 방법 중 가장 일관된 성적 — 신호 1회 평균 +0.2%(3배 기준), "
+            "다만 기간에 따라 약한 마이너스 구간도 있어 우위는 작아요. 규모는 작게."]
+
+
+def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias: dict) -> tuple[list[dict], list[dict]]:
+    """모든 후보 코인의 15분봉에서 스윕 신호를 찾아 (신호 목록, 원픽 후보 목록) 반환."""
+    picks, sigs = [], []
+    for sym, f in feats.items():
+        try:
+            m = closed(src.klines(sym, "15m", 200), 0.25, now)
+        except Exception:  # noqa: BLE001
+            continue
+        for side in ("LONG", "SHORT"):
+            sig = sweep_signal(m, f, side, cfg)
+            if not sig:
+                continue
+            o = sweep_order(f, side, sig, cfg, tick(sym), fx)
+            sigs.append({"symbol": sym, "name": f["name"], "side": side, "score": round(sig["score"], 3), "usable": bool(o)})
+            if not o:
+                continue
+            chk = {"4시간 추세가 반대 아님": True, f"24시간 {'저점' if side == 'LONG' else '고점'} 스윕": True,
+                   "다시 돌아와 마감": True, "15분봉 구조 전환": True, "손절폭 0.4~3%": True}
+            pk = {**{k: v for k, v in f.items() if k != "spark"}, "engine": "sweep", "side": side, "score": round(sig["score"], 3),
+                  "checks": chk, "passed": 5, "grade": "B", "aligned": side == bias["side"] or bias["side"] == "NEUTRAL",
+                  "sweep": {k: (iso(v) if isinstance(v, datetime) else v) for k, v in sig.items()},
+                  "order": o, "story": sweep_story(f, side, sig, o), "spark": f["spark"], "kind": "스윕",
+                  "regime_note": "", "hold_hours": cfg["hold_hours"], "order_hours": 0,
+                  "order_until": iso(now + timedelta(minutes=15)), "valid_until": iso(now + timedelta(minutes=15))}
+            picks.append(pk)
+    picks.sort(key=lambda p: -p["score"])
+    return sigs, picks
+
+
 def story(f: dict, side: str, o: dict, bias: dict) -> list[str]:
     L = side == "LONG"
     a = (f"4시간봉이 50봉 평균선 {'위에서 오르는' if L else '아래에서 내리는'} 흐름이에요 "
@@ -865,7 +959,19 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         print(f"  ✓ {r['symbol']} {r['side']} 진입 {o['entry']} / TP {o['tp']} / SL {o['sl']}")
     # 반대 방향 원픽 (사용자가 롱·숏 두 개를 함께 걸어 결정·순위를 확인) — 같은 규칙으로 고른 반대쪽 1위
     pick2 = None
-    if pick:
+    sweep_sigs = None
+    if cfg.get("engine") == "sweep":
+        # 2026-11-23: 원픽 엔진을 유동성 스윕 + 구조 전환으로 교체 (tools/bt_coin.py 백테스트 — 기존 방식은 무작위와 비슷하게 손해)
+        sweep_sigs, sp = run_sweep(src, feats, cfg, tick, fx, now, bias)
+        pick, block = (sp[0], "") if sp else (None, (
+            "지금은 유동성 스윕 + 구조 전환 자리가 나온 코인이 없어요. 백테스트에서 우위가 확인된 자리가 아닐 때는 들어가지 않고 쉬는 게 원칙이에요. "
+            "이 신호는 물어볼 때 5번 중 1번꼴로 나와요 — 1~2시간 뒤 다시 브리핑해 보세요."))
+        opp = [p_ for p_ in sp if pick and p_["side"] != pick["side"]]
+        if opp:
+            pick2 = opp[0]
+            pick2["rank_note"] = "반대 방향 스윕 신호 1위"
+        print(f"  ✓ 스윕 신호 {len(sweep_sigs)}개 · 원픽 {pick['symbol'] + ' ' + pick['side'] if pick else '없음 (쉬기)'}")
+    elif pick:
         pool2 = [r_ for r_ in ok if r_["side"] != pick["side"] and r_["symbol"] != pick["symbol"]]
         if pool2:
             pick2, _o2, _f2 = _mk_pick(pool2[0], pool2)
@@ -895,7 +1001,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     return {
         "source": src.name, "source_label": src.label, "source_errors": src_errs, "generated_at": kst(now, "%Y-%m-%d %H:%M"),
         "data_time": kst(btc["bar_time"]), "bias": bias, "btc": {k: btc[k] for k in ("close", "chg24", "ema20_4h", "ema50_4h", "rsi4h", "funding", "oi_chg24")},
-        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "pick2": pick2, "near": near, "block": block,
+        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "pick2": pick2, "near": near, "engine": cfg.get("engine"), "sweep_signals": sweep_sigs, "block": block,
         "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx), "reviews": reviews,
         "other_best": other, "journal": jstats,
     }

@@ -351,6 +351,36 @@ def coin_pick_html(p: dict, bias: dict, cid: str = "fpc") -> str:
  <div class='chartbox'><canvas id='{cid}'></canvas></div>
  <div class='checks'>{chk}</div>
 </div>
+{_market_order_html(p) if o.get('market') else _limit_order_html(p)}"""
+
+
+def _market_order_html(p: dict) -> str:
+    """스윕 엔진: 지금 시장가 진입 + TP/SL 동시 입력 (본전 이동·트레일링 없음 — 백테스트한 규칙 그대로)."""
+    o = p["order"]
+    L = p["side"] == "LONG"
+    return f"""
+<div class='order'>
+ <div class='oh'><div class='onm'>{esc(p['symbol'])} <span>{'🟢 LONG (오르면 수익)' if L else '🔴 SHORT (내리면 수익)'}</span></div>
+  <div class='oq'>격리 {o['leverage']}배<small>증거금 {o['margin']:,.0f} USDT · 포지션 {o['notional']:,.0f} USDT · 수량 {o['qty']}</small></div></div>
+ {tri_html("진입 (지금 시장가)", fpx(o['entry']), f"브리핑 시각 가격 · {esc(p.get('valid_until_kst', ''))}까지(15분) 이 근처일 때만 진입, 지나면 새 브리핑",
+           f"목표 (TP · 손절폭 {o['rr']:.0f}배 · {'+' if L else '-'}{o['tp_pct']}%)", fpx(o['tp']),
+           f"예상 수익 <b>+약 {o.get('win_krw', 0):,}원</b> · {usdt(o['win_usdt'], True)} (+{o.get('win_roe')}%, 수수료 뺀 값)",
+           f"손절 (SL · {'-' if L else '+'}{o.get('sl_dist'):.2f}%)", fpx(o['sl']),
+           f"최대 손실 <b>-약 {abs(o.get('loss_krw', 0)):,}원</b> · {usdt(o['loss_usdt'], True)} (-{o.get('loss_roe')}%, 수수료 포함)")}
+ <div class='orow'><span>손절 근거</span><b class='sm'>{esc(o.get('sl_basis', ''))}</b>
+  <em>털어 낸 끝을 다시 넘으면 이 신호는 틀린 것 — 넓히지 않습니다</em></div>
+ <div class='orow'><span>거래소 입력</span><b class='sm'>격리 · 3x · <b>시장가</b> {'롱(매수)' if L else '숏(매도)'} {o['qty']}개 · TP/SL 체크 → TP {fpx(o['tp'])} / SL {fpx(o['sl'])}</b>
+  <em>주문 창에서 TP/SL 을 함께 넣으면 화면을 안 봐도 됩니다 · SL 트리거는 '마크 가격' 권장</em></div>
+ <div class='orow ddl'><span>시간 정리</span><b class='sm'>진입 뒤 {p.get('hold_hours', 24)}시간 안에 TP·SL 이 안 나면 시장가 정리</b>
+  <em>본전 이동·트레일링은 쓰지 않아요 — 백테스트한 규칙(TP·SL·24시간) 그대로가 근거라서</em></div>
+ <div class='ohint'>참고 청산가(격리 {o['leverage']}배): 약 {fpx(o['liq'])} — 손절이 훨씬 먼저 와요.</div>
+</div>"""
+
+
+def _limit_order_html(p: dict) -> str:
+    o = p["order"]
+    L = p["side"] == "LONG"
+    return f"""
 <div class='order'>
  <div class='oh'><div class='onm'>{esc(p['symbol'])} <span>{'🟢 LONG (오르면 수익)' if L else '🔴 SHORT (내리면 수익)'}</span></div>
   <div class='oq'>격리 {o['leverage']}배<small>증거금 {o['margin']:,.0f} USDT · 포지션 {o['notional']:,.0f} USDT · 수량 {o['qty']}</small></div></div>
@@ -410,6 +440,23 @@ CHECK_MEANING = {   # 원픽 조건을 쉬운 말로 (숏 기준 / 롱이면 반
     "펀딩비 과열 아님": "한쪽으로 쏠린 과열이 아니라 반대 방향 급반등 위험이 낮음",
     "변동폭 충분": "하루 움직임이 커서 목표가(±2.45%)에 닿을 여지가 있음",
 }
+
+
+def sweep_why_html(fu: dict) -> str:
+    """스윕 엔진 원픽 이유: 지금 신호가 난 코인들과 백테스트 근거."""
+    p = fu.get("pick")
+    if not p:
+        return ""
+    sig = fu.get("sweep_signals") or []
+    rows = "".join(f"<li>{esc(x['name'])} {side_html(x['side'])} 되돌림 깊이 {x['score']:.2f}%"
+                   + ("" if x.get("usable") else " · 손절폭이 0.4~3% 밖이라 제외") + "</li>" for x in sorted(sig, key=lambda x: -x["score"])[:6])
+    return (f"<div class='box' style='border-left:6px solid var(--wait)'><h3>🔍 왜 {esc(p.get('name', p['symbol']))} {'롱' if p['side'] == 'LONG' else '숏'}인가</h3>"
+            f"<div class='why'>거래대금 상위 {fu.get('universe', '')}개 코인의 15분봉에서 롱·숏 양쪽으로 '유동성 스윕 + 구조 전환'이 지금 막 나온 코인만 골랐어요. "
+            f"지금 신호가 난 곳은 {len(sig)}개이고, 털어 낸 자리에서 가장 크게 되돌아온(되돌림 깊이 1위) 것이 원픽이에요.</div>"
+            + (f"<ul>{rows}</ul>" if rows else "")
+            + "<div class='why'><b>이 방법을 쓰는 이유:</b> 2026-07~11 OKX 상위 30코인 백테스트(4시간마다 시장가 진입·수수료 포함)에서 "
+              "기존 방식(1회 평균 -0.45%, 3배 기준)·무작위(-0.59%)와 달리 신호 1회 평균 +0.2%로 시험한 7가지 중 가장 일관됐어요. "
+              "다만 우위가 작고 기간에 따라 약한 마이너스 구간도 있었어요 → <b>규모는 작게, 신호가 없으면 쉬기</b>.</div></div>")
 
 
 def why_pick_html(fu: dict) -> str:
@@ -533,12 +580,12 @@ def futures_part(fu: dict) -> str:
         out.append(f"<h3 style='margin:14px 0 4px'>🥇 1순위 원픽 · {'🟢 롱' if p1['side'] == 'LONG' else '🔴 숏'} · 확실도 {esc(p1.get('grade') or '–')}"
                    f"{' · 반등/반락 자리(역추세)' if p1.get('kind') == '반등' else ''}</h3>")
         out.append(coin_pick_html(p1, b))
-        out.append(why_pick_html(fu))
+        out.append(sweep_why_html(fu) if p1.get("engine") == "sweep" else why_pick_html(fu))
         p2 = fu.get("pick2")
         if p2:
             out.append(f"<h3 style='margin:18px 0 4px'>🥈 2순위 · 반대 방향 원픽 · {'🟢 롱' if p2['side'] == 'LONG' else '🔴 숏'} · 확실도 {esc(p2.get('grade') or '–')}"
                        f"{' · 반등/반락 자리(역추세)' if p2.get('kind') == '반등' else ''}</h3>"
-                       f"<div class='why'>{esc(p2.get('rank_note', ''))}. 롱·숏을 함께 걸어 결정과 순위를 확인하는 용도예요 — 각각 증거금을 절반으로 나누는 걸 권해요.</div>")
+                       f"<div class='why'>{esc(p2.get('rank_note', ''))}.</div>")
             out.append(coin_pick_html(p2, b, "fpc2"))
             if p2.get("regime_note"):
                 out.append(f"<div class='why'>⚠ {esc(p2['regime_note'])}</div>")
