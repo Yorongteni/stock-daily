@@ -818,7 +818,8 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "pending",
+   "filled_at": "2026-11-23T08:00:00+00:00"
   },
   {
    "key": "PUMPUSDT|SHORT|0.002582|0.002474|0.002636",
@@ -857,7 +858,8 @@
     "above_ema20_4h": true
    },
    "bias": -1.6,
-   "status": "pending"
+   "status": "pending",
+   "filled_at": "2026-11-23T09:00:00+00:00"
   }
  ]
 }
