@@ -1642,5 +1642,87 @@
     "built_at": "2026-11-23 21:15"
    }
   }
+ },
+ "2026-11-24": {
+  "kospi": -3.31,
+  "sp500": 4.73,
+  "headline": "엔비디아發 급반등, 코스피 갭상승 뒤 한은이 변수",
+  "stance": "관망 (지금 비중 유지)",
+  "allocation": {
+   "kr_equity": 22,
+   "us_equity": 28,
+   "gold_commodities": 10,
+   "usd_cash": 15,
+   "krw_cash_bonds": 20,
+   "alternatives": 5
+  },
+  "lists": {
+   "value": [
+    "SMCI",
+    "GOOGL",
+    "064350.KS",
+    "QCOM",
+    "PYPL"
+   ],
+   "growth": [
+    "MU",
+    "PLTR",
+    "196170.KQ",
+    "SMCI",
+    "042660.KS"
+   ],
+   "overvalued": [
+    "PANW",
+    "277810.KQ",
+    "003670.KS",
+    "TSLA",
+    "323410.KS"
+   ]
+  },
+  "names": {
+   "value": [
+    "슈퍼마이크로",
+    "알파벳",
+    "현대로템",
+    "퀄컴",
+    "페이팔"
+   ],
+   "growth": [
+    "마이크론",
+    "팔란티어",
+    "알테오젠",
+    "슈퍼마이크로",
+    "한화오션"
+   ],
+   "overvalued": [
+    "팔로알토네트웍스",
+    "레인보우로보틱스",
+    "포스코퓨처엠",
+    "테슬라",
+    "카카오뱅크"
+   ]
+  },
+  "valuation": {
+   "kr": {
+    "pe_median": 18.55,
+    "pb_median": 2.18,
+    "earnings_yield": 5.39,
+    "n": 55
+   },
+   "us": {
+    "pe_median": 23.8,
+    "pb_median": 5.93,
+    "earnings_yield": 4.2,
+    "n": 90
+   }
+  },
+  "slots": {
+   "am": {
+    "ai": true,
+    "stance": "관망 (지금 비중 유지)",
+    "headline": "엔비디아發 급반등, 코스피 갭상승 뒤 한은이 변수",
+    "built_at": "2026-11-24 06:14"
+   }
+  }
  }
 }
