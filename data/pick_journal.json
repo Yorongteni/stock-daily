@@ -1041,6 +1041,62 @@
     "above_ema20_4h": false
    },
    "status": "pending"
+  },
+  {
+   "key": "BNBUSDT|SHORT|552.87|533.28|564.76",
+   "symbol": "BNBUSDT",
+   "name": "BNB",
+   "side": "SHORT",
+   "picked_at": "2026-11-24T03:36:15Z",
+   "valid_until": "2026-11-24T04:06:15Z",
+   "hold_hours": 24,
+   "entry": 552.87,
+   "tp": 533.28,
+   "sl": 564.76,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": -0.204,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 549.44,
+    "chg24": -0.6635208186436614,
+    "chg4h": -1.188742019602543,
+    "rsi1h": 38.19389661714911,
+    "dist1h": -1.5766291338491834,
+    "oi_chg24": -4.18836841982383,
+    "vol_ratio": 0.7493376086797026,
+    "funding": -0.00042113243262,
+    "range24": 6.883372160745495,
+    "hi24": 587.19,
+    "lo24": 549.37
+   },
+   "btc": {
+    "rsi4h": 49.69700347579598,
+    "chg24": -0.876151930158727,
+    "above_ema20_4h": false
+   },
+   "bias": -1.5,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.96,
+   "btc_ctx": {
+    "price": 60246.5,
+    "chg24": -0.876151930158727,
+    "oi_chg24": -6.89001216707088,
+    "oi_chg4h": -1.1633393988514151,
+    "funding": 0.00440638457169,
+    "ls_ratio": 2.6,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": -1.9118694342630533,
+    "above_ema20_4h": false
+   },
+   "status": "pending"
   }
  ]
 }
