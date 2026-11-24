@@ -787,7 +787,7 @@ def btc_panel(src, btc: dict, today: str) -> dict:
     return P
 
 
-def try_pick(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, sweep_sigs: list, sp_all: list) -> dict | None:
+def try_pick(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, sweep_sigs: list, sp_all: list, side_hint: str | None = None) -> dict | None:
     """언제 물어봐도 나오는 '시험 원픽' (2026-11-24 사용자 요청: 확률이 낮아도 실전 데이터를 쌓자).
     B = 스윕 신호는 있는데 비트코인 방향 필터에 걸린 것 중 1위 / C = 비트코인 단기 방향 + 비트코인과 같이 움직이는 코인 중 가장 약한(숏)·강한(롱) 코인.
     증거금은 작게(exp_margin), 등급과 함께 원픽 일지에 따로 기록 → 등급별 실전 승률로 규칙을 고친다."""
@@ -803,7 +803,7 @@ def try_pick(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, sweep_
         return p
     # C: 비트코인 단기 방향 = 마지막 1시간봉 종가 vs 1시간 20선, 동률이면 4시간 변화 부호
     c1 = btc["close"]; e20 = btc["ema20_1h"]
-    side = "LONG" if (c1 > e20 and btc["chg4h"] >= 0) else "SHORT" if (c1 < e20 and btc["chg4h"] <= 0) else ("LONG" if btc["chg4h"] > 0 else "SHORT")
+    side = side_hint or ("LONG" if (c1 > e20 and btc["chg4h"] >= 0) else "SHORT" if (c1 < e20 and btc["chg4h"] <= 0) else ("LONG" if btc["chg4h"] > 0 else "SHORT"))
     L = side == "LONG"
     b_ = pd.Series(btc["spark"]["close"]).pct_change()
     best = None
@@ -840,11 +840,13 @@ def try_pick(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, sweep_
          "qty": qty_for(mg * lev, entry), "win_usdt": round(mg * win_roe / 100, 2), "loss_usdt": round(-mg * loss_roe / 100, 2),
          "loss_roe": loss_roe, "win_roe": win_roe, "fx": round(fx, 1), "sl_basis": f"1시간 평균 변동폭 {atr:.2f}%의 1.5배",
          "be_trigger": None, "be_price": None, "trail_act": None, "trail_dist": None}
+    why_side = (f"비트코인 방향 기준(4시간 반대 아님 + 1시간 {'상승' if L else '하락'}) → {'롱' if L else '숏'}." if side_hint else
+                f"비트코인 단기 방향: 1시간 종가 {c1:,.0f} {'>' if c1 > e20 else '<'} 1시간 20선 {e20:,.0f}, 4시간 {btc['chg4h']:+.1f}% → {'롱' if L else '숏'}.")
     return {**{k: v for k, v in f.items() if k != "spark"}, "engine": "try_C", "kind": "시험 C", "grade": "C", "side": side,
             "score": round(best[0], 3), "btc_corr": round(corr, 2), "checks": {}, "order": o, "spark": f["spark"],
             "hold_hours": cfg["hold_hours"], "valid_until": iso(now + timedelta(minutes=30)), "order_until": iso(now + timedelta(minutes=30)),
             "cancel_level": None,
-            "story": [f"비트코인 단기 방향: 1시간 종가 {c1:,.0f} {'>' if c1 > e20 else '<'} 1시간 20선 {e20:,.0f}, 4시간 {btc['chg4h']:+.1f}% → {'롱' if L else '숏'}.",
+            "story": [why_side,
                       f"{f['name']}: 비트코인과 상관 {corr:.2f}(같이 움직임) · 24시간 비트코인 대비 {rel:+.1f}%p로 그 방향으로 가장 {'강함' if L else '약함'}.",
                       "검증되지 않은 시험 등급 — 실전 데이터를 쌓기 위한 소액 진입."]}
 
@@ -1237,7 +1239,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
         if not sp and not exp_pick:
             try:
                 tp_ = try_pick(src, feats, cfg, tick, fx, now, sweep_sigs, [g_ for g_ in getattr(run_sweep, "gated", [])
-                                                                             if not (covering and g_["side"] == "LONG")])
+                                                                             if not (covering and g_["side"] == "LONG")], side_hint=al)
             except Exception as e:  # noqa: BLE001
                 print(f"  ✗ 시험 원픽: {e}")
                 tp_ = None
