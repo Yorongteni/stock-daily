@@ -302,7 +302,7 @@ def run(folder: Path):
             for sc, sym, side, entry, sl, tp in cs:          # 1위만이 아니라 신호 전체 (표본 늘리기)
                 res_a = simulate(m15[sym], T, side, entry, sl, tp)
                 if res_a:
-                    allsig[name].append({"t": T.isoformat(), "side": side, "ret": round(res_a[0], 3)})
+                    allsig[name].append({"t": T.isoformat(), "side": side, "ret": round(res_a[0], 3), "sym": sym, "res": res_a[1]})
             sc, sym, side, entry, sl, tp = max(cs, key=lambda x: x[0])
             res = simulate(m15[sym], T, side, entry, sl, tp)
             if res:

@@ -742,9 +742,15 @@ def btc_panel(src, btc: dict, today: str) -> dict:
         P.update(e20d=e20d, e50d=e50d, hi7=float(d["High"].tail(7).max()), lo7=float(d["Low"].tail(7).min()))
     except Exception as e:  # noqa: BLE001
         rows.append({"tf": "일봉", "trend": None, "detail": f"데이터 없음 ({str(e)[:40]})"})
-    rows.append({"tf": "4시간 (원픽 기준)", "trend": btc.get("trend4", 0),
+    rows.append({"tf": "4시간 (원픽 기준 ① 반대만 아니면)", "trend": btc.get("trend4", 0),
                  "detail": f"20선 {btc['ema20_4h']:,.0f} · 50선 {btc['ema50_4h']:,.0f}"})
-    rows.append({"tf": "1시간", "trend": 1 if px > btc["ema20_1h"] else -1, "detail": f"20선 {btc['ema20_1h']:,.0f} · RSI {btc['rsi1h']:.0f}"})
+    try:
+        c1 = closed(src.klines("BTCUSDT", "1h", 120), 1, datetime.now(timezone.utc))["Close"]
+        e20h, e50h = float(ema(c1, 20).iloc[-1]), float(ema(c1, 50).iloc[-1])
+        rows.append({"tf": "1시간 (원픽 기준 ② 같은 방향)", "trend": tr(float(c1.iloc[-1]), e20h, e50h),
+                     "detail": f"20선 {e20h:,.0f} · 50선 {e50h:,.0f} · RSI {btc['rsi1h']:.0f}"})
+    except Exception:  # noqa: BLE001
+        rows.append({"tf": "1시간", "trend": 1 if px > btc["ema20_1h"] else -1, "detail": f"20선 {btc['ema20_1h']:,.0f} · RSI {btc['rsi1h']:.0f}"})
     P["frames"] = rows
     P.update(hi24=btc["hi24"], lo24=btc["lo24"], chg24=btc["chg24"], chg4h=btc["chg4h"], funding=btc.get("funding"))
     B = "https://www.okx.com/api/v5/rubik/stat/contracts"
@@ -771,6 +777,17 @@ def btc_panel(src, btc: dict, today: str) -> dict:
     except Exception:  # noqa: BLE001
         P["events"] = []
     return P
+
+
+def btc_trend_1h(src, now: datetime) -> int:
+    """비트코인 1시간봉 배열 (끝난 봉): 가격·20선이 50선 위 = 1, 아래 = -1, 엇갈림 = 0."""
+    try:
+        c = closed(src.klines("BTCUSDT", "1h", 120), 1, now)["Close"]
+        e20, e50 = float(ema(c, 20).iloc[-1]), float(ema(c, 50).iloc[-1])
+        x = float(c.iloc[-1])
+        return 1 if x > e50 and e20 > e50 else -1 if x < e50 and e20 < e50 else 0
+    except Exception:  # noqa: BLE001
+        return 0
 
 
 def btc_sweep_event(src, now: datetime, W: int = 6) -> dict | None:
@@ -850,7 +867,10 @@ def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias:
     (2026-11-23 백테스트: 비트코인 방향만 따른 스윕은 앞·뒤 기간 모두 플러스, 신호 1회 평균 +0.97% vs 무관 +0.22%)."""
     picks, sigs = [], []
     bt4 = (feats.get("BTCUSDT") or {}).get("trend4", 0)
-    allowed = {1: ("LONG",), -1: ("SHORT",)}.get(bt4, ())
+    bt1 = btc_trend_1h(src, now)
+    # 2026-11-24 백테스트(보유 시간 중앙값 5시간 → 더 짧은 흐름 확인): 비트코인 4시간 '반대 아님' + 비트코인 1시간 '같은 방향'
+    #   신호 1회 평균 +1.32%(앞 +0.79 / 뒤 +2.31) vs 4시간만 +0.94%. 15분·30분 기준은 오히려 손해(잡음).
+    allowed = tuple(sd for sd, v in (("LONG", 1), ("SHORT", -1)) if bt1 == v and bt4 != -v)
     for sym, f in feats.items():
         try:
             m = closed(src.klines(sym, "15m", 200), 0.25, now)
@@ -862,7 +882,7 @@ def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias:
                 continue
             if side not in allowed:
                 sigs.append({"symbol": sym, "name": f["name"], "side": side, "score": round(sig["score"], 3), "usable": False,
-                             "why": "비트코인 4시간 추세와 반대 방향"})
+                             "why": "비트코인 방향(4시간 반대 아님 + 1시간 같은 방향)과 안 맞음"})
                 continue
             o = sweep_order(f, side, sig, cfg, tick(sym), fx)
             sigs.append({"symbol": sym, "name": f["name"], "side": side, "score": round(sig["score"], 3), "usable": bool(o),
@@ -1119,9 +1139,13 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
                     x.update(usable=False, why="비트코인 숏 커버링 반등(가격↑·미결제약정↓) — 롱 금지")
             sp = [p_ for p_ in sp if p_["side"] != "LONG"]
         b4 = btc.get("trend4", 0)
-        btc_gate = {"trend4": b4, "allowed": {1: "LONG", -1: "SHORT"}.get(b4),
+        b1h = btc_trend_1h(src, now)
+        al = "LONG" if (b1h == 1 and b4 != -1) else "SHORT" if (b1h == -1 and b4 != 1) else None
+        tw = {1: "상승", -1: "하락", 0: "엇갈림"}
+        btc_gate = {"trend4": b4, "trend1h": b1h, "allowed": al,
                     "close": btc.get("live") or btc["close"], "ema20_4h": btc["ema20_4h"], "ema50_4h": btc["ema50_4h"],
-                    "label": {1: "🟢 상승 배열 → 롱 신호만", -1: "🔴 하락 배열 → 숏 신호만", 0: "⚪ 엇갈림 → 쉬기"}[b4]}
+                    "label": (f"4시간 {tw[b4]} · 1시간 {tw[b1h]} → "
+                              + ({"LONG": "🟢 롱 신호만", "SHORT": "🔴 숏 신호만"}.get(al) or "⚪ 쉬기 (1시간 방향 없음 또는 4시간과 충돌)"))}
         btc_gate["panel"] = panel
         btc_gate["covering"] = covering
         if cfg.get("exp_btc_sweep"):
@@ -1131,14 +1155,14 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
                 print(f"  ✗ 실험 규칙(비트코인 스윕 실패): {e}")
         if sp:
             pick, block = sp[0], ""
-        elif b4 == 0:
-            pick, block = None, ("① 비트코인 4시간봉이 엇갈려(가격과 20·50선 배열이 한 방향이 아님) 방향을 정할 수 없어요. "
-                                 "비트코인 방향이 정해지기 전에는 알트코인 단타도 쉬는 게 백테스트상 유리했어요.")
+        elif al is None:
+            pick, block = None, (f"① 비트코인 방향: 4시간 {tw[b4]} · 1시간 {tw[b1h]} — 1시간 방향이 없거나 4시간과 부딪혀 롱·숏 어느 쪽도 고르지 않아요. "
+                                 "비트코인 방향이 맞춰지기 전에는 쉬는 게 백테스트상 유리했어요.")
         else:
-            pick, block = None, (f"① 비트코인 4시간 추세는 {'상승' if b4 == 1 else '하락'} 배열이라 {'롱' if b4 == 1 else '숏'}만 봐요. "
+            pick, block = None, (f"① 비트코인 방향: 4시간 {tw[b4]} · 1시간 {tw[b1h]} → {'롱' if al == 'LONG' else '숏'}만 봐요. "
                                  f"② 그 방향으로 유동성 스윕 + 구조 전환이 나온 코인이 지금은 없어요"
-                                 + (f" (반대 방향 신호 {sum(1 for x in sweep_sigs if x.get('why') == '비트코인 4시간 추세와 반대 방향')}개는 제외)" if sweep_sigs else "")
-                                 + ". 자리가 아닐 때는 쉬는 게 원칙이에요 — 1~2시간 뒤 다시 브리핑해 보세요.")
+                                 + (f" (방향이 안 맞는 신호 {sum(1 for x in sweep_sigs if '비트코인 방향' in (x.get('why') or ''))}개는 제외)" if sweep_sigs else "")
+                                 + ". 자리가 아닐 때는 쉬는 게 원칙이에요.")
         opp = [p_ for p_ in sp if pick and p_["side"] != pick["side"]]
         if opp:
             pick2 = opp[0]
