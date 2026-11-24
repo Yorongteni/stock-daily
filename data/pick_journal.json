@@ -1155,7 +1155,9 @@
     "chg4h": -0.01009932102761013,
     "above_ema20_4h": false
    },
-   "status": "pending"
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
   },
   {
    "key": "LINKUSDT|LONG|8.865|9.165|8.715",
@@ -1211,7 +1213,8 @@
     "chg4h": 0.39320460089236065,
     "above_ema20_4h": false
    },
-   "status": "pending"
+   "status": "pending",
+   "filled_at": "2026-11-24T14:00:00+00:00"
   },
   {
    "key": "TRUMPUSDT|SHORT|0.8358|0.8062|0.8545",
@@ -1265,6 +1268,63 @@
     "covering": false,
     "above_ema20_1h": false,
     "chg4h": 0.39320460089236065,
+    "above_ema20_4h": false
+   },
+   "status": "pending",
+   "filled_at": "2026-11-24T14:00:00+00:00"
+  },
+  {
+   "key": "TAOUSDT|SHORT|181.62|175.18|185.16",
+   "symbol": "TAOUSDT",
+   "name": "비텐서",
+   "side": "SHORT",
+   "picked_at": "2026-11-24T23:00:17Z",
+   "valid_until": "2026-11-24T23:30:17Z",
+   "hold_hours": 24,
+   "entry": 181.62,
+   "tp": 175.18,
+   "sl": 185.16,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 1.741,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 181.23,
+    "chg24": -4.18208734270911,
+    "chg4h": -0.2257212067826515,
+    "rsi1h": 36.79471442172525,
+    "dist1h": -1.452831053090009,
+    "oi_chg24": -2.737966226962152,
+    "vol_ratio": 0.4355704880720432,
+    "funding": 0.00814397834074,
+    "range24": 7.162169618716543,
+    "hi24": 192.03,
+    "lo24": 179.05
+   },
+   "btc": {
+    "rsi4h": 41.229500971837794,
+    "chg24": -2.0637736268187723,
+    "above_ema20_4h": false
+   },
+   "bias": -2.0,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.82,
+   "btc_ctx": {
+    "price": 59935.3,
+    "chg24": -2.0637736268187723,
+    "oi_chg24": 1.9688387646113803,
+    "oi_chg4h": -0.2530603514590446,
+    "funding": 0.006878917246689999,
+    "ls_ratio": 2.61,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": 0.18747775581439896,
     "above_ema20_4h": false
    },
    "status": "pending"
