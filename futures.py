@@ -49,7 +49,7 @@ DEFAULTS = {
     # 2026-11-21 UNI 숏 손절 복기로 추가 (과매도 추격 숏 차단)
     "chase_rsi": 28, "chase_dist": 3.5, "oi_min": 1.0, "btc_exhaust_rsi": 22,
     # 2026-11-23 백테스트(tools/bt_coin.py)로 바꾼 원픽 엔진: 유동성 스윕 + 15분봉 구조 전환, 시장가 진입, 손익비 2
-    "engine": "sweep", "sweep_valid_min": 30, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
+    "engine": "sweep", "sweep_valid_min": 30, "exp_btc_sweep": True, "exp_margin": 60.0, "exp_window_h": 6, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
@@ -773,6 +773,77 @@ def btc_panel(src, btc: dict, today: str) -> dict:
     return P
 
 
+def btc_sweep_event(src, now: datetime, W: int = 6) -> dict | None:
+    """실험 규칙 (2026-11-24): 비트코인 1시간봉 '스윕 실패'. 최근 W시간 안에 그 전 24시간 고점(저점)을 넘었다가,
+    방금 끝난 1시간봉 종가가 그 스윕 봉의 저가(고가) 밖으로 처음 나가면 → 알트 숏(롱).
+    11/24 02:00 숏 이벤트(23시 64,570 스윕 → 01시봉 62,221 마감)에서 알트 29개 평균 +9%(3배). 4개월 백테스트는 기간별로 엇갈려 실험 규칙."""
+    b = closed(src.klines("BTCUSDT", "1h", 60), 1, now)
+    if len(b) < 24 + W + 2:
+        return None
+    win, prior = b.iloc[-W:], b.iloc[-W - 24:-W]
+    c, c_prev = float(b.Close.iloc[-1]), float(b.Close.iloc[-2])
+    j = int(win.High.values.argmax()); sb = win.iloc[j]
+    if sb.High > prior.High.max() and j < W - 1 and c < sb.Low and c_prev >= sb.Low:
+        return {"side": "SHORT", "sweep_time": win.index[j].to_pydatetime(), "sweep_ext": float(sb.High), "trigger": float(sb.Low),
+                "prior": float(prior.High.max()), "close": c, "bar_time": b.index[-1].to_pydatetime() + timedelta(hours=1)}
+    j = int(win.Low.values.argmin()); sb = win.iloc[j]
+    if sb.Low < prior.Low.min() and j < W - 1 and c > sb.High and c_prev <= sb.High:
+        return {"side": "LONG", "sweep_time": win.index[j].to_pydatetime(), "sweep_ext": float(sb.Low), "trigger": float(sb.High),
+                "prior": float(prior.Low.min()), "close": c, "bar_time": b.index[-1].to_pydatetime() + timedelta(hours=1)}
+    return None
+
+
+def exp_btc_sweep_pick(src, feats: dict, cfg: dict, tick, fx: float, now: datetime) -> dict | None:
+    """실험 원픽: 비트코인 스윕 실패 이벤트가 방금(1시간 안) 났으면, 그 스윕 동안 가장 크게 움직인 알트를 같은 방향으로."""
+    ev = btc_sweep_event(src, now, int(cfg.get("exp_window_h", 6)))
+    if not ev or (now - ev["bar_time"]) > timedelta(minutes=60):
+        return None
+    L = ev["side"] == "LONG"
+    best = None
+    for sym, f in feats.items():
+        if sym == "BTCUSDT":
+            continue
+        try:
+            h = closed(src.klines(sym, "1h", 30), 1, now)
+            seg = h[h.index >= pd.Timestamp(ev["sweep_time"])]
+            base = float(h[h.index < pd.Timestamp(ev["sweep_time"])].Close.iloc[-1])
+        except Exception:  # noqa: BLE001
+            continue
+        if seg.empty:
+            continue
+        ext = float(seg.Low.min() if L else seg.High.max())
+        move = (ext / base - 1) * 100
+        if best is None or (move < best["move"] if L else move > best["move"]):
+            best = {"sym": sym, "f": f, "ext": ext, "move": move}
+    if not best:
+        return None
+    f, sym = best["f"], best["sym"]
+    entry = rp(f.get("live") or f["close"], tick(sym))
+    sl = rp(best["ext"] * (0.9995 if L else 1.0005), tick(sym))
+    d = abs(entry - sl) / entry * 100
+    if not 0.4 <= d <= 3.0 or (L and sl >= entry) or (not L and sl <= entry):
+        d = min(max(1.5 * f["atr1h"], 0.6), 3.0)
+        sl = rp(entry * (1 - d / 100) if L else entry * (1 + d / 100), tick(sym))
+    risk = abs(entry - sl)
+    tp = rp(entry + 2 * risk if L else entry - 2 * risk, tick(sym))
+    lev, mg = cfg["leverage"], float(cfg.get("exp_margin", 60))
+    loss_roe, win_roe = round((d + 0.21) * lev, 2), round((2 * d - 0.21) * lev, 2)
+    o = {"entry": entry, "market": True, "limit_basis": "지금 가격 (비트코인 스윕 실패 확정 직후)", "valid_min": 30, "tp": tp, "sl": sl,
+         "sl_dist": round(d, 2), "tp_pct": round(2 * d, 2), "rr": 2.0, "leverage": lev, "margin": mg, "notional": mg * lev,
+         "qty": qty_for(mg * lev, entry), "win_usdt": round(mg * win_roe / 100, 2), "loss_usdt": round(-mg * loss_roe / 100, 2),
+         "loss_roe": loss_roe, "win_roe": win_roe, "fx": round(fx, 1), "win_krw": int(round(mg * win_roe / 100 * fx)),
+         "loss_krw": int(round(-mg * loss_roe / 100 * fx)), "sl_basis": f"비트코인 스윕 동안 이 코인의 {'저점' if L else '고점'} {fmt_px(best['ext'])} 밖",
+         "liq": rp(entry * (1 - 1 / lev + cfg["mmr"] / 100) if L else entry * (1 + 1 / lev - cfg["mmr"] / 100), tick(sym)),
+         "be_trigger": None, "be_price": None, "trail_act": None, "trail_dist": None}
+    return {**{k: v for k, v in f.items() if k != "spark"}, "engine": "btc_sweep", "kind": "실험", "side": ev["side"], "score": round(abs(best["move"]), 2),
+            "checks": {}, "grade": "실험", "order": o, "spark": f["spark"], "hold_hours": cfg["hold_hours"],
+            "btc_event": {k: (iso(v) if isinstance(v, datetime) else v) for k, v in ev.items()}, "spike_move": round(best["move"], 2),
+            "valid_until": iso(now + timedelta(minutes=30)), "order_until": iso(now + timedelta(minutes=30)), "cancel_level": None,
+            "story": [f"비트코인이 {kst(ev['sweep_time'], '%H시')} 1시간봉에서 그 전 24시간 {'저점' if L else '고점'} {ev['prior']:,.0f}를 {ev['sweep_ext']:,.0f}까지 "
+                      f"{'깼다가' if L else '넘었다가'}, 방금 1시간봉이 그 봉의 {'고가' if L else '저가'} {ev['trigger']:,.0f} {'위' if L else '아래'}({ev['close']:,.0f})에서 마감 — 스윕 실패.",
+                      f"그 사이 가장 크게 {'빠진' if L else '오른'} 알트가 {f['name']}({best['move']:+.1f}%) → 비트코인을 따라 되돌릴 가능성이 큰 쪽."]}
+
+
 def run_sweep(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, bias: dict) -> tuple[list[dict], list[dict]]:
     """모든 후보 코인의 15분봉에서 스윕 신호를 찾아 (신호 목록, 원픽 후보 목록) 반환.
     ① 비트코인 4시간 추세를 먼저 본다 — 상승 배열이면 롱 신호만, 하락 배열이면 숏 신호만, 엇갈리면 쉼
@@ -1030,6 +1101,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     pick2 = None
     sweep_sigs = None
     btc_gate = None
+    exp_pick = None
     if cfg.get("engine") == "sweep":
         # 2026-11-23: 원픽 엔진을 유동성 스윕 + 구조 전환으로 교체 (tools/bt_coin.py 백테스트 — 기존 방식은 무작위와 비슷하게 손해)
         sweep_sigs, sp = run_sweep(src, feats, cfg, tick, fx, now, bias)
@@ -1052,6 +1124,11 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
                     "label": {1: "🟢 상승 배열 → 롱 신호만", -1: "🔴 하락 배열 → 숏 신호만", 0: "⚪ 엇갈림 → 쉬기"}[b4]}
         btc_gate["panel"] = panel
         btc_gate["covering"] = covering
+        if cfg.get("exp_btc_sweep"):
+            try:
+                exp_pick = exp_btc_sweep_pick(src, feats, cfg, tick, fx, now)
+            except Exception as e:  # noqa: BLE001
+                print(f"  ✗ 실험 규칙(비트코인 스윕 실패): {e}")
         if sp:
             pick, block = sp[0], ""
         elif b4 == 0:
@@ -1082,7 +1159,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     try:
         import pick_journal as pj
         jr = pj.load()
-        for _p in (pick, pick2):
+        for _p in (pick, pick2, exp_pick):
             if _p:
                 pj.add(jr, _p, {"btc": btc, "bias": bias, "panel": (btc_gate or {}).get("panel"),
                                 "covering": (btc_gate or {}).get("covering")}, iso(now))
@@ -1098,7 +1175,7 @@ def run(today: str, cfg_all: dict, fx: float, now: datetime | None = None, force
     return {
         "source": src.name, "source_label": src.label, "source_errors": src_errs, "generated_at": kst(now, "%Y-%m-%d %H:%M"),
         "data_time": kst(btc["bar_time"]), "bias": bias, "btc": {k: btc[k] for k in ("close", "chg24", "ema20_4h", "ema50_4h", "rsi4h", "funding", "oi_chg24")},
-        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "pick2": pick2, "near": near, "engine": cfg.get("engine"), "sweep_signals": sweep_sigs, "btc_gate": btc_gate, "block": block,
+        "nq": nq, "events": events, "holdings": holdings, "pick": pick, "pick2": pick2, "near": near, "engine": cfg.get("engine"), "sweep_signals": sweep_sigs, "btc_gate": btc_gate, "exp_pick": exp_pick, "block": block,
         "universe": len(feats), "rules": {k: cfg[k] for k in DEFAULTS}, "record": track(log, fx), "reviews": reviews,
         "other_best": other, "journal": jstats,
     }

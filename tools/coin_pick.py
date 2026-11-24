@@ -63,7 +63,9 @@ def main():
            "btc": {"label": g.get("label"), "covering": g.get("covering"), "frames": P.get("frames"),
                    **{k: P.get(k) for k in ("price", "chg24", "chg4h", "oi_chg4h", "oi_chg24", "oi_read", "funding", "ls_ratio",
                                             "hi24", "lo24", "hi7", "lo7", "e20d", "e50d", "events")}},
-           "pick": pk(fu.get("pick")), "pick2": pk(fu.get("pick2")), "block": fu.get("block"),
+           "pick": pk(fu.get("pick")), "pick2": pk(fu.get("pick2")),
+           "exp_pick": (pk(fu.get("exp_pick")) or {}) | ({"btc_event": fu["exp_pick"].get("btc_event"), "spike_move": fu["exp_pick"].get("spike_move"),
+                                                         "story": fu["exp_pick"].get("story")} if fu.get("exp_pick") else {}) or None, "block": fu.get("block"),
            "signals": fu.get("sweep_signals"), "journal_total": (fu.get("journal") or {}).get("total"),
            "journal_by_engine": ((fu.get("journal") or {}).get("by") or {}).get("엔진")}
     print(json.dumps(out, ensure_ascii=False, indent=1, default=str))
