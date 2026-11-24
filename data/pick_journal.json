@@ -985,6 +985,62 @@
    "exit_at": "2026-11-23T13:00:00+00:00",
    "move_pct": -1.9,
    "roe3": -5.99
+  },
+  {
+   "key": "VVVUSDT|SHORT|24.326|22.866|25.056",
+   "symbol": "VVVUSDT",
+   "name": "VVV",
+   "side": "SHORT",
+   "picked_at": "2026-11-24T03:24:15Z",
+   "valid_until": "2026-11-24T03:54:15Z",
+   "hold_hours": 24,
+   "entry": 24.326,
+   "tp": 22.866,
+   "sl": 25.056,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 3.614,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 24.512,
+    "chg24": -6.453459527535017,
+    "chg4h": 0.8516766097510668,
+    "rsi1h": 39.721627964484746,
+    "dist1h": -2.2570539965408476,
+    "oi_chg24": -8.476041078118723,
+    "vol_ratio": 0.46149969917018296,
+    "funding": 0.005,
+    "range24": 11.712630548302865,
+    "hi24": 27.095,
+    "lo24": 24.224
+   },
+   "btc": {
+    "rsi4h": 49.69700347579598,
+    "chg24": -0.876151930158727,
+    "above_ema20_4h": false
+   },
+   "bias": -1.5,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.65,
+   "btc_ctx": {
+    "price": 59789.5,
+    "chg24": -0.876151930158727,
+    "oi_chg24": -7.009569001254745,
+    "oi_chg4h": -1.2902495028885963,
+    "funding": 0.0047153042097400006,
+    "ls_ratio": 2.6,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": -1.9118694342630533,
+    "above_ema20_4h": false
+   },
+   "status": "pending"
   }
  ]
 }
