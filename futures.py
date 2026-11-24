@@ -49,7 +49,7 @@ DEFAULTS = {
     # 2026-11-21 UNI 숏 손절 복기로 추가 (과매도 추격 숏 차단)
     "chase_rsi": 28, "chase_dist": 3.5, "oi_min": 1.0, "btc_exhaust_rsi": 22,
     # 2026-11-23 백테스트(tools/bt_coin.py)로 바꾼 원픽 엔진: 유동성 스윕 + 15분봉 구조 전환, 시장가 진입, 손익비 2
-    "engine": "sweep", "sweep_valid_min": 30, "exp_btc_sweep": True, "exp_margin": 60.0, "exp_window_h": 6, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
+    "engine": "sweep", "sweep_valid_min": 30, "tp_roe_min": 5.0, "tp_roe_max": 10.0, "exp_btc_sweep": True, "exp_margin": 60.0, "exp_window_h": 6, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
@@ -661,6 +661,14 @@ def make_order(f: dict, side: str, cfg: dict, tick: float | None, fx: float = 14
 
 
 # ───────────────── 유동성 스윕 + 구조 전환 엔진 (백테스트로 채택) ─────────────────
+def tp_dist(sl_pct: float, cfg: dict) -> float:
+    """목표 거리(가격 %): 손절폭의 2배를 기본으로 하되, 3배 기준 순이익 5~10% 범위로 맞춤 (2026-11-24 사용자 원칙).
+    손절은 차트(스윕 끝·변동폭)에 맡기고 자유롭게."""
+    lev, fee = cfg["leverage"], 0.21
+    lo, hi = cfg.get("tp_roe_min", 5.0) / lev + fee, cfg.get("tp_roe_max", 10.0) / lev + fee
+    return min(max(2 * sl_pct, lo), hi)
+
+
 def sweep_signal(m15: pd.DataFrame, f: dict, side: str, cfg: dict) -> dict | None:
     """끝난 15분봉 m15 로 판단. 최근 rec 봉(3시간) 안에 그 전 base 봉(24시간)의 저점(롱)·고점(숏)을 찔렀다가
     되돌아와 마감하고, 찌른 뒤 작은 고점(저점)을 마감으로 넘겼으면 신호. 4시간 추세가 반대면 제외."""
@@ -694,8 +702,8 @@ def sweep_order(f: dict, side: str, sig: dict, cfg: dict, tick: float | None, fx
     d = abs(entry - sl) / entry * 100
     if not 0.4 <= d <= 3.0 or (L and sl >= entry) or (not L and sl <= entry):
         return None
-    risk = abs(entry - sl)
-    tp = rp(entry + cfg["sweep_rr"] * risk if L else entry - cfg["sweep_rr"] * risk, tick)
+    td = tp_dist(d, cfg)
+    tp = rp(entry * (1 + td / 100) if L else entry * (1 - td / 100), tick)
     lev, mg = cfg["leverage"], cfg["sweep_margin"]
     fee_pct = 0.21                                                     # 왕복 수수료+슬리피지 (가격 %)
     loss_roe = round((d + fee_pct) * lev, 2)
@@ -707,7 +715,7 @@ def sweep_order(f: dict, side: str, sig: dict, cfg: dict, tick: float | None, fx
             "sl_dist": round(d, 2), "sl_basis": f"{kst(sig['sweep_time'], '%d일 %H:%M')} 15분봉이 찌른 {'저점' if L else '고점'} {fmt_px(sig['extreme'])} 바로 {'아래' if L else '위'}",
             "loss_roe": loss_roe, "win_roe": win_roe, "liq": liq, "leverage": lev, "margin": mg, "notional": round(mg * lev, 2),
             "qty": qty_for(mg * lev, entry), "fx": round(fx, 1), "win_usdt": win, "loss_usdt": loss,
-            "win_krw": int(round(win * fx)), "loss_krw": int(round(loss * fx)), "rr": cfg["sweep_rr"],
+            "win_krw": int(round(win * fx)), "loss_krw": int(round(loss * fx)), "rr": round(td / d, 2),
             "be_trigger": None, "be_price": None, "trail_act": None, "trail_dist": None}
 
 
@@ -721,7 +729,7 @@ def sweep_story(f: dict, side: str, sig: dict, o: dict) -> list[str]:
             f"그 뒤 가격이 다시 {fmt_px(sig['level'])} {'위' if L else '아래'}로 돌아와 마감했고, 찌른 뒤 생긴 작은 {w2} {fmt_px(sig['mss_level'])}를 "
             f"마감으로 {'넘어섰어요' if L else '깨뜨렸어요'} — 15분봉 흐름이 {'위' if L else '아래'}로 바뀐 신호 (구조 전환).",
             f"비트코인 4시간 추세와 같은 방향이고 이 코인의 4시간 추세도 반대가 아니라 이 신호를 씁니다. 진입 지정가는 신호를 확정한 15분봉 종가 {fmt_px(o['entry'])}({o['valid_min']}분 유효 · 그 전에 15분봉이 기준선 {fmt_px(sig['level'])} {'아래' if L else '위'}에서 마감하면 무효), 손절은 찌른 끝 바로 밖 "
-            f"{fmt_px(o['sl'])}({o['sl_dist']:.2f}%), 목표는 손절폭의 {o['rr']:.0f}배인 {fmt_px(o['tp'])}예요.",
+            f"{fmt_px(o['sl'])}({o['sl_dist']:.2f}%), 목표는 {fmt_px(o['tp'])}({o['tp_pct']:.2f}%, 3배 순이익 약 +{o['win_roe']:.0f}% — 손절폭의 2배를 5~10% 안으로 맞춤)예요.",
             "근거: 2026-07~11 상위 30코인 백테스트(시장가·수수료 포함)에서 시험한 방법 중 가장 일관된 성적 — 신호 1회 평균 +0.2%(3배 기준), "
             "다만 기간에 따라 약한 마이너스 구간도 있어 우위는 작아요. 규모는 작게."]
 
@@ -823,11 +831,12 @@ def try_pick(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, sweep_
     entry = rp(px * (1 - 0.2 * atr / 100) if L else px * (1 + 0.2 * atr / 100), t)   # 살짝 되돌림 지정가
     d = min(max(1.5 * atr, 0.8), 3.0)
     sl = rp(entry * (1 - d / 100) if L else entry * (1 + d / 100), t)
-    tp = rp(entry * (1 + 2 * d / 100) if L else entry * (1 - 2 * d / 100), t)
+    td = tp_dist(d, cfg)
+    tp = rp(entry * (1 + td / 100) if L else entry * (1 - td / 100), t)
     lev, mg = cfg["leverage"], float(cfg.get("exp_margin", 60))
-    loss_roe, win_roe = round((d + 0.21) * lev, 2), round((2 * d - 0.21) * lev, 2)
+    loss_roe, win_roe = round((d + 0.21) * lev, 2), round((td - 0.21) * lev, 2)
     o = {"entry": entry, "market": True, "limit_basis": "지금 가격에서 1시간 변동폭의 20% 되돌림", "valid_min": 30, "tp": tp, "sl": sl,
-         "sl_dist": round(d, 2), "tp_pct": round(2 * d, 2), "rr": 2.0, "leverage": lev, "margin": mg, "notional": mg * lev,
+         "sl_dist": round(d, 2), "tp_pct": round(td, 2), "rr": round(td / d, 2), "leverage": lev, "margin": mg, "notional": mg * lev,
          "qty": qty_for(mg * lev, entry), "win_usdt": round(mg * win_roe / 100, 2), "loss_usdt": round(-mg * loss_roe / 100, 2),
          "loss_roe": loss_roe, "win_roe": win_roe, "fx": round(fx, 1), "sl_basis": f"1시간 평균 변동폭 {atr:.2f}%의 1.5배",
          "be_trigger": None, "be_price": None, "trail_act": None, "trail_dist": None}
@@ -902,12 +911,12 @@ def exp_btc_sweep_pick(src, feats: dict, cfg: dict, tick, fx: float, now: dateti
     if not 0.4 <= d <= 3.0 or (L and sl >= entry) or (not L and sl <= entry):
         d = min(max(1.5 * f["atr1h"], 0.6), 3.0)
         sl = rp(entry * (1 - d / 100) if L else entry * (1 + d / 100), tick(sym))
-    risk = abs(entry - sl)
-    tp = rp(entry + 2 * risk if L else entry - 2 * risk, tick(sym))
+    td = tp_dist(d, cfg)
+    tp = rp(entry * (1 + td / 100) if L else entry * (1 - td / 100), tick(sym))
     lev, mg = cfg["leverage"], float(cfg.get("exp_margin", 60))
-    loss_roe, win_roe = round((d + 0.21) * lev, 2), round((2 * d - 0.21) * lev, 2)
+    loss_roe, win_roe = round((d + 0.21) * lev, 2), round((td - 0.21) * lev, 2)
     o = {"entry": entry, "market": True, "limit_basis": "지금 가격 (비트코인 스윕 실패 확정 직후)", "valid_min": 30, "tp": tp, "sl": sl,
-         "sl_dist": round(d, 2), "tp_pct": round(2 * d, 2), "rr": 2.0, "leverage": lev, "margin": mg, "notional": mg * lev,
+         "sl_dist": round(d, 2), "tp_pct": round(td, 2), "rr": round(td / d, 2), "leverage": lev, "margin": mg, "notional": mg * lev,
          "qty": qty_for(mg * lev, entry), "win_usdt": round(mg * win_roe / 100, 2), "loss_usdt": round(-mg * loss_roe / 100, 2),
          "loss_roe": loss_roe, "win_roe": win_roe, "fx": round(fx, 1), "win_krw": int(round(mg * win_roe / 100 * fx)),
          "loss_krw": int(round(-mg * loss_roe / 100 * fx)), "sl_basis": f"비트코인 스윕 동안 이 코인의 {'저점' if L else '고점'} {fmt_px(best['ext'])} 밖",
