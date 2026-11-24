@@ -1040,7 +1040,9 @@
     "chg4h": -1.9118694342630533,
     "above_ema20_4h": false
    },
-   "status": "pending"
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
   },
   {
    "key": "BNBUSDT|SHORT|552.87|533.28|564.76",
@@ -1094,6 +1096,63 @@
     "covering": false,
     "above_ema20_1h": false,
     "chg4h": -1.9118694342630533,
+    "above_ema20_4h": false
+   },
+   "status": "pending",
+   "filled_at": "2026-11-24T04:00:00+00:00"
+  },
+  {
+   "key": "MMTUSDT|LONG|0.2352|0.2435|0.2281",
+   "symbol": "MMTUSDT",
+   "name": "MMT",
+   "side": "LONG",
+   "picked_at": "2026-11-24T12:24:56Z",
+   "valid_until": "2026-11-24T12:54:56Z",
+   "hold_hours": 24,
+   "entry": 0.2352,
+   "tp": 0.2435,
+   "sl": 0.2281,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "실험",
+   "score": 3.04,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 0.2342,
+    "chg24": 12.70452358036573,
+    "chg4h": -13.355530891601916,
+    "rsi1h": 55.3336619003675,
+    "dist1h": 3.040213733606434,
+    "oi_chg24": 44.69019218081378,
+    "vol_ratio": 1.2846944413740062,
+    "funding": 0.005,
+    "range24": 38.51409052092229,
+    "hi24": 0.2761,
+    "lo24": 0.1859
+   },
+   "btc": {
+    "rsi4h": 45.2593076431299,
+    "chg24": -1.630906600342371,
+    "above_ema20_4h": false
+   },
+   "bias": -2.0,
+   "engine": "btc_sweep",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": null,
+   "btc_ctx": {
+    "price": 60242.6,
+    "chg24": -1.630906600342371,
+    "oi_chg24": -4.816653876068955,
+    "oi_chg4h": 1.2173821180614608,
+    "funding": 0.00483281980645,
+    "ls_ratio": 2.58,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": -0.01009932102761013,
     "above_ema20_4h": false
    },
    "status": "pending"
