@@ -809,6 +809,8 @@ def try_pick(src, feats: dict, cfg: dict, tick, fx: float, now: datetime, sweep_
         rel = f["chg24"] - btc["chg24"]
         if (L and f["rsi1h"] >= 72) or (not L and f["rsi1h"] <= 28):
             continue                                                     # 이미 과열·과매도 추격은 제외
+        if f["atr1h"] > 1.5:
+            continue          # 1시간 평균 변동폭 1.5% 넘는 급변 코인 제외 → 손절 1.2~2.3%, 목표 2.4~4.5% 범위 (11/24 VVV 목표 6% 너무 큼)
         sc = corr * (rel if L else -rel)                                 # 비트코인과 같이 움직이면서 그 방향으로 더 센 코인
         if corr >= 0.5 and (best is None or sc > best[0]):
             best = (sc, sym, f, corr, rel)
