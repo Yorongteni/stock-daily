@@ -900,6 +900,15 @@ def exp_btc_sweep_pick(src, feats: dict, cfg: dict, tick, fx: float, now: dateti
             continue
         if seg.empty:
             continue
+        # 11/25 00시 MON: 비트코인이 오른 23시에 혼자 -17%(거래량 10배) 폭락 → 비트코인을 따라 움직인 게 아니라 코인 자체 악재.
+        # 비트코인과 같이 움직이는 코인(72시간 상관 0.5 이상)만, 1시간봉 하나로 6% 넘게 움직인 '혼자 급변' 코인은 제외.
+        try:
+            corr = float(pd.Series(f["spark"]["close"]).pct_change().corr(pd.Series(feats["BTCUSDT"]["spark"]["close"]).pct_change()))
+        except Exception:  # noqa: BLE001
+            corr = 0.0
+        bar_moves = (seg.Close / seg.Open - 1).abs() * 100
+        if corr < 0.5 or float(bar_moves.max()) > 6.0:
+            continue
         ext = float(seg.Low.min() if L else seg.High.max())
         move = (ext / base - 1) * 100
         if best is None or (move < best["move"] if L else move > best["move"]):
