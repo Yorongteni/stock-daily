@@ -1726,16 +1726,16 @@
   }
  },
  "2026-11-25": {
-  "kospi": 6.32,
+  "kospi": -6.16,
   "sp500": -0.5,
-  "headline": "AI주 재급락, 코스피 5천선 방어전",
-  "stance": "관망 (지금 비중 유지)",
+  "headline": "반도체 투매, PCE 앞두고 현금 확보",
+  "stance": "현금 확보·관망 (주식 비중 줄이기)",
   "allocation": {
-   "kr_equity": 22,
-   "us_equity": 28,
+   "kr_equity": 20,
+   "us_equity": 25,
    "gold_commodities": 10,
-   "usd_cash": 17,
-   "krw_cash_bonds": 18,
+   "usd_cash": 20,
+   "krw_cash_bonds": 20,
    "alternatives": 5
   },
   "lists": {
@@ -1786,13 +1786,13 @@
   },
   "valuation": {
    "kr": {
-    "pe_median": 17.79,
-    "pb_median": 2.07,
-    "earnings_yield": 5.62,
+    "pe_median": 18.48,
+    "pb_median": 2.2,
+    "earnings_yield": 5.41,
     "n": 55
    },
    "us": {
-    "pe_median": 23.63,
+    "pe_median": 23.62,
     "pb_median": 5.92,
     "earnings_yield": 4.23,
     "n": 90
@@ -1804,6 +1804,12 @@
     "stance": "관망 (지금 비중 유지)",
     "headline": "AI주 재급락, 코스피 5천선 방어전",
     "built_at": "2026-11-25 06:12"
+   },
+   "pm": {
+    "ai": true,
+    "stance": "현금 확보·관망 (주식 비중 줄이기)",
+    "headline": "반도체 투매, PCE 앞두고 현금 확보",
+    "built_at": "2026-11-25 21:13"
    }
   }
  }
