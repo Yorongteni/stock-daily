@@ -917,6 +917,10 @@ def exp_btc_sweep_pick(src, feats: dict, cfg: dict, tick, fx: float, now: dateti
     if not ev or (now - ev["bar_time"]) > timedelta(minutes=60):
         return None
     L = ev["side"] == "LONG"
+    # 비트코인이 지금 다시 기준(스윕 봉 고가·저가) 안쪽으로 돌아왔으면 신호 무효 (11/25 13:28 VVV: 59,338 회복 뒤 59,267로 다시 밀림)
+    bnow = (feats.get("BTCUSDT") or {}).get("live")
+    if bnow and ((L and bnow < ev["trigger"]) or (not L and bnow > ev["trigger"])):
+        return None
     best = None
     for sym, f in feats.items():
         if sym == "BTCUSDT":
@@ -952,6 +956,8 @@ def exp_btc_sweep_pick(src, feats: dict, cfg: dict, tick, fx: float, now: dateti
         d = min(max(1.5 * f["atr1h"], 0.6), 3.0)
         sl = rp(entry * (1 - d / 100) if L else entry * (1 + d / 100), tick(sym))
     td = tp_dist(d, cfg)
+    if td / d < 1.5:
+        return None          # 이미 많이 움직여 손절폭이 커지면(손익비 1.5 미만) 추격하지 않음
     tp = rp(entry * (1 + td / 100) if L else entry * (1 - td / 100), tick(sym))
     lev, mg = cfg["leverage"], float(cfg.get("exp_margin", 60))
     loss_roe, win_roe = round((d + 0.21) * lev, 2), round((td - 0.21) * lev, 2)

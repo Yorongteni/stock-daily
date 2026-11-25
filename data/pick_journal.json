@@ -1508,6 +1508,62 @@
     "above_ema20_4h": false
    },
    "status": "pending"
+  },
+  {
+   "key": "HYPEUSDT|SHORT|59.188|57.091|60.477",
+   "symbol": "HYPEUSDT",
+   "name": "하이퍼리퀴드",
+   "side": "SHORT",
+   "picked_at": "2026-11-25T04:29:42Z",
+   "valid_until": "2026-11-25T04:59:42Z",
+   "hold_hours": 24,
+   "entry": 59.188,
+   "tp": 57.091,
+   "sl": 60.477,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 4.103,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 59.089,
+    "chg24": -6.7187623332544035,
+    "chg4h": -1.3884948515545403,
+    "rsi1h": 28.604881144855966,
+    "dist1h": -2.6548809142461494,
+    "oi_chg24": -7.8290114671484945,
+    "vol_ratio": 0.7730872337181538,
+    "funding": 0.0083153819271,
+    "range24": 9.971399075970153,
+    "hi24": 64.456,
+    "lo24": 58.564
+   },
+   "btc": {
+    "rsi4h": 39.96940552978057,
+    "chg24": -1.5136641018837906,
+    "above_ema20_4h": false
+   },
+   "bias": -2.6,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.79,
+   "btc_ctx": {
+    "price": 59269.6,
+    "chg24": -1.5136641018837906,
+    "oi_chg24": 0.27103263031846847,
+    "oi_chg4h": -0.899435064813825,
+    "funding": 0.00411261193898,
+    "ls_ratio": 2.61,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": -0.6782971664035671,
+    "above_ema20_4h": false
+   },
+   "status": "pending"
   }
  ]
 }
