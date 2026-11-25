@@ -513,6 +513,37 @@
     "reviewed_at": "2026-11-23T16:22:03Z",
     "date": "2026-11-24"
    }
+  },
+  {
+   "id": "2026-11-24-BNBUSDT-real",
+   "symbol": "BNBUSDT",
+   "name": "BNB",
+   "direction": "SHORT",
+   "source": "manual",
+   "engine": "try_C",
+   "grade": "C",
+   "pick_time": "2026-11-24T03:36:00Z",
+   "limit": 552.87,
+   "entry": 552.87,
+   "entry_time": "2026-11-24T04:10:39Z",
+   "tp": 533.28,
+   "sl": 564.76,
+   "sl0": null,
+   "qty": 0.3,
+   "margin": 55.29,
+   "leverage": 3,
+   "be_moved": false,
+   "exit": 541.25,
+   "exit_time": "2026-11-25T02:53:26Z",
+   "result": "TIME",
+   "result_ko": "수동 정리 (약 23시간, 24시간 규칙 직전)",
+   "roe": 6.19,
+   "pnl_usdt": 3.4204,
+   "pnl_krw": 4592,
+   "fx": 1342.5,
+   "fees_usdt": 0.1046,
+   "funding_usdt": -0.0390241,
+   "reason": "실제 매매 (바이비트) — 시험 원픽 C(비트코인 단기 하락 + 비트코인과 상관 0.96) BNB 숏 552.87 체결, TP 533.28 전 541.25 에서 수동 정리 (+2.1% 가격, 3배 +6.2%)"
   }
  ],
  "last_events": {
