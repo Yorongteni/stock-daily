@@ -292,6 +292,7 @@ def run(folder: Path):
             if T not in mm.index or len(past) < 20:
                 continue
             o = mm.loc[T, "Open"]
+            globals()["CUR_SYM"] = sym          # 방법 함수가 지금 코인을 알 수 있게 (지지·저항 등)
             for name, fn in METHODS.items():
                 for side, sl, tp, sc in fn(r, b, past, o):
                     entry = o * (1 + SLIP) if side == "LONG" else o * (1 - SLIP)
