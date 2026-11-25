@@ -543,14 +543,40 @@
    "fx": 1342.5,
    "fees_usdt": 0.1046,
    "funding_usdt": -0.0390241,
-   "reason": "실제 매매 (바이비트) — 시험 원픽 C(비트코인 단기 하락 + 비트코인과 상관 0.96) BNB 숏 552.87 체결, TP 533.28 전 541.25 에서 수동 정리 (+2.1% 가격, 3배 +6.2%)"
+   "reason": "실제 매매 (바이비트) — 시험 원픽 C(비트코인 단기 하락 + 비트코인과 상관 0.96) BNB 숏 552.87 체결, TP 533.28 전 541.25 에서 수동 정리 (+2.1% 가격, 3배 +6.2%)",
+   "review": {
+    "symbol": "BNBUSDT",
+    "name": "BNB",
+    "direction": "SHORT",
+    "result": "TIME",
+    "result_ko": "수동 정리 (약 23시간, 24시간 규칙 직전)",
+    "entry": 552.87,
+    "exit": 541.25,
+    "roe": 6.19,
+    "pnl_usdt": 3.4204,
+    "entry_time": "2026-11-24T04:10:39Z",
+    "exit_time": "2026-11-25T02:53:26Z",
+    "source": "manual",
+    "held_h": 22.7,
+    "fill_delay_h": 0.6,
+    "mfe": 2.37,
+    "mae": -0.52,
+    "btc_move": -1.81,
+    "flags": [],
+    "new_rules_block": false,
+    "lessons": [
+     "보유하는 동안 비트코인은 -1.81% 움직여 내 방향과 같았습니다."
+    ],
+    "reviewed_at": "2026-11-25T04:28:11Z",
+    "date": "2026-11-25"
+   }
   }
  ],
  "last_events": {
   "date": "2026-11-25",
   "events": []
  },
- "updated_at": "2026-11-25 11:24",
+ "updated_at": "2026-11-25 13:29",
  "last_run": "2026-11-25",
  "rules": {
   "leverage": 3,

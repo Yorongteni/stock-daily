@@ -1213,8 +1213,14 @@
     "chg4h": 0.39320460089236065,
     "above_ema20_4h": false
    },
-   "status": "pending",
-   "filled_at": "2026-11-24T14:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-24T14:00:00+00:00",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "exit": 8.715,
+   "exit_at": "2026-11-25T02:00:00+00:00",
+   "move_pct": -1.69,
+   "roe3": -5.38
   },
   {
    "key": "TRUMPUSDT|SHORT|0.8358|0.8062|0.8545",
@@ -1441,6 +1447,64 @@
     "covering": false,
     "above_ema20_1h": false,
     "chg4h": -1.043208371058114,
+    "above_ema20_4h": false
+   },
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
+  },
+  {
+   "key": "VVVUSDT|LONG|24.916|25.799|24.169",
+   "symbol": "VVVUSDT",
+   "name": "VVV",
+   "side": "LONG",
+   "picked_at": "2026-11-25T04:28:11Z",
+   "valid_until": "2026-11-25T04:58:11Z",
+   "hold_hours": 24,
+   "entry": 24.916,
+   "tp": 25.799,
+   "sl": 24.169,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "실험",
+   "score": 2.01,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 24.715,
+    "chg24": 0.53695643330758,
+    "chg4h": 0.3980988747613452,
+    "rsi1h": 47.184581524701116,
+    "dist1h": -0.4483346048704262,
+    "oi_chg24": 0.32468083105579026,
+    "vol_ratio": 0.6089935634388514,
+    "funding": 0.005,
+    "range24": 9.200890147683596,
+    "hi24": 26.143,
+    "lo24": 23.869
+   },
+   "btc": {
+    "rsi4h": 39.96940552978057,
+    "chg24": -1.5136641018837906,
+    "above_ema20_4h": false
+   },
+   "bias": -2.6,
+   "engine": "btc_sweep",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": null,
+   "btc_ctx": {
+    "price": 59266.8,
+    "chg24": -1.5136641018837906,
+    "oi_chg24": 0.2785039342976692,
+    "oi_chg4h": -0.8920509736588977,
+    "funding": 0.0040872398064700005,
+    "ls_ratio": 2.61,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": -0.6782971664035671,
     "above_ema20_4h": false
    },
    "status": "pending"
