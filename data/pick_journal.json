@@ -1282,8 +1282,14 @@
     "chg4h": 0.39320460089236065,
     "above_ema20_4h": false
    },
-   "status": "pending",
-   "filled_at": "2026-11-24T14:00:00+00:00"
+   "status": "done",
+   "filled_at": "2026-11-24T14:00:00+00:00",
+   "result": "WIN",
+   "result_ko": "익절",
+   "exit": 0.8062,
+   "exit_at": "2026-11-25T13:00:00+00:00",
+   "move_pct": 3.54,
+   "roe3": 10.32
   },
   {
    "key": "TAOUSDT|SHORT|181.62|175.18|185.16",
@@ -1513,7 +1519,9 @@
     "chg4h": -0.6782971664035671,
     "above_ema20_4h": false
    },
-   "status": "pending"
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
   },
   {
    "key": "HYPEUSDT|SHORT|59.188|57.091|60.477",
@@ -1569,7 +1577,9 @@
     "chg4h": -0.6782971664035671,
     "above_ema20_4h": false
    },
-   "status": "pending"
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
   },
   {
    "key": "TAOUSDT|SHORT|178.04|172.08|181.02",
@@ -1623,6 +1633,64 @@
     "covering": false,
     "above_ema20_1h": false,
     "chg4h": -0.7248138912041213,
+    "above_ema20_4h": false
+   },
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
+  },
+  {
+   "key": "HYPEUSDT|SHORT|56.983|54.964|58.148",
+   "symbol": "HYPEUSDT",
+   "name": "하이퍼리퀴드",
+   "side": "SHORT",
+   "picked_at": "2026-11-25T15:14:11Z",
+   "valid_until": "2026-11-25T15:44:11Z",
+   "hold_hours": 24,
+   "entry": 56.983,
+   "tp": 54.964,
+   "sl": 58.148,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 3.066,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 57.553,
+    "chg24": -7.533498280903572,
+    "chg4h": -0.8561584840654604,
+    "rsi1h": 30.510335782952552,
+    "dist1h": -2.3536762386299093,
+    "oi_chg24": -4.874816887924405,
+    "vol_ratio": 2.304752513809891,
+    "funding": 0.00136176694114,
+    "range24": 10.889093531179963,
+    "hi24": 62.371,
+    "lo24": 56.104
+   },
+   "btc": {
+    "rsi4h": 35.74772343632361,
+    "chg24": -3.6314902437328556,
+    "above_ema20_4h": false
+   },
+   "bias": -2.6,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.79,
+   "btc_ctx": {
+    "price": 57939.8,
+    "chg24": -3.6314902437328556,
+    "oi_chg24": 0.6808253324114055,
+    "oi_chg4h": -1.9407201987008293,
+    "funding": 0.00398663757186,
+    "ls_ratio": 2.72,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": -1.1421302554975057,
     "above_ema20_4h": false
    },
    "status": "pending"
