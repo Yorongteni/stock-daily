@@ -1328,6 +1328,62 @@
     "above_ema20_4h": false
    },
    "status": "pending"
+  },
+  {
+   "key": "TAOUSDT|SHORT|180.33|173.94|183.75",
+   "symbol": "TAOUSDT",
+   "name": "비텐서",
+   "side": "SHORT",
+   "picked_at": "2026-11-25T00:21:14Z",
+   "valid_until": "2026-11-25T00:51:14Z",
+   "hold_hours": 24,
+   "entry": 180.33,
+   "tp": 173.94,
+   "sl": 183.75,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 2.186,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 181.14,
+    "chg24": -5.028050123210832,
+    "chg4h": 0.4937586685159516,
+    "rsi1h": 36.56398607998517,
+    "dist1h": -1.3606906204740143,
+    "oi_chg24": -3.635476425850215,
+    "vol_ratio": 0.35178407514654547,
+    "funding": 0.00459237322108,
+    "range24": 7.165728166059396,
+    "hi24": 192.03,
+    "lo24": 179.05
+   },
+   "btc": {
+    "rsi4h": 42.35879212590213,
+    "chg24": -2.3663547556497377,
+    "above_ema20_4h": false
+   },
+   "bias": -2.0,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.82,
+   "btc_ctx": {
+    "price": 59494.0,
+    "chg24": -2.3663547556497377,
+    "oi_chg24": 0.6303439003422007,
+    "oi_chg4h": -0.5064479575358383,
+    "funding": 0.00501659612137,
+    "ls_ratio": 2.59,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": 0.23534775816173692,
+    "above_ema20_4h": false
+   },
+   "status": "pending"
   }
  ]
 }

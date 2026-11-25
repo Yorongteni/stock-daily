@@ -516,11 +516,11 @@
   }
  ],
  "last_events": {
-  "date": "2026-11-24",
+  "date": "2026-11-25",
   "events": []
  },
- "updated_at": "2026-11-24 22:52",
- "last_run": "2026-11-24",
+ "updated_at": "2026-11-25 09:22",
+ "last_run": "2026-11-25",
  "rules": {
   "leverage": 3,
   "margin_usdt": 360,
