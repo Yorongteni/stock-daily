@@ -1751,6 +1751,64 @@
     "chg4h": -0.23107666057613585,
     "above_ema20_4h": false
    },
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
+  },
+  {
+   "key": "XRPUSDT|SHORT|0.9345|0.9057|0.9489",
+   "symbol": "XRPUSDT",
+   "name": "리플",
+   "side": "SHORT",
+   "picked_at": "2026-11-25T23:22:14Z",
+   "valid_until": "2026-11-25T23:52:14Z",
+   "hold_hours": 24,
+   "entry": 0.9345,
+   "tp": 0.9057,
+   "sl": 0.9489,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 1.31,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 0.9366,
+    "chg24": 1.199351701782831,
+    "chg4h": 0.894107508348597,
+    "rsi1h": 59.55881957754012,
+    "dist1h": 1.4440951808604163,
+    "oi_chg24": -1.450570219325653,
+    "vol_ratio": 0.7539851705487379,
+    "funding": 0.00675341150288,
+    "range24": 6.406149903907757,
+    "hi24": 0.9484,
+    "lo24": 0.8884
+   },
+   "btc": {
+    "rsi4h": 47.19624397760769,
+    "chg24": 0.2204828942299173,
+    "above_ema20_4h": true
+   },
+   "bias": -2.1,
+   "engine": "sweep",
+   "cancel_level": 0.9469,
+   "sweep_score": 1.31,
+   "btc_corr": 0.88,
+   "btc_ctx": {
+    "price": 60250.0,
+    "chg24": 0.2204828942299173,
+    "oi_chg24": 3.596895051941895,
+    "oi_chg4h": 0.3374478275458337,
+    "funding": 0.01,
+    "ls_ratio": 2.67,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": true,
+    "chg4h": 0.6557788944723768,
+    "above_ema20_4h": true
+   },
    "status": "pending"
   }
  ]
