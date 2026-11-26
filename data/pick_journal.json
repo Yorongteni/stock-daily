@@ -1930,6 +1930,64 @@
     "chg4h": -0.09762190412017446,
     "above_ema20_4h": true
    },
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
+  },
+  {
+   "key": "LITUSDT|SHORT|2.4909|2.4359|2.5184",
+   "symbol": "LITUSDT",
+   "name": "LIT",
+   "side": "SHORT",
+   "picked_at": "2026-11-26T09:28:57Z",
+   "valid_until": "2026-11-26T09:58:57Z",
+   "hold_hours": 24,
+   "entry": 2.4909,
+   "tp": 2.4359,
+   "sl": 2.5184,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 1.002,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 2.5057,
+    "chg24": 8.018278225632613,
+    "chg4h": 0.46106968166144213,
+    "rsi1h": 64.9098740961612,
+    "dist1h": 3.360199760797067,
+    "oi_chg24": 8.322449604765403,
+    "vol_ratio": 0.8343829547342768,
+    "funding": -9.91550691e-05,
+    "range24": 13.700762262042549,
+    "hi24": 2.5171,
+    "lo24": 2.1738
+   },
+   "btc": {
+    "rsi4h": 51.318347378249754,
+    "chg24": 2.5132210546874347,
+    "above_ema20_4h": true
+   },
+   "bias": -1.0,
+   "engine": "sweep",
+   "cancel_level": 2.5161,
+   "sweep_score": 1.002,
+   "btc_corr": 0.66,
+   "btc_ctx": {
+    "price": 60748.2,
+    "chg24": 2.5132210546874347,
+    "oi_chg24": 2.0327740666834293,
+    "oi_chg4h": 0.7787382544871102,
+    "funding": 0.0086857737809,
+    "ls_ratio": 2.47,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": true,
+    "chg4h": -0.101069432731407,
+    "above_ema20_4h": true
+   },
    "status": "pending"
   }
  ]
