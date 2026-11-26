@@ -570,6 +570,37 @@
     "reviewed_at": "2026-11-25T04:28:11Z",
     "date": "2026-11-25"
    }
+  },
+  {
+   "id": "2026-11-26-XRPUSDT-real",
+   "symbol": "XRPUSDT",
+   "name": "리플",
+   "direction": "SHORT",
+   "source": "manual",
+   "engine": "sweep",
+   "grade": "A",
+   "pick_time": "2026-11-25T23:22:00Z",
+   "limit": 0.9345,
+   "entry": 0.9358,
+   "entry_time": "2026-11-25T23:34:28Z",
+   "tp": 0.9057,
+   "sl": 0.9489,
+   "sl_set": 0.96,
+   "qty": 200.0,
+   "margin": 62.39,
+   "leverage": 3,
+   "be_moved": false,
+   "exit": 0.96,
+   "exit_time": "2026-11-26T02:47:04Z",
+   "result": "LOSS",
+   "result_ko": "손절",
+   "roe": -7.92,
+   "pnl_usdt": -4.9431,
+   "pnl_krw": -6636,
+   "fx": 1342.5,
+   "fees_usdt": 0.1219,
+   "funding_usdt": -0.018748,
+   "reason": "실제 매매 (바이비트) — A 원픽(스윕+비트 하락 파동) 리플 숏 0.9358 체결. 원픽 SL 0.9489 대신 0.96(→ 청산 0.96)으로 걸려 손실이 계획(-2.6)의 약 1.9배. 비트코인이 57,258 저점에서 반등해 직전 고점 59,459를 넘던 파동 전환 경계 구간이었음"
   }
  ],
  "last_events": {
