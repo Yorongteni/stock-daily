@@ -49,7 +49,7 @@ DEFAULTS = {
     # 2026-11-21 UNI 숏 손절 복기로 추가 (과매도 추격 숏 차단)
     "chase_rsi": 28, "chase_dist": 3.5, "oi_min": 1.0, "btc_exhaust_rsi": 22,
     # 2026-11-23 백테스트(tools/bt_coin.py)로 바꾼 원픽 엔진: 유동성 스윕 + 15분봉 구조 전환, 시장가 진입, 손익비 2
-    "engine": "sweep", "sweep_valid_min": 30, "tp_roe_min": 5.0, "tp_roe_max": 10.0, "exp_btc_sweep": True, "exp_margin": 60.0, "exp_window_h": 6, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 180.0,
+    "engine": "sweep", "sweep_valid_min": 30, "tp_roe_min": 5.0, "tp_roe_max": 10.0, "exp_btc_sweep": True, "exp_margin": 60.0, "exp_window_h": 6, "sweep_rr": 2.0, "sweep_recent": 12, "sweep_base": 96, "sweep_margin": 60.0,
 }
 # 금·은·주식 등 코인이 아닌 무기한 선물 (거래소가 함께 상장) — 원픽 대상에서 뺀다
 NON_CRYPTO = {"XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "OIL", "WTI", "BRENT", "NATGAS", "COPPER", "EURUSD", "GBPUSD", "USDJPY"}
