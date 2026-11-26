@@ -1814,30 +1814,30 @@
   }
  },
  "2026-11-26": {
-  "kospi": -6.16,
+  "kospi": 0.28,
   "sp500": -0.25,
-  "headline": "코스피 6% 폭락 뒤 숨고르기, 금통위가 변수",
+  "headline": "금리 인상에도 반등, 오늘 밤 미국장은 휴장",
   "stance": "관망 (지금 비중 유지)",
   "allocation": {
-   "kr_equity": 20,
-   "us_equity": 25,
+   "kr_equity": 22,
+   "us_equity": 28,
    "gold_commodities": 10,
-   "usd_cash": 20,
-   "krw_cash_bonds": 20,
+   "usd_cash": 18,
+   "krw_cash_bonds": 17,
    "alternatives": 5
   },
   "lists": {
    "value": [
     "SMCI",
     "064350.KS",
+    "NVDA",
     "GOOGL",
-    "QCOM",
     "PYPL"
    ],
    "growth": [
     "MU",
-    "PLTR",
     "196170.KQ",
+    "PLTR",
     "SMCI",
     "042660.KS"
    ],
@@ -1853,14 +1853,14 @@
    "value": [
     "슈퍼마이크로",
     "현대로템",
+    "엔비디아",
     "알파벳",
-    "퀄컴",
     "페이팔"
    ],
    "growth": [
     "마이크론",
-    "팔란티어",
     "알테오젠",
+    "팔란티어",
     "슈퍼마이크로",
     "한화오션"
    ],
@@ -1874,13 +1874,13 @@
   },
   "valuation": {
    "kr": {
-    "pe_median": 19.26,
-    "pb_median": 2.17,
-    "earnings_yield": 5.19,
+    "pe_median": 17.72,
+    "pb_median": 2.22,
+    "earnings_yield": 5.64,
     "n": 55
    },
    "us": {
-    "pe_median": 23.96,
+    "pe_median": 23.97,
     "pb_median": 6.03,
     "earnings_yield": 4.17,
     "n": 90
@@ -1892,6 +1892,12 @@
     "stance": "관망 (지금 비중 유지)",
     "headline": "코스피 6% 폭락 뒤 숨고르기, 금통위가 변수",
     "built_at": "2026-11-26 06:12"
+   },
+   "pm": {
+    "ai": true,
+    "stance": "관망 (지금 비중 유지)",
+    "headline": "금리 인상에도 반등, 오늘 밤 미국장은 휴장",
+    "built_at": "2026-11-26 21:15"
    }
   }
  }
