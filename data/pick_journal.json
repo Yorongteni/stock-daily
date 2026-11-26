@@ -1810,6 +1810,62 @@
     "above_ema20_4h": true
    },
    "status": "pending"
+  },
+  {
+   "key": "PEPEUSDT|SHORT|3.4949e-06|3.3711e-06|3.5656e-06",
+   "symbol": "PEPEUSDT",
+   "name": "페페",
+   "side": "SHORT",
+   "picked_at": "2026-11-26T00:59:10Z",
+   "valid_until": "2026-11-26T01:29:10Z",
+   "hold_hours": 24,
+   "entry": 3.4949e-06,
+   "tp": 3.3711e-06,
+   "sl": 3.5656e-06,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 1.486,
+   "passed": 5,
+   "aligned": true,
+   "missing": [],
+   "feats": {
+    "close": 3.4818e-06,
+    "chg24": 0.8340573414422181,
+    "chg4h": 0.2562699761006684,
+    "rsi1h": 55.8230313838214,
+    "dist1h": 1.3748592985576735,
+    "oi_chg24": 0.3488553920628856,
+    "vol_ratio": 0.3119840386742773,
+    "funding": -0.027089563394230003,
+    "range24": 8.771325176632779,
+    "hi24": 3.5476e-06,
+    "lo24": 3.2422e-06
+   },
+   "btc": {
+    "rsi4h": 51.093116672082594,
+    "chg24": 1.0634348326331775,
+    "above_ema20_4h": true
+   },
+   "bias": -1.0,
+   "engine": "sweep",
+   "cancel_level": 3.5476e-06,
+   "sweep_score": 1.486,
+   "btc_corr": 0.68,
+   "btc_ctx": {
+    "price": 60517.4,
+    "chg24": 1.0634348326331775,
+    "oi_chg24": 2.2074150084388178,
+    "oi_chg4h": -2.2305542490902552,
+    "funding": 0.01,
+    "ls_ratio": 2.78,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": true,
+    "chg4h": 0.9631416628519673,
+    "above_ema20_4h": true
+   },
+   "status": "pending"
   }
  ]
 }
