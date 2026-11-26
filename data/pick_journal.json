@@ -1988,6 +1988,64 @@
     "chg4h": -0.101069432731407,
     "above_ema20_4h": true
    },
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
+  },
+  {
+   "key": "WLDUSDT|SHORT|0.2443|0.2393|0.2468",
+   "symbol": "WLDUSDT",
+   "name": "월드코인",
+   "side": "SHORT",
+   "picked_at": "2026-11-26T12:33:36Z",
+   "valid_until": "2026-11-26T13:03:36Z",
+   "hold_hours": 24,
+   "entry": 0.2443,
+   "tp": 0.2393,
+   "sl": 0.2468,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 0.812,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 0.2454,
+    "chg24": 7.443082311733804,
+    "chg4h": 1.6991297140489081,
+    "rsi1h": 65.8168225340979,
+    "dist1h": 2.0020326467752314,
+    "oi_chg24": 2.737043336994316,
+    "vol_ratio": 0.6329891954968238,
+    "funding": -0.00565548652939,
+    "range24": 10.024449877750605,
+    "hi24": 0.2463,
+    "lo24": 0.2217
+   },
+   "btc": {
+    "rsi4h": 52.60614971557275,
+    "chg24": 3.538791750269567,
+    "above_ema20_4h": true
+   },
+   "bias": -1.0,
+   "engine": "try_B",
+   "cancel_level": 0.2463,
+   "sweep_score": null,
+   "btc_corr": null,
+   "btc_ctx": {
+    "price": 60626.3,
+    "chg24": 3.538791750269567,
+    "oi_chg24": 2.0981690373342854,
+    "oi_chg4h": -0.8412709584824762,
+    "funding": 0.00567557112133,
+    "ls_ratio": 2.43,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": true,
+    "chg4h": 0.30396392763047686,
+    "above_ema20_4h": true
+   },
    "status": "pending"
   }
  ]
