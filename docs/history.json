@@ -1900,5 +1900,87 @@
     "built_at": "2026-11-26 21:15"
    }
   }
+ },
+ "2026-11-27": {
+  "kospi": 0.29,
+  "sp500": -0.25,
+  "headline": "한은 인상·미국 관세 불안, 코스피 4,700대 공방",
+  "stance": "관망 (지금 비중 유지)",
+  "allocation": {
+   "kr_equity": 22,
+   "us_equity": 28,
+   "gold_commodities": 12,
+   "usd_cash": 18,
+   "krw_cash_bonds": 15,
+   "alternatives": 5
+  },
+  "lists": {
+   "value": [
+    "SMCI",
+    "064350.KS",
+    "NVDA",
+    "GOOGL",
+    "PYPL"
+   ],
+   "growth": [
+    "MU",
+    "196170.KQ",
+    "PLTR",
+    "SMCI",
+    "042660.KS"
+   ],
+   "overvalued": [
+    "277810.KQ",
+    "PANW",
+    "003670.KS",
+    "TSLA",
+    "V"
+   ]
+  },
+  "names": {
+   "value": [
+    "슈퍼마이크로",
+    "현대로템",
+    "엔비디아",
+    "알파벳",
+    "페이팔"
+   ],
+   "growth": [
+    "마이크론",
+    "알테오젠",
+    "팔란티어",
+    "슈퍼마이크로",
+    "한화오션"
+   ],
+   "overvalued": [
+    "레인보우로보틱스",
+    "팔로알토네트웍스",
+    "포스코퓨처엠",
+    "테슬라",
+    "비자"
+   ]
+  },
+  "valuation": {
+   "kr": {
+    "pe_median": 18.48,
+    "pb_median": 2.24,
+    "earnings_yield": 5.41,
+    "n": 55
+   },
+   "us": {
+    "pe_median": 23.97,
+    "pb_median": 6.03,
+    "earnings_yield": 4.17,
+    "n": 90
+   }
+  },
+  "slots": {
+   "am": {
+    "ai": true,
+    "stance": "관망 (지금 비중 유지)",
+    "headline": "한은 인상·미국 관세 불안, 코스피 4,700대 공방",
+    "built_at": "2026-11-27 06:11"
+   }
+  }
  }
 }
