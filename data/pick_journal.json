@@ -2288,6 +2288,62 @@
     "above_ema20_4h": true
    },
    "status": "pending"
+  },
+  {
+   "key": "ENAUSDT|SHORT|0.10718|0.10454|0.1085",
+   "symbol": "ENAUSDT",
+   "name": "에테나",
+   "side": "SHORT",
+   "picked_at": "2026-11-27T12:40:01Z",
+   "valid_until": "2026-11-27T13:10:01Z",
+   "hold_hours": 24,
+   "entry": 0.10718,
+   "tp": 0.10454,
+   "sl": 0.1085,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "B",
+   "score": 0.704,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 0.10828,
+    "chg24": 5.443568020255142,
+    "chg4h": 1.7764827521383495,
+    "rsi1h": 77.679484948913,
+    "dist1h": 3.67092416487913,
+    "oi_chg24": 1.9415026654601375,
+    "vol_ratio": 1.0073489409417744,
+    "funding": -0.0023652195780799997,
+    "range24": 9.226080531954192,
+    "hi24": 0.10845,
+    "lo24": 0.09846
+   },
+   "btc": {
+    "rsi4h": 59.52910470786709,
+    "chg24": 1.5569049757351507,
+    "above_ema20_4h": true
+   },
+   "bias": 1.0,
+   "engine": "try_B",
+   "cancel_level": 0.10794,
+   "sweep_score": null,
+   "btc_corr": null,
+   "btc_ctx": {
+    "price": 61528.2,
+    "chg24": 1.5569049757351507,
+    "oi_chg24": 2.4637525794393156,
+    "oi_chg4h": -0.04858230797840646,
+    "funding": -0.00091593005719,
+    "ls_ratio": 2.43,
+    "trend4": 0,
+    "covering": false,
+    "above_ema20_1h": true,
+    "chg4h": 0.009249703035862922,
+    "above_ema20_4h": true
+   },
+   "status": "pending"
   }
  ]
 }
