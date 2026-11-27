@@ -2167,6 +2167,63 @@
     "chg4h": -0.4212360981379675,
     "above_ema20_4h": true
    },
+   "status": "pending",
+   "filled_at": "2026-11-26T20:00:00+00:00"
+  },
+  {
+   "key": "TRUMPUSDT|SHORT|0.8807|0.8528|0.8947",
+   "symbol": "TRUMPUSDT",
+   "name": "트럼프",
+   "side": "SHORT",
+   "picked_at": "2026-11-27T02:50:01Z",
+   "valid_until": "2026-11-27T03:20:01Z",
+   "hold_hours": 24,
+   "entry": 0.8807,
+   "tp": 0.8528,
+   "sl": 0.8947,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 2.315,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 0.866,
+    "chg24": -3.948535936113572,
+    "chg4h": -1.2204859130831522,
+    "rsi1h": 46.734012668042155,
+    "dist1h": -0.5814662254570613,
+    "oi_chg24": -0.7465346898115843,
+    "vol_ratio": 0.5120826614513324,
+    "funding": -0.0005595690907900001,
+    "range24": 6.478060046189368,
+    "hi24": 0.9105,
+    "lo24": 0.8544
+   },
+   "btc": {
+    "rsi4h": 51.37091256047078,
+    "chg24": -0.22712705638733155,
+    "above_ema20_4h": true
+   },
+   "bias": -1.5,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.62,
+   "btc_ctx": {
+    "price": 61393.2,
+    "chg24": -0.22712705638733155,
+    "oi_chg24": 3.43531058208546,
+    "oi_chg4h": 1.8441498758537955,
+    "funding": 0.007255268712789999,
+    "ls_ratio": 2.52,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": true,
+    "chg4h": -0.13554593427996053,
+    "above_ema20_4h": true
+   },
    "status": "pending"
   }
  ]
