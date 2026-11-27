@@ -1902,16 +1902,16 @@
   }
  },
  "2026-11-27": {
-  "kospi": 0.29,
+  "kospi": 4.16,
   "sp500": -0.25,
-  "headline": "한은 인상·미국 관세 불안, 코스피 4,700대 공방",
+  "headline": "코스피 4,900 탈환, 오늘 밤 미국장 상승 예상",
   "stance": "관망 (지금 비중 유지)",
   "allocation": {
-   "kr_equity": 22,
+   "kr_equity": 23,
    "us_equity": 28,
-   "gold_commodities": 12,
-   "usd_cash": 18,
-   "krw_cash_bonds": 15,
+   "gold_commodities": 10,
+   "usd_cash": 17,
+   "krw_cash_bonds": 17,
    "alternatives": 5
   },
   "lists": {
@@ -1933,8 +1933,8 @@
     "277810.KQ",
     "PANW",
     "003670.KS",
-    "TSLA",
-    "V"
+    "141080.KQ",
+    "TSLA"
    ]
   },
   "names": {
@@ -1956,15 +1956,15 @@
     "레인보우로보틱스",
     "팔로알토네트웍스",
     "포스코퓨처엠",
-    "테슬라",
-    "비자"
+    "리가켐바이오",
+    "테슬라"
    ]
   },
   "valuation": {
    "kr": {
-    "pe_median": 18.48,
-    "pb_median": 2.24,
-    "earnings_yield": 5.41,
+    "pe_median": 19.1,
+    "pb_median": 2.2,
+    "earnings_yield": 5.23,
     "n": 55
    },
    "us": {
@@ -1980,6 +1980,12 @@
     "stance": "관망 (지금 비중 유지)",
     "headline": "한은 인상·미국 관세 불안, 코스피 4,700대 공방",
     "built_at": "2026-11-27 06:11"
+   },
+   "pm": {
+    "ai": true,
+    "stance": "관망 (지금 비중 유지)",
+    "headline": "코스피 4,900 탈환, 오늘 밤 미국장 상승 예상",
+    "built_at": "2026-11-27 21:13"
    }
   }
  }
