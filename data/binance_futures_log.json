@@ -630,6 +630,37 @@
     "reviewed_at": "2026-11-26T06:14:51Z",
     "date": "2026-11-26"
    }
+  },
+  {
+   "id": "2026-11-27-ENAUSDT-real",
+   "symbol": "ENAUSDT",
+   "name": "에테나",
+   "direction": "SHORT",
+   "source": "manual",
+   "engine": "sweep",
+   "grade": "B",
+   "pick_time": "2026-11-27T12:40:00Z",
+   "limit": 0.10718,
+   "entry": 0.10718,
+   "entry_time": "2026-11-27T12:52:45Z",
+   "tp": 0.10454,
+   "sl": 0.1085,
+   "sl0": null,
+   "qty": 1000.0,
+   "margin": 35.73,
+   "leverage": 3,
+   "be_moved": false,
+   "exit": 0.10456,
+   "exit_time": "2026-11-27T14:34:02Z",
+   "result": "WIN",
+   "result_ko": "익절",
+   "roe": 7.14,
+   "pnl_usdt": 2.5525,
+   "pnl_krw": 3427,
+   "fx": 1342.5,
+   "fees_usdt": 0.0674,
+   "funding_usdt": 0.0,
+   "reason": "실제 매매 (바이비트) — 시험 원픽 B(스윕+구조 전환, 비트 1시간 상승과 반대) 에테나 숏 0.10718 체결, TP 0.10454 근처 0.10456 익절. 수량은 원픽 1,679 대신 1,000 (증거금 약 36 USDT)"
   }
  ],
  "last_events": {
