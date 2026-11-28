@@ -26,6 +26,6 @@
 - 근거: `tools/bt_portfolio.py`, `data/bt_equity_result.json` (개별주 모멘텀 순환은 생존 편향 빼면 지수보다 못함).
 
 ## 자동 실행
-- 깃허브 Actions: 매시간 원픽 일지(`coin-journal.yml`, Claude 사용량 0), 나이트 브리핑 데이터·리포트·영상.
+- 깃허브 Actions: 매시간 원픽 일지(`coin-journal.yml`, Claude 사용량 0) + 가상 매매(3시간마다 원픽으로 60 USDT·3배 지금 가격 모의 진입, 매시간 채점 → `data/paper_trades.json`, 보고 `python3 tools/paper_trade.py report 24`, 21:07 알림에 일일 보고 포함), 나이트 브리핑 데이터·리포트·영상.
 - claude.ai 예약 작업: 코인 급변+원픽 알림 하루 3번(09:07·15:07·21:07), 나이트 브리핑 AI 분석(평일 21:05). 모닝 브리핑 AI 분석은 사용량 절약으로 꺼 둠(2026-11-26).
 - 커밋 메시지 끝: `Co-Authored-By` 와 `Claude-Session` 줄 (세션 안내를 따름). 모델 이름은 커밋에 쓰지 않음.
