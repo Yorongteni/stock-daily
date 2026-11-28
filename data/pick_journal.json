@@ -2467,6 +2467,64 @@
     "chg4h": 0.02304605369731405,
     "above_ema20_4h": false
    },
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
+  },
+  {
+   "key": "LTCUSDT|LONG|44.71|46.29|43.92",
+   "symbol": "LTCUSDT",
+   "name": "라이트코인",
+   "side": "LONG",
+   "picked_at": "2026-11-28T03:19:26Z",
+   "valid_until": "2026-11-28T03:49:26Z",
+   "hold_hours": 24,
+   "entry": 44.71,
+   "tp": 46.29,
+   "sl": 43.92,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 2.473,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 44.82,
+    "chg24": 1.0597519729425073,
+    "chg4h": 0.7191011235954932,
+    "rsi1h": 59.717491758493765,
+    "dist1h": 1.057757100816925,
+    "oi_chg24": 8.361949097467459,
+    "vol_ratio": 1.6241479611576992,
+    "funding": -0.00460140504658,
+    "range24": 6.113342257920575,
+    "hi24": 45.64,
+    "lo24": 42.9
+   },
+   "btc": {
+    "rsi4h": 44.66249797108683,
+    "chg24": -2.2198984993499096,
+    "above_ema20_4h": false
+   },
+   "bias": -2.0,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.75,
+   "btc_ctx": {
+    "price": 59950.0,
+    "chg24": -2.2198984993499096,
+    "oi_chg24": -2.3994815345637854,
+    "oi_chg4h": 0.4026407864855974,
+    "funding": 0.006527238324139999,
+    "ls_ratio": 2.98,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": 0.37578560794709404,
+    "above_ema20_4h": false
+   },
    "status": "pending"
   }
  ]
