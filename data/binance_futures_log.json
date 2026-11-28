@@ -660,15 +660,42 @@
    "fx": 1342.5,
    "fees_usdt": 0.0674,
    "funding_usdt": 0.0,
-   "reason": "실제 매매 (바이비트) — 시험 원픽 B(스윕+구조 전환, 비트 1시간 상승과 반대) 에테나 숏 0.10718 체결, TP 0.10454 근처 0.10456 익절. 수량은 원픽 1,679 대신 1,000 (증거금 약 36 USDT)"
+   "reason": "실제 매매 (바이비트) — 시험 원픽 B(스윕+구조 전환, 비트 1시간 상승과 반대) 에테나 숏 0.10718 체결, TP 0.10454 근처 0.10456 익절. 수량은 원픽 1,679 대신 1,000 (증거금 약 36 USDT)",
+   "review": {
+    "symbol": "ENAUSDT",
+    "name": "에테나",
+    "direction": "SHORT",
+    "result": "WIN",
+    "result_ko": "익절",
+    "entry": 0.10718,
+    "exit": 0.10456,
+    "roe": 7.14,
+    "pnl_usdt": 2.5525,
+    "entry_time": "2026-11-27T12:52:45Z",
+    "exit_time": "2026-11-27T14:34:02Z",
+    "source": "manual",
+    "held_h": 1.7,
+    "fill_delay_h": 0.2,
+    "mfe": 5.99,
+    "mae": -1.13,
+    "after6h": 0.77,
+    "btc_move": -3.97,
+    "flags": [],
+    "new_rules_block": false,
+    "lessons": [
+     "보유하는 동안 비트코인은 -3.97% 움직여 내 방향과 같았습니다."
+    ],
+    "reviewed_at": "2026-11-28T00:25:47Z",
+    "date": "2026-11-28"
+   }
   }
  ],
  "last_events": {
-  "date": "2026-11-27",
+  "date": "2026-11-28",
   "events": []
  },
- "updated_at": "2026-11-27 21:40",
- "last_run": "2026-11-27",
+ "updated_at": "2026-11-28 09:26",
+ "last_run": "2026-11-28",
  "rules": {
   "leverage": 3,
   "margin_usdt": 360,

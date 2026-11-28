@@ -2409,6 +2409,64 @@
     "chg4h": -0.2638165798958738,
     "above_ema20_4h": false
    },
+   "status": "done",
+   "result": "NO_FILL",
+   "result_ko": "미체결"
+  },
+  {
+   "key": "UNIUSDT|LONG|4.817|4.988|4.72",
+   "symbol": "UNIUSDT",
+   "name": "유니스왑",
+   "side": "LONG",
+   "picked_at": "2026-11-28T00:25:47Z",
+   "valid_until": "2026-11-28T00:55:47Z",
+   "hold_hours": 24,
+   "entry": 4.817,
+   "tp": 4.988,
+   "sl": 4.72,
+   "be_trigger": null,
+   "be_price": null,
+   "grade": "C",
+   "score": 3.837,
+   "passed": null,
+   "aligned": null,
+   "missing": [],
+   "feats": {
+    "close": 4.825,
+    "chg24": 3.6965398667526443,
+    "chg4h": -0.35109458901278856,
+    "rsi1h": 53.24569572523279,
+    "dist1h": 0.24548063158060796,
+    "oi_chg24": -4.602921903888979,
+    "vol_ratio": 0.3392759759133788,
+    "funding": 0.01,
+    "range24": 5.886010362694297,
+    "hi24": 4.93,
+    "lo24": 4.646
+   },
+   "btc": {
+    "rsi4h": 44.66249797108683,
+    "chg24": -1.0834039362575254,
+    "above_ema20_4h": false
+   },
+   "bias": -2.0,
+   "engine": "try_C",
+   "cancel_level": null,
+   "sweep_score": null,
+   "btc_corr": 0.8,
+   "btc_ctx": {
+    "price": 59932.0,
+    "chg24": -1.0834039362575254,
+    "oi_chg24": -0.5805261935982853,
+    "oi_chg4h": -0.7531201908608343,
+    "funding": 0.00534176523725,
+    "ls_ratio": 2.99,
+    "trend4": -1,
+    "covering": false,
+    "above_ema20_1h": false,
+    "chg4h": 0.02304605369731405,
+    "above_ema20_4h": false
+   },
    "status": "pending"
   }
  ]
